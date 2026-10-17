@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth-context';
+import { useCart } from '../../lib/cart-context';
 
 /**
  * Main Application Layout
@@ -9,6 +10,7 @@ import { useAuth } from '../../lib/auth-context';
 export function AppLayout() {
   const location = useLocation();
   const { user, admin, isAuthenticated, userType, logout, adminLogout } = useAuth();
+  const { count } = useCart();
 
   const handleLogout = () => {
     if (userType === 'admin') {
@@ -42,10 +44,24 @@ export function AppLayout() {
                 Products
               </Link>
               <Link 
+                to="/categories" 
+                className={`text-sm ${location.pathname.startsWith('/categories') ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Categories
+              </Link>
+              <Link 
                 to="/cart" 
                 className={`text-sm ${location.pathname === '/cart' ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 Cart
+                {count > 0 ? (
+                  <span
+                    className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                    aria-label={`${count} items in cart`}
+                  >
+                    {count}
+                  </span>
+                ) : null}
               </Link>
               
               {isAuthenticated ? (
@@ -107,5 +123,3 @@ export function AppLayout() {
     </div>
   );
 }
-
-import { Outlet } from 'react-router-dom';

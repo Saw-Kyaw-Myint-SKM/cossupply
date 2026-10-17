@@ -1,100 +1,159 @@
-import { healthCheck } from '../../../api/client';
-import { useState, useEffect } from 'react';
-
 /**
- * Home Page
- * 
- * Public landing page for CoSupply.
+ * Home Page (Task 05).
+ *
+ * Public landing page for CoSupply: the hero, the category entry points, and
+ * the newest published products. Everything here is served by the
+ * unauthenticated catalog endpoints, so it works for a guest with no token.
  */
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  listCategories,
+  listProducts,
+  type PublicCategory,
+  type PublicProduct,
+} from '../../../api/catalog';
+import {
+  Alert,
+  EmptyState,
+  LoadingPanel,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../../../components/catalog-ui/CatalogUi';
+import { ProductCard, describeCatalogError } from '../components/ProductUi';
+
 export default function HomePage() {
-  const [healthStatus, setHealthStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<PublicCategory[]>([]);
+  const [products, setProducts] = useState<PublicProduct[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Test API health on mount
-    healthCheck()
-      .then((response) => {
-        if (response.success && response.data) {
-          setHealthStatus(response.data.status);
-        } else {
-          setError(response.message || 'Failed to connect to API');
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+
+    Promise.all([listCategories({ per_page: 8 }), listProducts({ per_page: 8 })])
+      .then(([categoryResponse, productResponse]) => {
+        if (cancelled) return;
+
+        if (categoryResponse.success && categoryResponse.data) {
+          setCategories(categoryResponse.data.categories);
+        }
+
+        if (productResponse.success && productResponse.data) {
+          setProducts(productResponse.data.products);
+        } else if (!productResponse.success) {
+          setLoadError(describeCatalogError(productResponse, 'products'));
         }
       })
-      .catch((err: Error) => {
-        setError(err.message || 'Network error');
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
-    <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg p-8 text-white">
+    <div className="space-y-10">
+      <section className="rounded-lg bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">Welcome to CoSupply</h1>
         <p className="text-blue-100 mb-4">
           Your trusted office supplies quotation platform
         </p>
-        <p className="text-sm text-blue-200">
-          Browse products, request quotations, and manage orders - all in one place.
+        <p className="text-sm text-blue-200 max-w-2xl">
+          Browse published products, compare display prices, build a cart, and request a
+          quotation. Prices shown are display prices — final pricing is confirmed by the supplier
+          in your quotation.
         </p>
-      </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link to="/products" className={`${primaryButtonClass} inline-block`}>
+            Browse products
+          </Link>
+          <Link
+            to="/categories"
+            className={`${secondaryButtonClass} inline-block border border-blue-300 bg-white/10 text-white hover:bg-white/20`}
+          >
+            Browse categories
+          </Link>
+        </div>
+      </section>
 
-      {/* API Status */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">API Status</h2>
-        {healthStatus && (
-          <div className="flex items-center gap-2 text-green-600">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <span className="font-medium">API is {healthStatus}</span>
+      <section aria-labelledby="home-categories-heading">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 id="home-categories-heading" className="text-lg font-semibold text-gray-900">
+              Categories
+            </h2>
+            <p className="text-sm text-gray-500">Jump straight to the branch you need.</p>
           </div>
-        )}
-        {error && (
-          <div className="flex items-center gap-2 text-red-600">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <span className="font-medium">{error}</span>
-          </div>
-        )}
-        {!healthStatus && !error && (
-          <div className="flex items-center gap-2 text-gray-500">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-            <span>Checking API connection...</span>
-          </div>
-        )}
-      </div>
+          <Link to="/categories" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+            All categories &rarr;
+          </Link>
+        </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Browse Products</h3>
-          <p className="text-gray-600 text-sm mb-4">
-            Explore our catalog of office supplies from various suppliers.
-          </p>
-          <a href="/products" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            View Products &rarr;
-          </a>
+        {isLoading && !categories.length ? <LoadingPanel label="Loading categories" /> : null}
+
+        {!isLoading && categories.length === 0 && !loadError ? (
+          <EmptyState title="No categories published yet" />
+        ) : null}
+
+        {categories.length > 0 ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                to={`/products?category_id=${category.id}`}
+                className="group rounded-lg bg-white p-4 shadow transition hover:shadow-md"
+              >
+                <span className="block truncate text-sm font-medium text-gray-900 group-hover:text-blue-700">
+                  {category.name_en}
+                </span>
+                <span className="mt-1 block truncate text-sm text-gray-500">
+                  {category.name_mm}
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="home-products-heading">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 id="home-products-heading" className="text-lg font-semibold text-gray-900">
+              Latest products
+            </h2>
+            <p className="text-sm text-gray-500">
+              Newly published items from our suppliers.
+            </p>
+          </div>
+          <Link to="/products" className="text-sm font-medium text-blue-600 hover:text-blue-800">
+            All products &rarr;
+          </Link>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Request Quotation</h3>
-          <p className="text-gray-600 text-sm mb-4">
-            Add items to cart and submit a quotation request.
-          </p>
-          <a href="/cart" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            View Cart &rarr;
-          </a>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Track Orders</h3>
-          <p className="text-gray-600 text-sm mb-4">
-            Monitor your quotation and order status.
-          </p>
-          <a href="/login" className="text-blue-600 hover:text-blue-800 font-medium text-sm">
-            Login to Dashboard &rarr;
-          </a>
-        </div>
-      </div>
+
+        {isLoading ? <LoadingPanel label="Loading products" /> : null}
+
+        {!isLoading && loadError ? <Alert tone="error">{loadError}</Alert> : null}
+
+        {!isLoading && !loadError && products !== null && products.length === 0 ? (
+          <EmptyState
+            title="No products published yet"
+            hint="New products will appear here as soon as suppliers publish them."
+          />
+        ) : null}
+
+        {!isLoading && products && products.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

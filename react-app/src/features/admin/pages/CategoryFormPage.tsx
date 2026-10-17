@@ -27,7 +27,7 @@ import {
   secondaryButtonClass,
   validateImageFile,
   type LoadErrorState,
-} from '../components/CatalogUi';
+} from '../../../components/catalog-ui/CatalogUi';
 
 interface CategoryFormState {
   parent_id: string;

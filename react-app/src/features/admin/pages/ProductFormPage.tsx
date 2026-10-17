@@ -32,7 +32,7 @@ import {
   secondaryButtonClass,
   validateImageFile,
   type LoadErrorState,
-} from '../components/CatalogUi';
+} from '../../../components/catalog-ui/CatalogUi';
 
 interface ProductFormState {
   supplier_id: string;

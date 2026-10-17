@@ -1,13 +1,15 @@
 /**
- * Shared presentation helpers for the admin catalog pages (Task 04).
+ * Shared presentation helpers for the catalog UI (Tasks 04 and 05).
  *
  * The visual language matches the existing admin pages
  * (AdminDashboardPage / AdminSettingsPage): white cards, gray text, and
- * gray-800 primary buttons on a gray-50 page background.
+ * gray-800 primary buttons on a gray-50 page background. The public
+ * browse/cart pages reuse the same primitives so loading, empty, and error
+ * states look and behave identically everywhere.
  */
 import type { ReactNode } from 'react';
-import type { ApiResponse } from '../../../api/client';
-import type { PaginationMeta } from '../api/catalogApiUtils';
+import type { ApiResponse } from '../../api/client';
+import type { PaginationMeta } from '../../api/query';
 
 export interface LoadErrorState {
   message: string;
@@ -298,6 +300,16 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
           {message}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** Neutral empty state used by both the admin tables and the public catalog. */
+export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="rounded-lg bg-white p-10 text-center shadow">
+      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+      {hint ? <p className="mt-1 text-sm text-gray-500">{hint}</p> : null}
     </div>
   );
 }

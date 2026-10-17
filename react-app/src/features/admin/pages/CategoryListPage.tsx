@@ -24,7 +24,7 @@ import {
   secondaryButtonClass,
   smallButtonClass,
   type LoadErrorState,
-} from '../components/CatalogUi';
+} from '../../../components/catalog-ui/CatalogUi';
 
 const PER_PAGE = 15;
 

@@ -7,6 +7,7 @@ import { lazy, Suspense } from 'react';
 const HomePage = lazy(() => import('../features/products/pages/HomePage'));
 const ProductListPage = lazy(() => import('../features/products/pages/ProductListPage'));
 const ProductDetailPage = lazy(() => import('../features/products/pages/ProductDetailPage'));
+const CategoryListPage = lazy(() => import('../features/products/pages/CategoryListPage'));
 const CartPage = lazy(() => import('../features/cart/pages/CartPage'));
 
 // Auth Pages
@@ -24,12 +25,12 @@ const OrderDetailPage = lazy(() => import('../features/orders/pages/OrderDetailP
 const AdminLoginPage = lazy(() => import('../features/admin/pages/AdminLoginPage'));
 const AdminDashboardPage = lazy(() => import('../features/admin/pages/AdminDashboardPage'));
 const AdminSettingsPage = lazy(() => import('../features/admin/pages/AdminSettingsPage'));
-const CategoryListPage = lazy(() => import('../features/admin/pages/CategoryListPage'));
+const AdminCategoryListPage = lazy(() => import('../features/admin/pages/CategoryListPage'));
 const CategoryFormPage = lazy(() => import('../features/admin/pages/CategoryFormPage'));
 const SupplierListPage = lazy(() => import('../features/admin/pages/SupplierListPage'));
 const SupplierFormPage = lazy(() => import('../features/admin/pages/SupplierFormPage'));
-// The public products pages already use `ProductListPage`/`ProductDetailPage`,
-// so the admin pair gets an `Admin` prefix here.
+// The public pages claim `CategoryListPage`, `ProductListPage`, and
+// `ProductDetailPage`, so the admin duplicates get an `Admin` prefix here.
 const AdminProductListPage = lazy(() => import('../features/admin/pages/ProductListPage'));
 const AdminProductFormPage = lazy(() => import('../features/admin/pages/ProductFormPage'));
 
@@ -105,6 +106,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageLoader />}>
             <ProductDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'categories',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <CategoryListPage />
           </Suspense>
         ),
       },
@@ -229,7 +238,7 @@ export const router = createBrowserRouter([
         element: (
           <AdminProtectedRoute>
             <Suspense fallback={<PageLoader />}>
-              <CategoryListPage />
+              <AdminCategoryListPage />
             </Suspense>
           </AdminProtectedRoute>
         ),

@@ -4,32 +4,12 @@
  * Categories, suppliers, and products use the same paginated list envelope
  * (`data.<collection>` + `meta`) and the same multipart upload rules, so these
  * helpers live here instead of being duplicated per module.
+ *
+ * The URL/meta helpers are re-exported from `src/api/query.ts`, which is the
+ * neutral home shared with the public catalog endpoints.
  */
-
-export interface PaginationMeta {
-  current_page: number;
-  per_page: number;
-  total: number;
-  last_page: number;
-}
-
-export type QueryValue = string | number | boolean | null | undefined;
-
-/**
- * Build a querystring from the given parameters, skipping empty values.
- * Returns '' when nothing is set, so callers can append it to the endpoint.
- */
-export function toQueryString(params: Record<string, QueryValue>): string {
-  const search = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') continue;
-    search.append(key, String(value));
-  }
-
-  const query = search.toString();
-  return query ? `?${query}` : '';
-}
+export { toQueryString } from '../../../api/query';
+export type { PaginationMeta, QueryValue } from '../../../api/query';
 
 export type FormFieldValue = string | number | boolean | File | null | undefined;
 

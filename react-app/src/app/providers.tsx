@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AuthProvider } from '../lib/auth-context';
+import { CartProvider } from '../lib/cart-context';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -8,7 +9,7 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <AuthProvider>
-      {children}
+      <CartProvider>{children}</CartProvider>
     </AuthProvider>
   );
 }
