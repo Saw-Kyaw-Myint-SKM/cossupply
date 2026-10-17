@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Enums;
+
+use App\Enums\Concerns\HasValues;
+
+enum OrderStatus: string
+{
+    use HasValues;
+
+    case SUPPLIER_CONFIRMATION_REQUIRED = 'SUPPLIER_CONFIRMATION_REQUIRED';
+    case ORDER_CONFIRMED = 'ORDER_CONFIRMED';
+    case PREPARING = 'PREPARING';
+    case READY_TO_SHIP = 'READY_TO_SHIP';
+    case OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY';
+    case DELIVERED = 'DELIVERED';
+    case COMPLETED = 'COMPLETED';
+    case SUPPLIER_UNAVAILABLE = 'SUPPLIER_UNAVAILABLE';
+    case DELIVERY_FAILED = 'DELIVERY_FAILED';
+    case RETURNED = 'RETURNED';
+    case CANCELLED = 'CANCELLED';
+}
