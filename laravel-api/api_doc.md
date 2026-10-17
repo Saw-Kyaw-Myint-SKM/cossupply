@@ -9,6 +9,7 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - Authentication: Laravel Sanctum bearer tokens. `Authorization: Bearer <token>`.
 - Token abilities: `admin` (Admin account) and `customer` (Customer account).
 - Success envelope: `{"success": true, "data": {...}, "message": "..."}` (`message` optional).
+- Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
 - Validation errors use Laravel's default 422 shape: `{"message": "...", "errors": {"field": ["..."]}}`.
 - All money values are integer Myanmar Kyat (MMK). All new-domain status values are UPPERCASE strings.
@@ -2043,3 +2044,389 @@ Notes:
 | `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
 | `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Token without the `admin` ability |
 | `404` | `{"success": false, "message": "File not found."}` | File missing, or the path is unsafe (absolute path, drive letter, `.`/`..` segments, empty segments, backslash traversal, null byte) — unsafe paths are indistinguishable from missing files |
+
+---
+
+## GET /api/v1/products
+
+### Task
+
+Task 05 — Public Catalog and Cart.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1 (Guest: product list, search/filter, product detail), §2 (permission matrix: view published products), §3 (supplier contact info is exposed only as far as needed)
+- `specification/BusinessRequirements.md` §3 (Customer Requirements → Guest Customer), §5 (Product Requirements)
+- `specification/LogicFlow.md` §4 (Customer Browsing and Cart)
+- `specification/DatabaseFlow.md` §3 (`products`, `product_prices`, `product_stocks`), §5 (indexes)
+- `specification/StatusDefinitions.md` §2 (product status), §3 (stock status)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/products`
+
+### Authentication
+
+None — public endpoint. No token is required.
+
+### Roles
+
+Guest, Customer, Admin.
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Rules |
+| --- | --- |
+| `search` | string, max 100; matches `name_mm`, `name_en`, `sku`, `brand` or `model` (LIKE) |
+| `category_id` | integer, must exist in `categories` |
+| `supplier_id` | integer, must exist in `suppliers` |
+| `stock_status` | one of `IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, `PRE_ORDER`, `SUPPLIER_CONFIRMATION_REQUIRED` |
+| `per_page` | integer 1–100, default 15 |
+| `page` | page number, default 1 (resolved by the paginator) |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "products": [
+      {
+        "id": 1,
+        "supplier_id": 1,
+        "category_id": 1,
+        "name_mm": "ပလတ်စတစ်ကုတ်အင်္ကျီ",
+        "name_en": "Plastic Chair",
+        "slug": "plastic-chair",
+        "sku": "CHAIR-001",
+        "brand": "CoSupply",
+        "model": "PC-100",
+        "description": "Stackable plastic chair.",
+        "specification": "Polypropylene, 42cm seat height.",
+        "size": "M",
+        "color": "Blue",
+        "unit": "pcs",
+        "package_size": "1",
+        "photo": "products/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+        "photo_url": "http://localhost:8000/storage/products/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+        "status": "PUBLISHED",
+        "category": {
+          "id": 1,
+          "parent_id": null,
+          "name_mm": "အီလက်ထရောနစ်",
+          "name_en": "Electronics",
+          "slug": "electronics",
+          "description": "Phones, accessories and home electronics.",
+          "image": null,
+          "image_url": null,
+          "sort_order": 0
+        },
+        "supplier": {
+          "id": 1,
+          "shop_name": "Yangon Trading",
+          "company_name": "Yangon Trading Co., Ltd.",
+          "logo": null,
+          "logo_url": null,
+          "business_description": "Wholesale electronics supplier.",
+          "delivery_area": "Yangon",
+          "delivery_time": "1-2 days",
+          "verified": true
+        },
+        "price": {
+          "retail_price": 5000,
+          "discount_price": null,
+          "minimum_order_quantity": 1,
+          "price_valid_until": null,
+          "last_updated_at": "2026-10-17T05:40:36+00:00"
+        },
+        "stock": {
+          "stock_quantity": 20,
+          "stock_status": "IN_STOCK",
+          "last_confirmed_at": "2026-10-17T05:40:36+00:00"
+        }
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+Notes:
+
+- Only `status = PUBLISHED` products are returned, ordered newest first (`created_at` desc, then `id` desc).
+- A published product whose stock row reads `OUT_OF_STOCK` is still listed here: browsing is allowed and only cart eligibility is withheld. `stock_status` is an optional narrowing filter, not a visibility rule.
+- `price` and `stock` are `null` when no row exists. Only the first (oldest) price row is embedded; all money values are integer MMK.
+- Never exposed on this endpoint: `wholesale_price`, `supplier_note`, `created_by_admin_id`, product `created_at`/`updated_at`, category `status`/timestamps, and every supplier contact field (`contact_person`, `phone`, `viber_phone`, `email`, `address`, `city`, `township`, `status`, `created_by_admin_id`).
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `422` | `{"message": "The selected stock status is invalid.", "errors": {"stock_status": ["The selected stock status is invalid."]}}` | Unknown `stock_status`, `category_id`/`supplier_id` not found, `search` over 100 characters, or `per_page` outside 1–100 |
+
+---
+
+## GET /api/v1/products/{productId}
+
+### Task
+
+Task 05 — Public Catalog and Cart.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1 (Guest: product detail), §3 (supplier contact info is exposed only as far as needed)
+- `specification/BusinessRequirements.md` §3 (Customer Requirements → Guest Customer), §5 (Product Requirements)
+- `specification/LogicFlow.md` §4 (Customer Browsing and Cart)
+- `specification/StatusDefinitions.md` §2 (product status), §3 (stock status)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/products/{productId}` — `{productId}` is the numeric product id, e.g. `/api/v1/products/1`.
+
+### Authentication
+
+None — public endpoint. No token is required.
+
+### Roles
+
+Guest, Customer, Admin.
+
+### Request
+
+No body, no query parameters. `{productId}` is the only input.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "product": {
+      "id": 1,
+      "supplier_id": 1,
+      "category_id": 1,
+      "name_mm": "ပလတ်စတစ်ကုတ်အင်္ကျီ",
+      "name_en": "Plastic Chair",
+      "slug": "plastic-chair",
+      "sku": "CHAIR-001",
+      "brand": "CoSupply",
+      "model": "PC-100",
+      "description": "Stackable plastic chair.",
+      "specification": "Polypropylene, 42cm seat height.",
+      "size": "M",
+      "color": "Blue",
+      "unit": "pcs",
+      "package_size": "1",
+      "photo": "products/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+      "photo_url": "http://localhost:8000/storage/products/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+      "status": "PUBLISHED",
+      "category": { "id": 1, "parent_id": null, "name_mm": "အီလက်ထရောနစ်", "name_en": "Electronics", "slug": "electronics", "description": "Phones, accessories and home electronics.", "image": null, "image_url": null, "sort_order": 0 },
+      "supplier": { "id": 1, "shop_name": "Yangon Trading", "company_name": "Yangon Trading Co., Ltd.", "logo": null, "logo_url": null, "business_description": "Wholesale electronics supplier.", "delivery_area": "Yangon", "delivery_time": "1-2 days", "verified": true },
+      "price": { "retail_price": 5000, "discount_price": null, "minimum_order_quantity": 1, "price_valid_until": null, "last_updated_at": "2026-10-17T05:40:36+00:00" },
+      "stock": { "stock_quantity": 20, "stock_status": "IN_STOCK", "last_confirmed_at": "2026-10-17T05:40:36+00:00" }
+    }
+  }
+}
+```
+
+Notes:
+
+- The response body is the same shape as one item of `GET /api/v1/products`.
+- Browsing is not cart eligibility. When `stock.stock_status` is `OUT_OF_STOCK` the client must not offer *Add to cart*; every other stock status — including `SUPPLIER_CONFIRMATION_REQUIRED` — is addable (LogicFlow §4). A product with no `stock` row is addable as well.
+- The supplier block carries only `shop_name`, `company_name`, `logo`, `business_description`, `delivery_area`, `delivery_time` and `verified` — no phone/Viber/email/address, per RolesPermissions §3.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `404` | `{"success": false, "message": "Product not found."}` | Unknown id, non-numeric id, or a product whose status is not `PUBLISHED` (all three are deliberately indistinguishable) |
+
+---
+
+## GET /api/v1/categories
+
+### Task
+
+Task 05 — Public Catalog and Cart.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1 (Guest: home/category navigation)
+- `specification/BusinessRequirements.md` §3 (Customer Requirements → Guest Customer)
+- `specification/LogicFlow.md` §4 (Customer Browsing and Cart)
+- `specification/DatabaseFlow.md` §3 (`categories`), §5 (indexes)
+- `specification/StatusDefinitions.md` §1 (`INACTIVE`/`ACTIVE` category status)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/categories`
+
+### Authentication
+
+None — public endpoint. No token is required.
+
+### Roles
+
+Guest, Customer, Admin.
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Rules |
+| --- | --- |
+| `parent_id` | integer, must exist in `categories` — returns the children of that category |
+| `search` | string, max 100; matches `name_mm` or `name_en` (LIKE) |
+| `per_page` | integer 1–100, default 15 |
+| `page` | page number, default 1 (resolved by the paginator) |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "categories": [
+      {
+        "id": 1,
+        "parent_id": null,
+        "name_mm": "အီလက်ထရောနစ်",
+        "name_en": "Electronics",
+        "slug": "electronics",
+        "description": "Phones, accessories and home electronics.",
+        "image": null,
+        "image_url": null,
+        "sort_order": 0
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+Notes:
+
+- Only `status = ACTIVE` categories are returned, so deactivating a category removes it from the public catalog immediately.
+- Ordered by `sort_order`, then `name_en`, then `id`.
+- Category `status` and timestamps are not exposed publicly.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `422` | `{"message": "The selected parent id is invalid.", "errors": {"parent_id": ["The selected parent id is invalid."]}}` | `parent_id` not found in `categories`, `search` over 100 characters, or `per_page` outside 1–100 |
+
+---
+
+## GET /api/v1/suppliers
+
+### Task
+
+Task 05 — Public Catalog and Cart.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1 (Guest), §3 (supplier phone/Viber information is shown publicly only as far as it is needed)
+- `specification/BusinessRequirements.md` §3 (Customer Requirements → Guest Customer), §4 (Supplier Data Requirements)
+- `specification/LogicFlow.md` §4 (Customer Browsing and Cart)
+- `specification/DatabaseFlow.md` §3 (`suppliers`), §5 (indexes)
+- `specification/StatusDefinitions.md` §1 (supplier status)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/suppliers`
+
+### Authentication
+
+None — public endpoint. No token is required.
+
+### Roles
+
+Guest, Customer, Admin.
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Rules |
+| --- | --- |
+| `search` | string, max 100; matches `shop_name` or `company_name` (LIKE) |
+| `per_page` | integer 1–100, default 15 |
+| `page` | page number, default 1 (resolved by the paginator) |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "suppliers": [
+      {
+        "id": 1,
+        "shop_name": "Yangon Trading",
+        "company_name": "Yangon Trading Co., Ltd.",
+        "logo": null,
+        "logo_url": null,
+        "business_description": "Wholesale electronics supplier.",
+        "delivery_area": "Yangon",
+        "delivery_time": "1-2 days",
+        "verified": true
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+Notes:
+
+- Only `status = ACTIVE` suppliers are returned (`INACTIVE` and `SUSPENDED` are excluded).
+- Ordered by `shop_name`, then `id`.
+- Never exposed: `contact_person`, `phone`, `viber_phone`, `email`, `address`, `city`, `township`, `warranty_policy`, `return_policy`, `status`, `created_by_admin_id`, `created_at`, `updated_at`.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `422` | `{"message": "The search field must not be greater than 100 characters.", "errors": {"search": ["The search field must not be greater than 100 characters."]}}` | `search` over 100 characters or `per_page` outside 1–100 |

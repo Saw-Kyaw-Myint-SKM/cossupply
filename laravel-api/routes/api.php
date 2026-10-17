@@ -8,6 +8,9 @@ use App\Http\Controllers\Api\V1\AdminSettingController;
 use App\Http\Controllers\Api\V1\AdminSupplierController;
 use App\Http\Controllers\Api\V1\CustomerAuthController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\PublicCategoryController;
+use App\Http\Controllers\Api\V1\PublicProductController;
+use App\Http\Controllers\Api\V1\PublicSupplierController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,6 +30,16 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::get('/health', [HealthController::class, 'check']);
+
+/*
+|--------------------------------------------------------------------------
+| Public Catalog Routes (Guest browsing, no authentication)
+|--------------------------------------------------------------------------
+*/
+Route::get('/products', [PublicProductController::class, 'index']);
+Route::get('/products/{productId}', [PublicProductController::class, 'show']);
+Route::get('/categories', [PublicCategoryController::class, 'index']);
+Route::get('/suppliers', [PublicSupplierController::class, 'index']);
 
 /*
 |--------------------------------------------------------------------------
