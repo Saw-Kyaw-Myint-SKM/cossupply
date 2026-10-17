@@ -42,12 +42,16 @@ class OrderFactory extends Factory
             'city' => 'Yangon',
             'township' => 'Hlaing',
             'landmark' => null,
-            'subtotal' => 1000,
+            // The money fields default to zero so an order created without
+            // item rows still satisfies total_amount = subtotal - discount
+            // + delivery_fee + service_fee. Use priced() together with real
+            // order_items for a non-zero total.
+            'subtotal' => 0,
             'discount' => 0,
             'delivery_fee' => 0,
             'service_fee_percentage' => 0,
             'service_fee' => 0,
-            'total_amount' => 1000,
+            'total_amount' => 0,
             'payment_method' => 'CASH_ON_DELIVERY',
             'payment_status' => PaymentStatus::NOT_PAID->value,
             'order_status' => OrderStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
@@ -65,6 +69,29 @@ class OrderFactory extends Factory
             'order_status' => OrderStatus::COMPLETED->value,
             'payment_status' => PaymentStatus::PAYMENT_CONFIRMED->value,
             'delivery_status' => DeliveryStatus::DELIVERED->value,
+        ]);
+    }
+
+    /**
+     * Attach coherent header totals to the order.
+     *
+     * The subtotal must equal the sum of the order item line_totals.
+     */
+    public function priced(
+        int $subtotal,
+        int $discount = 0,
+        int $deliveryFee = 0,
+        int $serviceFeePercentage = 0,
+    ): static {
+        $serviceFee = intdiv($subtotal * $serviceFeePercentage, 100);
+
+        return $this->state(fn (array $attributes) => [
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'delivery_fee' => $deliveryFee,
+            'service_fee_percentage' => $serviceFeePercentage,
+            'service_fee' => $serviceFee,
+            'total_amount' => $subtotal - $discount + $deliveryFee + $serviceFee,
         ]);
     }
 }

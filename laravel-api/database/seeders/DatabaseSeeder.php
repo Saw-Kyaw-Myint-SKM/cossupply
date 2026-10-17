@@ -11,6 +11,10 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * The base admin and master settings are always seeded. The
+     * destructive demo dataset is local/testing only so it can never touch
+     * a production database.
      */
     public function run(): void
     {
@@ -18,5 +22,9 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             SettingSeeder::class,
         ]);
+
+        if (app()->environment(['local', 'testing'])) {
+            $this->call(DemoDataSeeder::class);
+        }
     }
 }

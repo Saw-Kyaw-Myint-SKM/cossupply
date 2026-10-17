@@ -41,7 +41,12 @@ class ProductFactory extends Factory
             'color' => fake()->colorName(),
             'unit' => fake()->randomElement(['pcs', 'box', 'pack']),
             'package_size' => '1',
-            'photo' => 'products/placeholder.jpg',
+            // `products.photo` is NOT NULL in the schema, so the empty
+            // photo state is represented by an empty string rather than
+            // null. The public resource maps it to a null photo_url, which
+            // is what the UI empty state consumes. A real path is set by
+            // the seeder where an image is intended.
+            'photo' => '',
             'status' => ProductStatus::DRAFT,
             'created_by_admin_id' => Admin::factory(),
         ];

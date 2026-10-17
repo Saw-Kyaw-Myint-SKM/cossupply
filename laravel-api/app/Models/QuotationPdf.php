@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\QuotationPdfFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuotationPdf extends Model
 {
+    /** @use HasFactory<QuotationPdfFactory> */
+    use HasFactory;
+
     /**
      * Append-only: generated PDFs are never updated.
      *

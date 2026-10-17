@@ -227,7 +227,7 @@ class AdminProductTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['photo']);
 
-        $ready = Product::factory()->for($supplier)->for($category)->withPrice(['retail_price' => 5000])->create();
+        $ready = Product::factory()->for($supplier)->for($category)->withPrice(['retail_price' => 5000])->create(['photo' => 'products/ready.jpg']);
 
         $this->patchProductStatus($ready, 'PUBLISHED')
             ->assertOk()
@@ -273,7 +273,7 @@ class AdminProductTest extends TestCase
             ->for(Supplier::factory())
             ->for(Category::factory())
             ->withPrice()
-            ->create();
+            ->create(['photo' => 'products/status.jpg']);
 
         $this->patchProductStatus($product, 'PUBLISHED')
             ->assertOk()

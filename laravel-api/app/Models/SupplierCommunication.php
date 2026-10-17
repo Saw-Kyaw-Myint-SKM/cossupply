@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\SupplierCommunicationFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SupplierCommunication extends Model
 {
+    /** @use HasFactory<SupplierCommunicationFactory> */
+    use HasFactory;
+
     /**
      * Append-only log: rows are never updated.
      *

@@ -3,11 +3,16 @@
 namespace App\Models;
 
 use App\Enums\QuotationAction as QuotationActionEnum;
+use Database\Factories\QuotationActionFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuotationAction extends Model
 {
+    /** @use HasFactory<QuotationActionFactory> */
+    use HasFactory;
+
     /**
      * Append-only action trail: rows are never updated.
      *

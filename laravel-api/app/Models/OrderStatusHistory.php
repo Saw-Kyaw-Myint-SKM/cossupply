@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\OrderStatusHistoryFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderStatusHistory extends Model
 {
+    /** @use HasFactory<OrderStatusHistoryFactory> */
+    use HasFactory;
+
     /**
      * Append-only status trail: rows are never updated.
      *

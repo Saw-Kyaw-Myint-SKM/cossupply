@@ -1,59 +1,100 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CoSupply Backend (`laravel-api`)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel 12 REST API for the CoSupply B2B quotation/order platform. APIs use the
+`/api/v1` prefix, Sanctum token authentication, a consistent JSON envelope, and
+integer Myanmar Kyat (MMK) money values.
+
+- API contract reference: [`api_doc.md`](api_doc.md)
+- Domain/data model: [`../specification/DatabaseFlow.md`](../specification/DatabaseFlow.md)
+
+## Requirements
+
+- PHP 8.2+
+- Composer
+- MySQL (the default local connection is `mysql`, database `cos`)
+
+## Setup
+
+```bash
+composer install
+cp .env.example .env          # only if .env is missing
+php artisan key:generate
+php artisan migrate
+php artisan storage:link      # required so public image URLs resolve
+```
+
+## Seeding
+
+`DatabaseSeeder` always seeds the default admin and the 15 master settings. In
+the `local` and `testing` environments it additionally runs `DemoDataSeeder`.
+
+```bash
+# Full reset + seed (recommended, one command)
+php artisan migrate:fresh --seed
+
+# Re-seed the demo dataset onto an existing database
+php artisan db:seed --class=DemoDataSeeder
+```
+
+### Destructive warning
+
+`DemoDataSeeder` **truncates and rebuilds** the 22 mutable domain tables
+(customers, catalog, quotations, orders, deliveries, payments, notifications,
+logs, ...) on every run. It never touches `admins` or `settings`, so the default
+admin and master settings survive, but **any other data in those 22 tables is
+permanently erased**.
+
+It refuses to run when `APP_ENV=production` (both the `DatabaseSeeder` guard and
+a guard inside `DemoDataSeeder` itself, because `db:seed --class=DemoDataSeeder`
+bypasses `DatabaseSeeder`). Only run it against a disposable **local dev**
+database.
+
+### Demo credentials
+
+The password for every seeded account is `password`.
+
+| Role     | Login identifier    | Password   | Notes                                   |
+| -------- | ------------------- | ---------- | --------------------------------------- |
+| Admin    | `admin@cos.local`   | `password` | Default super admin (never truncated).  |
+| Admin    | `admin.demo@cos.local` | `password` | Extra demo admin.                    |
+| Admin    | `ops.demo@cos.local`   | `password` | Extra demo admin.                    |
+| Customer | `customer1@cos.local` / phone `09100000001` | `password` | Individual customer. |
+| Customer | `customer2@cos.local` / phone `09100000002` | `password` | Business customer (`Su Su Trading Co., Ltd.`). |
+| Customer | `customer3@cos.local` / phone `09100000003` | `password` | Individual customer. |
+| Customer | `customer4@cos.local` / phone `09100000004` | `password` | Individual customer. |
+| Customer | `customer5@cos.local` / phone `09100000005` | `password` | Individual customer. |
+
+### What the demo dataset contains
+
+- 2 demo admins (plus the default super admin), 4 parent + 8 child categories.
+- 8 suppliers (mixed `verified`, 1 inactive), ~48 products (40 published,
+  3 draft, 3 hidden, 2 out of stock; 4 published products have no photo to
+  exercise the UI empty state).
+- One price and one stock row per product covering every `StockStatus`.
+- 5 customers, 6 addresses (2 defaults), 12 quotation requests covering all
+  11 `QuotationRequestStatus` cases.
+- Quotation versions covering DRAFT/SENT/VIEWED/CHANGE_REQUESTED/ACCEPTED/
+  REJECTED/EXPIRED/SUPERSEDED, including one request with v1 `SUPERSEDED` and
+  v2 `SENT`.
+- Orders built only from accepted quotations, with deliveries, a confirmed COD
+  cash payment, status history, in-app notifications, email logs and audit logs.
+
+The dataset is deterministic: `fake()->seed()` is fixed and tables are truncated
+first, so ids (1, 2, 3, ...) and re-run row counts are stable.
+
+Placeholder product images and supplier logos are written to the `public` disk
+(`storage/app/public/products` and `storage/app/public/suppliers`). The seeder
+embeds a small base64 PNG and needs neither GD nor Intervention Image.
+
+## Testing and formatting
+
+```bash
+php artisan test
+vendor/bin/pint --test
+```
 
 ## About Laravel
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Laravel is accessible, powerful, and provides tools required for large, robust
+applications. See the [Laravel documentation](https://laravel.com/docs) for
+framework details.

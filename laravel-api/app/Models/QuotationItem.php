@@ -3,11 +3,16 @@
 namespace App\Models;
 
 use App\Enums\StockStatus;
+use Database\Factories\QuotationItemFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuotationItem extends Model
 {
+    /** @use HasFactory<QuotationItemFactory> */
+    use HasFactory;
+
     /**
      * The attributes that are mass assignable.
      *
