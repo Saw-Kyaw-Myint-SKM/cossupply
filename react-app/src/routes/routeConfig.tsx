@@ -43,7 +43,7 @@ import { useAuth } from '../lib/auth-context';
 // Loading fallback
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ink"></div>
   </div>
 );
 

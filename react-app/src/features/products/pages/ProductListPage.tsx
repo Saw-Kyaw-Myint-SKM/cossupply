@@ -4,10 +4,19 @@
  * Guest-facing catalog with server-side search and filters for category,
  * supplier, name/sku, and stock status. All filter state lives in the URL so
  * a category deep link from `/categories` (and any shared link) reproduces
- * exactly the same view.
+ * exactly the same view. Pagination is NOT in the URL: results load as an
+ * infinite scroll, appending the next page when a sentinel scrolls near the
+ * viewport — like leafing through a paper catalog instead of turning pages.
+ *
+ * Desktop (`lg+`): a sticky left filter rail — search on top, then category,
+ * supplier, and availability radio lists, each resting on its "All" state and
+ * tinting the active pick in accent-soft. Below `lg` the same fields live in
+ * a bottom sheet from a "Filters · N" chip; the sheet keeps native selects so
+ * neither instance shares radio `name`s or input ids with the rail.
  */
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { FiFilter, FiLoader, FiSearch, FiTrash2, FiX } from 'react-icons/fi';
 import {
   listCategories,
   listProducts,
@@ -21,24 +30,163 @@ import type { PaginationMeta } from '../../../api/query';
 import {
   Alert,
   EmptyState,
-  LoadingPanel,
-  Pagination,
   PageHeader,
+  SkeletonCard,
+  inputClass,
   secondaryButtonClass,
 } from '../../../components/catalog-ui/CatalogUi';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
 
-const STOCK_FILTERS: Array<{ value: StockStatus | ''; label: string }> = [
-  { value: '', label: 'Any availability' },
-  { value: 'IN_STOCK', label: 'In stock' },
-  { value: 'LOW_STOCK', label: 'Low stock' },
-  { value: 'PRE_ORDER', label: 'Pre-order' },
-  { value: 'SUPPLIER_CONFIRMATION_REQUIRED', label: 'Supplier confirmation required' },
-  { value: 'OUT_OF_STOCK', label: 'Out of stock' },
+const STOCK_FILTERS: Array<{ value: StockStatus | ''; label: string; dot?: string }> = [
+  { value: '', label: 'All availability', dot: 'bg-gray-400' },
+  { value: 'IN_STOCK', label: 'In stock', dot: 'bg-green-600' },
+  { value: 'LOW_STOCK', label: 'Low stock', dot: 'bg-amber-500' },
+  { value: 'PRE_ORDER', label: 'Pre-order', dot: 'bg-blue-600' },
+  { value: 'SUPPLIER_CONFIRMATION_REQUIRED', label: 'Supplier confirmation required', dot: 'bg-violet-500' },
+  { value: 'OUT_OF_STOCK', label: 'Out of stock', dot: 'bg-red-500' },
 ];
 
-const inputClass =
-  'mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500';
+interface RadioOption {
+  value: string;
+  label: string;
+  /** Semantic dot shown before the radio (availability colors). */
+  dot?: string;
+}
+
+/**
+ * One row of a rail radio list: native input kept for keyboard/AT, custom
+ * dot as the visual, accent-soft tint when this row is the current pick.
+ */
+function FilterRadio({
+  name,
+  option,
+  checked,
+  onPick,
+}: {
+  name: string;
+  option: RadioOption;
+  checked: boolean;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm motion-safe:transition-colors ${
+        checked ? 'bg-accent-soft font-medium text-accent' : 'text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={() => onPick(option.value)}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className={`h-3.5 w-3.5 flex-none rounded-full border ${
+          checked
+            ? 'border-accent bg-accent shadow-[inset_0_0_0_2px_var(--color-plate)]'
+            : 'border-gray-300 bg-plate'
+        } peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2`}
+      />
+      {option.dot ? (
+        <span aria-hidden="true" className={`h-2 w-2 flex-none rounded-full ${option.dot}`} />
+      ) : null}
+      <span className="truncate">{option.label}</span>
+    </label>
+  );
+}
+
+/** Section heading inside the rail: quiet, no all-caps chrome. */
+function RailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="border-t border-rule pt-3 first:border-0 first:pt-0">
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * A rail radio list that rests on the first five rows (its "All" state
+ * included) behind a "See more…" key. Expanding shows everything and flips
+ * to "Show less"; a deep-linked selection past the fold keeps the list open
+ * so the current pick is always visible.
+ */
+function RailRadioList({
+  name,
+  label,
+  options,
+  value,
+  onPick,
+  scroll = false,
+}: {
+  name: string;
+  label: string;
+  options: RadioOption[];
+  value: string;
+  onPick: (value: string) => void;
+  scroll?: boolean;
+}) {
+  const VISIBLE_ROWS = 5;
+  const [expanded, setExpanded] = useState(false);
+
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const selectedPastFold = selectedIndex >= VISIBLE_ROWS;
+  const showAll = expanded || selectedPastFold;
+  const visible = showAll ? options : options.slice(0, VISIBLE_ROWS);
+  const hiddenCount = Math.max(options.length - VISIBLE_ROWS, 0);
+
+  return (
+    <div role="radiogroup" aria-label={label}>
+      <div
+        className={`space-y-0.5 ${scroll && showAll ? 'no-scrollbar max-h-60 overflow-y-auto pr-1' : ''}`}
+      >
+        {visible.map((option) => (
+          <FilterRadio
+            key={option.value || `all-${name}`}
+            name={name}
+            option={option}
+            checked={value === option.value}
+            onPick={onPick}
+          />
+        ))}
+      </div>
+
+      {options.length > VISIBLE_ROWS ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          aria-expanded={showAll}
+          className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium text-accent hover:text-accent/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+        >
+          {showAll
+            ? 'Show less'
+            : hiddenCount > 0
+              ? `See more… (${hiddenCount} more)`
+              : 'See more…'}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Quiet load-more marker under the in-view catalog. */
+function LoadingMoreRow({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      className="flex justify-center py-6 text-sm text-gray-500"
+      aria-live="polite"
+    >
+      <FiLoader
+        aria-hidden="true"
+        className="mr-2 h-4 w-4 self-center animate-spin motion-reduce:animate-none"
+      />
+      {label}
+    </div>
+  );
+}
 
 export default function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -47,7 +195,6 @@ export default function ProductListPage() {
   const categoryId = searchParams.get('category_id') ?? '';
   const supplierId = searchParams.get('supplier_id') ?? '';
   const stockStatus = (searchParams.get('stock_status') ?? '') as StockStatus | '';
-  const page = Number(searchParams.get('page') ?? '1') || 1;
 
   const [searchInput, setSearchInput] = useState(search);
 
@@ -56,12 +203,55 @@ export default function ProductListPage() {
   useEffect(() => {
     setSearchInput(search);
   }, [search]);
-  const [products, setProducts] = useState<PublicProduct[] | null>(null);
+  const [products, setProducts] = useState<PublicProduct[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [categories, setCategories] = useState<PublicCategory[]>([]);
   const [suppliers, setSuppliers] = useState<PublicSupplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  /**
+   * The scroll cursor: which filter-set × page is on screen. Deliberately
+   * not URL state — filters deep-link, scroll depth is reading position,
+   * like leafing through a paper catalog. Seeded on mount from the URL so
+   * a deep link never fetches the unfiltered page first.
+   */
+  const filterKey = `${search}|${categoryId}|${supplierId}|${stockStatus}`;
+  const [request, setRequest] = useState<{ filterKey: string; page: number }>(() => ({
+    filterKey,
+    page: 1,
+  }));
+
+  // A new filter set rewinds the cursor to page 1; an identical key is
+  // left untouched so unrelated renders never refetch.
+  useEffect(() => {
+    setRequest((current) =>
+      current.filterKey === filterKey ? current : { filterKey, page: 1 },
+    );
+  }, [filterKey]);
+
+  // Synchronous guard for the IntersectionObserver path: two intersect
+  // callbacks must never spawn two cursor bumps before a state flush.
+  const fetchBusyRef = useRef(false);
+
+  // When the filter set changes (except the first mount), bring the top of
+  // the results column back into view so the fresh list replaces the old
+  // where the reader's eyes already are.
+  const resultsRef = useRef<HTMLElement | null>(null);
+  const firstFilterRun = useRef(true);
+  useEffect(() => {
+    if (firstFilterRun.current) {
+      firstFilterRun.current = false;
+      return;
+    }
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    resultsRef.current?.scrollIntoView({
+      block: 'start',
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  }, [filterKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,11 +273,18 @@ export default function ProductListPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
-    setLoadError(null);
+    const first = request.page === 1;
+
+    fetchBusyRef.current = true;
+    if (first) {
+      setIsLoading(true);
+      setLoadError(null);
+    } else {
+      setLoadingMore(true);
+    }
 
     listProducts({
-      page,
+      page: request.page,
       per_page: 12,
       search: search || undefined,
       category_id: categoryId || undefined,
@@ -98,24 +295,57 @@ export default function ProductListPage() {
         if (cancelled) return;
 
         if (response.success && response.data) {
-          setProducts(response.data.products);
+          const fresh = response.data.products;
           setMeta(response.data.meta);
-        } else {
-          setProducts(null);
+          setLoadError(null);
+          setProducts((previous) =>
+            first || previous.length === 0 ? fresh : [...previous, ...fresh],
+          );
+        } else if (first) {
+          setProducts([]);
           setMeta(null);
           setLoadError(describeCatalogError(response, 'products'));
+        } else {
+          // A page beyond the first failing keeps the list intact;
+          // "Try again" re-runs the same cursor without touching the URL.
+          setLoadError(describeCatalogError(response, 'more products'));
         }
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (cancelled) return;
+        fetchBusyRef.current = false;
+        setIsLoading(false);
+        setLoadingMore(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [page, search, categoryId, supplierId, stockStatus]);
+  }, [request]); // filterKey gates the query values; request carries the page.
 
-  const updateParams = (changes: Record<string, string>, keepPage = false) => {
+  // The sentinel: start fetching the next page while the reader is still
+  // ~600px away, so cards are usually painting by the time they arrive.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const hasMore = meta !== null && !loadError && meta.current_page < meta.last_page;
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore || isLoading) return;
+
+    const onIntersect = (entries: IntersectionObserverEntry[]) => {
+      if (!entries[0]?.isIntersecting || fetchBusyRef.current) return;
+      fetchBusyRef.current = true;
+      setRequest((current) => ({ ...current, page: current.page + 1 }));
+    };
+
+    const observer = new IntersectionObserver(onIntersect, {
+      rootMargin: '600px 0px',
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading]);
+
+  const updateParams = (changes: Record<string, string>) => {
     const next = new URLSearchParams(searchParams);
 
     for (const [key, value] of Object.entries(changes)) {
@@ -123,7 +353,8 @@ export default function ProductListPage() {
       else next.delete(key);
     }
 
-    if (!keepPage) next.delete('page');
+    // The URL never carries page state anymore; drop leftovers from old links.
+    next.delete('page');
     setSearchParams(next);
   };
 
@@ -133,11 +364,131 @@ export default function ProductListPage() {
   };
 
   const hasFilters = Boolean(search || categoryId || supplierId || stockStatus);
+  const activeFilterCount = [
+    Boolean(search),
+    Boolean(categoryId),
+    Boolean(supplierId),
+    Boolean(stockStatus),
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearchInput('');
     setSearchParams(new URLSearchParams());
+    setSheetOpen(false);
   };
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSheetOpen(false);
+    };
+
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [sheetOpen]);
+
+  const categoryOptions: RadioOption[] = [
+    { value: '', label: 'All categories' },
+    ...categories.map((category) => ({
+      value: String(category.id),
+      label: category.name_en,
+    })),
+  ];
+
+  const supplierOptions: RadioOption[] = [
+    { value: '', label: 'All suppliers' },
+    ...suppliers.map((supplier) => ({
+      value: String(supplier.id),
+      label: supplier.shop_name,
+    })),
+  ];
+
+  /* The mobile sheet keeps the select-based fields (distinct ids and radio
+   * names from the rail, so both can coexist in the document). */
+  const sheetFields = (
+    <>
+      <div className="lg:col-span-2">
+        <label htmlFor="sheet-search" className="block text-xs font-medium text-gray-600">
+          Search
+        </label>
+        <div className="mt-1 flex overflow-hidden rounded-md border border-gray-300 bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
+          <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-gray-400" />
+          <input
+            id="sheet-search"
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Name, SKU, brand or model"
+            maxLength={100}
+            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-ink outline-none"
+          />
+          <button
+            type="submit"
+            className="flex-none bg-primary px-3 text-white hover:bg-primary-hover active:scale-[.99]"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="sheet-category" className="block text-xs font-medium text-gray-600">
+          Category
+        </label>
+        <select
+          id="sheet-category"
+          value={categoryId}
+          onChange={(event) => updateParams({ category_id: event.target.value })}
+          className={inputClass(false) + ' mt-1'}
+        >
+          <option value="">All categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name_en}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="sheet-supplier" className="block text-xs font-medium text-gray-600">
+          Supplier
+        </label>
+        <select
+          id="sheet-supplier"
+          value={supplierId}
+          onChange={(event) => updateParams({ supplier_id: event.target.value })}
+          className={inputClass(false) + ' mt-1'}
+        >
+          <option value="">All suppliers</option>
+          {suppliers.map((supplier) => (
+            <option key={supplier.id} value={supplier.id}>
+              {supplier.shop_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="sheet-stock" className="block text-xs font-medium text-gray-600">
+          Availability
+        </label>
+        <select
+          id="sheet-stock"
+          value={stockStatus}
+          onChange={(event) => updateParams({ stock_status: event.target.value })}
+          className={inputClass(false) + ' mt-1'}
+        >
+          {STOCK_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -146,133 +497,240 @@ export default function ProductListPage() {
         description="Browse published products from verified suppliers. Prices shown are display prices and are confirmed in your quotation."
       />
 
-      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2">
-            <label htmlFor="catalog-search" className="block text-sm font-medium text-gray-700">
-              Search
+      <div className="grid items-start gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        {/* Left filter rail: sticky while the grid scrolls. The header +
+            search stay pinned; only the option lists scroll inside. */}
+        <aside
+          aria-label="Product filters"
+          className="sticky top-24 hidden max-h-[calc(100vh-8rem)] flex-col rounded-lg border border-rule bg-plate p-4 lg:flex"
+        >
+          <div className="mb-3 flex flex-none items-center justify-between">
+            <h2 className="text-base font-semibold text-ink">Filters</h2>
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                aria-label="Clear all filters"
+                title="Clear all filters"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-accent hover:bg-accent-soft active:scale-[.99] motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+              >
+                <FiTrash2 aria-hidden="true" className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+
+          <form onSubmit={handleSubmit} className="mb-4 flex-none">
+            <label htmlFor="rail-search" className="sr-only">
+              Search the catalog
             </label>
-            <div className="flex gap-2">
+            <div className="flex overflow-hidden rounded-md border border-gray-300 bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
+              <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-gray-400" />
               <input
-                id="catalog-search"
+                id="rail-search"
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Name, SKU, brand or model"
+                placeholder="Name, SKU, brand…"
                 maxLength={100}
-                className={`${inputClass} min-w-0 flex-1`}
+                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-ink outline-none"
               />
-              <button type="submit" className={secondaryButtonClass}>
-                Search
+              <button
+                type="submit"
+                aria-label="Search"
+                className="flex-none bg-primary px-2.5 text-white hover:bg-primary-hover active:scale-[.99]"
+              >
+                <FiSearch aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          </form>
 
-          <div>
-            <label htmlFor="filter-category" className="block text-sm font-medium text-gray-700">
-              Category
-            </label>
-            <select
-              id="filter-category"
-              value={categoryId}
-              onChange={(event) => updateParams({ category_id: event.target.value })}
-              className={inputClass}
+          <div className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <RailSection title="Category">
+              <RailRadioList
+                name="rail-category"
+                label="Category"
+                options={categoryOptions}
+                value={categoryId}
+                onPick={(value) => updateParams({ category_id: value })}
+              />
+            </RailSection>
+
+            <RailSection title="Supplier">
+              {/* Once expanded, long supplier lists scroll inside the rail,
+                  never the page. */}
+              <RailRadioList
+                name="rail-supplier"
+                label="Supplier"
+                options={supplierOptions}
+                value={supplierId}
+                onPick={(value) => updateParams({ supplier_id: value })}
+                scroll
+              />
+            </RailSection>
+
+            <RailSection title="Availability">
+              <RailRadioList
+                name="rail-stock"
+                label="Availability"
+                options={STOCK_FILTERS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  dot: option.dot,
+                }))}
+                value={stockStatus}
+                onPick={(value) => updateParams({ stock_status: value })}
+              />
+            </RailSection>
+          </div>
+        </aside>
+
+        {/* Results column. */}
+        <section ref={resultsRef} className="min-w-0 space-y-6 lg:scroll-mt-24">
+          <div className="flex items-center justify-between gap-3 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-plate px-3 py-1.5 text-sm font-medium text-ink active:scale-[.99]"
             >
-              <option value="">All categories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name_en}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="filter-supplier" className="block text-sm font-medium text-gray-700">
-              Supplier
-            </label>
-            <select
-              id="filter-supplier"
-              value={supplierId}
-              onChange={(event) => updateParams({ supplier_id: event.target.value })}
-              className={inputClass}
-            >
-              <option value="">All suppliers</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.shop_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="filter-stock" className="block text-sm font-medium text-gray-700">
-              Availability
-            </label>
-            <select
-              id="filter-stock"
-              value={stockStatus}
-              onChange={(event) => updateParams({ stock_status: event.target.value })}
-              className={inputClass}
-            >
-              {STOCK_FILTERS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </form>
-
-        {hasFilters ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-600">
-              Filters are applied to the published catalog only.
-            </p>
-            <button type="button" onClick={clearFilters} className={secondaryButtonClass}>
-              Clear filters
+              <FiFilter aria-hidden="true" className="h-4 w-4" />
+              Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
             </button>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-lg bg-white shadow" aria-busy={isLoading || undefined}>
-        {isLoading ? <LoadingPanel label="Loading products" /> : null}
-
-        {!isLoading && loadError ? (
-          <div className="p-6">
-            <Alert tone="error">{loadError}</Alert>
-          </div>
-        ) : null}
-
-        {!isLoading && !loadError && products !== null && products.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              title="No products match your filters"
-              hint={hasFilters ? 'Try clearing a filter or searching for something broader.' : 'No products have been published yet.'}
-            />
             {hasFilters ? (
-              <div className="mt-4 text-center">
-                <button type="button" onClick={clearFilters} className={secondaryButtonClass}>
-                  Clear filters
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm font-medium text-ink hover:text-accent"
+              >
+                Clear filters
+              </button>
             ) : null}
           </div>
-        ) : null}
 
-        {!isLoading && !loadError && products && products.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:p-6">
+          {/* First-load failure: the error is the whole story. A page-2+
+              failure is reported further down, beside "Try again". */}
+          {loadError && !products.length ? <Alert tone="error">{loadError}</Alert> : null}
+
+          {meta && !isLoading && !loadError ? (
+            <p className="text-sm text-gray-600" aria-live="polite">
+              <span className="font-medium text-ink tabular-nums">{meta.total}</span>{' '}
+              {meta.total === 1 ? 'product' : 'products'}
+              {hasFilters ? ' match your filters' : ' in the catalog'}
+            </p>
+          ) : null}
+
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }, (_, index) => (
+                <SkeletonCard key={index} />
+              ))}
+            </div>
+          ) : null}
+
+          {!isLoading && !loadError && products.length === 0 ? (
+            <div className="space-y-4">
+              <EmptyState
+                title="No products match your filters"
+                hint={
+                  hasFilters
+                    ? 'Try clearing a filter or searching for something broader.'
+                    : 'No products have been published yet.'
+                }
+              />
+              {hasFilters ? (
+                <div className="text-center">
+                  <button type="button" onClick={clearFilters} className={secondaryButtonClass}>
+                    Clear filters
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!isLoading && !loadError && products.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
-            {meta ? <Pagination meta={meta} onPage={(next) => updateParams({ page: String(next) }, true)} /> : null}
-          </>
-        ) : null}
-      </section>
+          ) : null}
+
+          {/* The scroller's floor: fetching the next page begins while the
+              reader is ~600px away; the spinner row shows if they arrive
+              sooner. Replenished silently, replaced on failure. */}
+          {!loadError || products.length === 0 ? (
+            <div ref={sentinelRef} aria-hidden="true" className="h-1" />
+          ) : null}
+
+          {loadingMore ? <LoadingMoreRow label="Bringing up more products…" /> : null}
+
+          {meta && !isLoading && !loadError && !hasMore ? (
+            <p className="text-center text-sm text-gray-500">
+              End of catalog — {meta.total}{' '}
+              {meta.total === 1 ? 'product' : 'products'} shown
+            </p>
+          ) : null}
+
+          {/* Load-more failure: the list stays put; one retry re-reads the
+              same cursor. */}
+          {loadError && products.length > 0 && !isLoading ? (
+            <div className="flex flex-col items-center gap-2 py-6">
+              <p className="text-center text-sm text-red-600">{loadError}</p>
+              <button
+                type="button"
+                onClick={() => setRequest((current) => ({ ...current }))}
+                className={secondaryButtonClass}
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      {/* Mobile filters sheet: slides up from the bottom edge, Esc closes. */}
+      {sheetOpen ? (
+        <div className="fixed inset-0 z-50 bg-ink/40 lg:hidden" onClick={() => setSheetOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filters"
+            className="motion-safe:animate-sheet-in flex max-h-[85vh] flex-col overflow-y-auto rounded-t-2xl border-t border-rule bg-plate p-4"
+            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-ink">Filters</h2>
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                aria-label="Close filters"
+                className="flex h-10 w-10 items-center justify-center rounded-md text-ink active:bg-gray-50"
+              >
+                <FiX aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3">
+              {sheetFields}
+            </form>
+
+            <div className="mt-4 flex items-center gap-2">
+              {hasFilters ? (
+                <button type="button" onClick={clearFilters} className={secondaryButtonClass + ' flex-1'}>
+                  Clear filters
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                className={secondaryButtonClass + ' flex-[2]'}
+              >
+                Show {meta ? `${meta.total} ` : ''}products
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

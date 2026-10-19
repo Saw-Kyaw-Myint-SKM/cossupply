@@ -190,7 +190,7 @@ function describeSaveError(response: ApiResponse<unknown>): string {
 
 const inputBaseClass =
   'block w-full rounded-md border px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500';
-const inputNormalClass = 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
+const inputNormalClass = 'border-gray-300 focus:border-accent focus:ring-accent';
 const inputErrorClass = 'border-red-300 focus:border-red-500 focus:ring-red-500';
 
 export default function AdminSettingsPage() {
@@ -375,7 +375,7 @@ export default function AdminSettingsPage() {
             aria-invalid={hasError || undefined}
             aria-describedby={describedBy}
             onChange={(event) => handleValueChange(setting.key, event.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
           />
           <span className="text-sm text-gray-600" aria-hidden="true">
             {checked ? 'Enabled' : 'Disabled'}
@@ -453,7 +453,7 @@ export default function AdminSettingsPage() {
         role="status"
         aria-live="polite"
       >
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600 motion-reduce:animate-none" />
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-ink motion-reduce:animate-none" />
         <span className="sr-only">Loading master settings…</span>
       </div>
     );
@@ -472,7 +472,7 @@ export default function AdminSettingsPage() {
             <button
               type="button"
               onClick={() => setReloadToken((token) => token + 1)}
-              className="rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="rounded-md bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
             >
               Try again
             </button>
@@ -507,7 +507,7 @@ export default function AdminSettingsPage() {
           <button
             type="button"
             onClick={() => setReloadToken((token) => token + 1)}
-            className="mt-4 rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+            className="mt-4 rounded-md bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
           >
             Refresh
           </button>
@@ -566,7 +566,7 @@ export default function AdminSettingsPage() {
                           {setting.label}
                         </label>
                         {setting.is_public ? (
-                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                          <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
                             Public
                           </span>
                         ) : null}
@@ -607,7 +607,7 @@ export default function AdminSettingsPage() {
           <button
             type="submit"
             disabled={!hasChanges || isSaving}
-            className="rounded-md border border-transparent bg-gray-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-transparent bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? 'Saving…' : 'Save changes'}
           </button>

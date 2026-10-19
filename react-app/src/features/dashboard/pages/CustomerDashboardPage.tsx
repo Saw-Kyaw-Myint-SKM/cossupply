@@ -22,9 +22,9 @@ export default function CustomerDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Quotations</h3>
-          <p className="text-3xl font-bold text-blue-600">0</p>
+          <p className="text-3xl font-bold text-ink">0</p>
           <p className="text-sm text-gray-500 mt-1">Active quotations</p>
-          <Link to="/quotations" className="text-sm text-blue-600 hover:text-blue-800 mt-2 inline-block">
+          <Link to="/quotations" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
           </Link>
         </div>
@@ -32,17 +32,17 @@ export default function CustomerDashboardPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Orders</h3>
           <p className="text-3xl font-bold text-green-600">0</p>
           <p className="text-sm text-gray-500 mt-1">Total orders</p>
-          <Link to="/orders" className="text-sm text-blue-600 hover:text-blue-800 mt-2 inline-block">
+          <Link to="/orders" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
           </Link>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">New Quotation</h3>
           <p className="text-gray-600 text-sm mb-4">
-            Add products to cart and request a quotation.
+            Add products to your order list and request a quotation.
           </p>
-          <Link to="/cart" className="text-sm text-blue-600 hover:text-blue-800">
-            View Cart &rarr;
+          <Link to="/cart" className="text-sm text-accent hover:text-accent/80">
+            Open order list &rarr;
           </Link>
         </div>
       </div>

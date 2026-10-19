@@ -1,14 +1,15 @@
 /**
  * Cart Page (Task 05).
  *
- * Browser-local guest cart. Quantities are validated against each line's MOQ,
- * out-of-stock lines can never be re-added, and every price is presented as a
- * display price. "Request Quotation" only ever routes the buyer: a guest is
- * sent to the customer login/register screen, and nothing is posted to the
+ * Browser-local guest order list. Quantities are validated against each line's
+ * MOQ, out-of-stock lines can never be re-added, and every price is presented
+ * as a display price. "Request Quotation" only ever routes the buyer: a guest
+ * is sent to the customer login/register screen, and nothing is posted to the
  * API from here (RolesPermissions §1).
  */
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { FiMinus, FiPlus, FiTrash2 } from 'react-icons/fi';
 import {
   Alert,
   EmptyState,
@@ -136,9 +137,9 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Shopping cart" />
+        <PageHeader title="Order list" />
         <EmptyState
-          title="Your cart is empty"
+          title="Your order list is empty"
           hint="Browse the catalog and add products to start a quotation request."
         />
         <div className="text-center">
@@ -151,16 +152,16 @@ export default function CartPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="pb-28 space-y-6 sm:pb-0">
       <PageHeader
-        title="Shopping cart"
+        title="Order list"
         description="Quantities are saved in this browser. Prices are display prices and are confirmed in your quotation."
       />
 
       {banner ? <Alert tone="warning">{banner}</Alert> : null}
 
-      <section className="rounded-lg bg-white shadow" aria-busy="false">
-        <ul className="divide-y divide-gray-100">
+      <section className="rounded-lg border border-rule bg-plate" aria-busy="false">
+        <ul className="divide-y divide-rule">
           {items.map((item) => {
             const rowError = rowErrors[item.product_id];
             const minimum = item.minimum_order_quantity;
@@ -186,7 +187,7 @@ export default function CartPage() {
 
                 <div className="min-w-0 flex-1">
                   <h2 className="text-sm font-semibold text-gray-900">
-                    <Link to={`/products/${item.product_id}`} className="hover:text-blue-700">
+                    <Link to={`/products/${item.product_id}`} className="hover:text-accent">
                       {item.name_en ?? item.name_mm}
                     </Link>
                   </h2>
@@ -213,16 +214,16 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex flex-none flex-col items-start gap-2 sm:items-end">
-                  <div className="flex items-center rounded-md border border-gray-300">
-                    <button
-                      type="button"
-                      onClick={() => handleStep(item, -1)}
-                      disabled={atMinimum}
-                      className="px-3 py-2 text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300"
-                      aria-label={`Decrease quantity of ${item.name_en ?? item.name_mm}`}
-                    >
-                      −
-                    </button>
+                  <div className="flex items-center rounded-md border border-gray-300 bg-plate">
+                  <button
+                    type="button"
+                    onClick={() => handleStep(item, -1)}
+                    disabled={atMinimum}
+                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-gray-300"
+                    aria-label={`Decrease quantity of ${item.name_en ?? item.name_mm}`}
+                  >
+                    <FiMinus aria-hidden="true" className="h-4 w-4" />
+                  </button>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -233,15 +234,15 @@ export default function CartPage() {
                       onBlur={() => handleDraftCommit(item)}
                       aria-label={`Quantity of ${item.name_en ?? item.name_mm}`}
                       aria-invalid={Boolean(rowError) || undefined}
-                      className="w-20 border-x border-gray-300 px-2 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-20 border-x border-gray-300 px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
                     />
                     <button
                       type="button"
                       onClick={() => handleStep(item, 1)}
-                      className="px-3 py-2 text-gray-700"
+                      className="flex h-11 w-11 items-center justify-center text-ink"
                       aria-label={`Increase quantity of ${item.name_en ?? item.name_mm}`}
                     >
-                      +
+                      <FiPlus aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
 
@@ -251,15 +252,16 @@ export default function CartPage() {
                     </p>
                   ) : null}
 
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-ink tabular-nums">
                     {formatMMK(item.unit_price * item.quantity)} MMK
                   </p>
 
                   <button
                     type="button"
                     onClick={() => handleRemove(item)}
-                    className="text-sm text-red-600 hover:text-red-800"
+                    className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-800"
                   >
+                    <FiTrash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     Remove
                   </button>
                 </div>
@@ -270,7 +272,7 @@ export default function CartPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
           <p className="text-sm text-gray-600">
-            {items.length} {items.length === 1 ? 'line' : 'lines'} in cart
+            {items.length} {items.length === 1 ? 'line' : 'lines'} in your order list
           </p>
           <button type="button" onClick={handleClear} className={secondaryButtonClass}>
             Clear cart
@@ -278,25 +280,33 @@ export default function CartPage() {
         </div>
       </section>
 
-      <form onSubmit={handleRequestQuotation} className="rounded-lg bg-white p-6 shadow">
+      {/*
+       * Subtotal + the single quotation action. On mobile it becomes a
+       * sticky bottom bar so the submit is never off-screen; on desktop it
+       * stays a closing plate beneath the lines.
+       */}
+      <form
+        onSubmit={handleRequestQuotation}
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-plate/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:rounded-lg sm:border sm:border-rule sm:bg-plate sm:p-6 sm:pb-6"
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <span className="text-sm font-medium text-gray-700">Subtotal (display price)</span>
-          <span className="text-xl font-semibold text-gray-900">
+          <span className="text-sm font-medium text-ink">Subtotal (display price)</span>
+          <span className="text-xl font-semibold text-ink tabular-nums">
             {formatMMK(subtotal)} MMK
           </span>
         </div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 sm:block hidden">
           Indicative only. Delivery, discounts and the service fee are calculated by the server
           when the quotation is issued.
         </p>
 
-        <button type="submit" className={`${primaryButtonClass} mt-5 w-full`}>
+        <button type="submit" className={`${primaryButtonClass} mt-5 w-full sm:mt-4`}>
           Request Quotation
         </button>
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-gray-500 hidden sm:block">
           {isAuthenticated && userType === 'customer'
             ? 'Continue to your quotations to submit a request.'
-            : 'You will be asked to sign in or register first. Your cart is kept in this browser.'}
+            : 'You will be asked to sign in or register first. Your order list is kept in this browser.'}
         </p>
       </form>
     </div>

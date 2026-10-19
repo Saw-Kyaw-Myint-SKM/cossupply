@@ -615,7 +615,7 @@ export default function ProductListPage() {
                             <div className="min-w-0">
                               <Link
                                 to={`/admin/products/${product.id}/edit`}
-                                className="truncate text-sm font-medium text-blue-700 hover:text-blue-900"
+                                className="truncate text-sm font-medium text-accent hover:text-accent/80"
                                 aria-label={`Edit ${productLabel(product)}`}
                               >
                                 {product.name_mm}

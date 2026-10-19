@@ -565,7 +565,7 @@ export default function SupplierFormPage() {
                     Boolean(fieldErrors.logo) && fieldErrorId('logo'),
                   )}
                   onChange={handleLogoChange}
-                  className="block w-full max-w-md text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="block w-full max-w-md text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
             </Field>
@@ -785,7 +785,7 @@ export default function SupplierFormPage() {
                     Boolean(fieldErrors.verified) && fieldErrorId('verified'),
                   )}
                   onChange={(event) => updateField('verified', event.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-accent focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <label htmlFor={fieldId('verified')} className="text-sm">
                   <span className="block font-medium text-gray-900">Verified supplier</span>

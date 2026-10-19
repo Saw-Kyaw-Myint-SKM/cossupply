@@ -294,7 +294,7 @@ export default function SupplierListPage() {
                           <div className="min-w-0">
                             <Link
                               to={`/admin/suppliers/${supplier.id}/edit`}
-                              className="truncate text-sm font-medium text-blue-700 hover:text-blue-900"
+                              className="truncate text-sm font-medium text-accent hover:text-accent/80"
                               aria-label={`Edit ${supplierLabel(supplier)}`}
                             >
                               {supplier.shop_name}
@@ -334,7 +334,7 @@ export default function SupplierListPage() {
                       <td className="whitespace-nowrap px-4 py-3">
                         <StatusBadge status={supplier.status} />
                         {supplier.verified ? (
-                          <span className="mt-1 block w-fit rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                          <span className="mt-1 block w-fit rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-inset ring-accent/40">
                             Verified
                           </span>
                         ) : null}

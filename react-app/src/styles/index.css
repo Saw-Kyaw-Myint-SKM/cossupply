@@ -1,1 +1,195 @@
+/* Type: Plus Jakarta Sans for Latin text, Noto Sans Myanmar for Burmese
+ * script. The two live in one stack so bilingual strings (Myanmar glyphs
+ * beside Latin digits, e.g. "ဒေါင်းလုဒ် · MOQ 5") split glyph by glyph
+ * with no extra markup. */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+/*
+ * The CoSupply token layer: indigo on slate (a modern SaaS identity).
+ *
+ * - ink: the dark text color (headings, prices, wordmark) — never a button
+ * - primary: the single indigo action color (all primary buttons)
+ * - paper/plate: page and surface tones; verbose contrast comes from rules
+ * - accent: one indigo, spent ONLY on search focus, the order-list badge,
+ *   active nav, links, and active filter rows — never as decoration
+ */
+@theme {
+  --color-ink: #0f172a;
+  --color-ink-hover: #1e293b;
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-paper: #f8fafc;
+  --color-plate: #ffffff;
+  --color-rule: #e2e8f0;
+  --color-accent: #4f46e5;
+  --color-accent-soft: #e0e7ff;
+
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Myanmar", ui-sans-serif, system-ui, sans-serif;
+
+  /* Motion system: one settle curve, three durations. */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-rise-in: rise-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-badge-pop: badge-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-count-roll: count-roll 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-check-draw: check-draw 280ms ease-out;
+  --animate-drawer-in: drawer-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-sheet-in: sheet-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-bar-in: bar-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes rise-in {
+    from {
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes badge-pop {
+    0% {
+      transform: scale(1);
+    }
+    45% {
+      transform: scale(1.22);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes count-roll {
+    from {
+      transform: translateY(65%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes check-draw {
+    from {
+      stroke-dashoffset: 24;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes drawer-in {
+    from {
+      transform: translateY(-8px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes bar-in {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    /* Premium rendering: no synthetic weight, no subpixel fringe. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
+    /* Reserve the scrollbar gutter so long lists never shift content. */
+    scrollbar-gutter: stable;
+  }
+
+  /* Display tracking: Jakarta Sans is drawn for tight headlines; body text
+   * keeps its natural spacing. A whisper of negative tracking, nothing that
+   * rewraps a clamped title. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+  }
+
+  /*
+   * A quiet, slate-toned scrollbar: a rounded pill thumb floating on a
+   * transparent track; hovering darkens it, grabbing it warms to the accent.
+   * Firefox reads the token pair, WebKit the pseudo-elements.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 23, 42, 0.3) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: rgba(15, 23, 42, 0.3);
+    background-clip: content-box;
+    transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(15, 23, 42, 0.55);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-accent);
+  }
+
+  /*
+   * The belt-and-braces reduced-motion fallback: every animation collapses
+   * to an instant state swap, while components keep their own
+   * motion-reduce classes for base-state correctness.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Horizontal chip rails and hidden scroll regions never show scrollbars. */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

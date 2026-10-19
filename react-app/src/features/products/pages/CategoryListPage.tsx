@@ -1,12 +1,13 @@
 /**
  * Category Page (Task 05).
  *
- * Lists the ACTIVE categories so guests can navigate the catalog by branch.
- * Each card deep-links into the product list with `category_id` applied, which
- * is why the product list keeps its filters in the URL.
+ * Lists the ACTIVE categories as a light catalog index — not a grid of heavy
+ * cards. Each tile deep-links into the product list with `category_id`
+ * applied, which is why the product list keeps its filters in the URL.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { FiArrowRight } from 'react-icons/fi';
 import { listCategories, type PublicCategory } from '../../../api/catalog';
 import {
   Alert,
@@ -68,7 +69,7 @@ export default function CategoryListPage() {
             <Link
               key={category.id}
               to={`/products?category_id=${category.id}`}
-              className="group flex flex-col overflow-hidden rounded-lg bg-white shadow transition hover:shadow-md"
+              className="group flex overflow-hidden rounded-lg border border-rule bg-plate hover:border-accent/40 active:scale-[.99] motion-safe:transition-colors"
             >
               {category.image_url ? (
                 <img
@@ -76,24 +77,25 @@ export default function CategoryListPage() {
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  className="h-32 w-full object-cover"
+                  className="h-28 w-28 flex-none object-cover sm:h-32 sm:w-32"
                 />
               ) : (
-                <div className="flex h-32 w-full items-center justify-center bg-gray-100 text-sm text-gray-400">
+                <div className="flex h-28 w-28 flex-none items-center justify-center bg-gray-100 text-xs text-gray-300 sm:h-32 sm:w-32">
                   No image
                 </div>
               )}
 
-              <div className="flex flex-1 flex-col p-4">
-                <h2 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
-                  {category.name_en}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">{category.name_mm}</p>
+              <div className="flex min-w-0 flex-1 flex-col p-4">
+                <h2 className="text-sm font-semibold text-ink">{category.name_en}</h2>
+                <p className="mt-0.5 truncate text-sm text-gray-500">{category.name_mm}</p>
                 {category.description ? (
-                  <p className="mt-2 line-clamp-2 text-sm text-gray-600">{category.description}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-4 text-gray-600">
+                    {category.description}
+                  </p>
                 ) : null}
-                <span className="mt-auto pt-3 text-sm font-medium text-blue-600">
-                  View products &rarr;
+                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium text-ink group-hover:text-accent motion-safe:transition-colors">
+                  View products
+                  <FiArrowRight aria-hidden="true" className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" />
                 </span>
               </div>
             </Link>

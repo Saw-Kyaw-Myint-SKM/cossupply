@@ -11,6 +11,9 @@ use App\Enums\QuotationRequestStatus;
 use App\Enums\QuotationVersionStatus;
 use App\Enums\StockStatus;
 use App\Enums\SupplierStatus;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Http;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\CashPayment;
@@ -404,21 +407,56 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * Write real placeholder PNG files to the public disk.
+     * Write real placeholder media files to the public disk.
      *
-     * A small base64 PNG is embedded so the seeder never depends on GD or
-     * an image package.
+     * Product photos come from the remote demo photo (a real product
+     * shot); supplier logos use a small embedded base64 PNG so the
+     * seeder never depends on GD or an image package.
      */
     private function writePlaceholderMedia(): void
     {
         $disk = Storage::disk('public');
 
+        $productImageBytes = $this->fetchProductImage();
+
         for ($i = 1; $i <= self::PRODUCT_IMAGE_COUNT; $i++) {
-            $disk->put('products/demo-product-'.$i.'.png', $this->decodePng(self::PRODUCT_IMAGE_BASE64));
+            $disk->put('products/demo-product-'.$i.'.png', $productImageBytes);
         }
 
         for ($i = 1; $i <= self::SUPPLIER_LOGO_COUNT; $i++) {
             $disk->put('suppliers/demo-logo-'.$i.'.png', $this->decodePng(self::SUPPLIER_LOGO_BASE64));
+        }
+    }
+
+    /**
+     * Fetch the demo product photo, falling back to the embedded PNG.
+     *
+     * A failed fetch (offline box, CDN hiccup) must never hard-fail the
+     * seed run — the 16x16 fallback keeps the fixtures valid instead.
+     */
+    private function fetchProductImage(): string
+    {
+        $fallback = $this->decodePng(self::PRODUCT_IMAGE_BASE64);
+
+        try {
+            $response = Http::timeout(15)->get(self::PRODUCT_IMAGE_URL);
+
+            if ($response->failed()) {
+                return $fallback;
+            }
+
+            $bytes = $response->body();
+
+            // PNG magic number: reject HTML error pages or empty bodies.
+            if (! str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) {
+                return $fallback;
+            }
+
+            return $bytes;
+        } catch (ConnectionException | RequestException) {
+            $this->command?->warn('Demo product photo download failed; using the embedded placeholder instead.');
+
+            return $fallback;
         }
     }
 
@@ -1511,7 +1549,14 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * 16x16 placeholder PNG for product images (base64).
+     * Demo product photo source. The seeder downloads this real product
+     * photo and writes it to every demo-product slot; when the download
+     * fails (offline dev box), it falls back to the embedded base64 PNG.
+     */
+    private const PRODUCT_IMAGE_URL = 'https://www.hbada.eu/cdn/shop/files/2132321_97d0cb09-bfdf-41ba-8bd8-2dd442c87b53.png?v=1761890676&width=756';
+
+    /**
+     * 16x16 placeholder PNG for product images (base64). Fallback only.
      */
     private const PRODUCT_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAANklEQVQoz2NUTX7NQApgYiARjEgNLMicW3NEkLlqKW+IskEt5Q1EKZr+0WDFGrhYg5WR1OQNABlVDX85FkVTAAAAAElFTkSuQmCC';
 

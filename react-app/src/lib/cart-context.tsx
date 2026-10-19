@@ -12,10 +12,23 @@ import {
   type CartItem,
 } from './cart-storage';
 
+/**
+ * What the last successful "add" logged. The `at` timestamp lets cards and
+ * detail pages play the receipt moment (button flips to "Added — N" while the
+ * header badge pops) and time it out without a global clock.
+ */
+export interface LastAddedCartLine {
+  productId: number;
+  quantity: number;
+  at: number;
+}
+
 interface CartContextType {
   items: CartItem[];
   /** Total units across every line; drives the header badge. */
   count: number;
+  /** Snapshot of the most recent successful add, or null when the list starts session. */
+  lastAdded: LastAddedCartLine | null;
   /**
    * Add (or top up) a product line.
    * Returns null on success, or the rejection message to show the buyer.
@@ -31,6 +44,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => loadCart());
+  const [lastAdded, setLastAdded] = useState<LastAddedCartLine | null>(null);
 
   useEffect(() => {
     saveCart(items);
@@ -42,6 +56,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (result.error !== null) return result.error;
 
     setItems(result.items);
+    setLastAdded({ productId: product.id, quantity, at: Date.now() });
     return null;
   };
 
@@ -63,7 +78,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ items, count: cartUnitCount(items), add, setQuantity, remove, clear }}>
+    <CartContext.Provider
+      value={{ items, count: cartUnitCount(items), lastAdded, add, setQuantity, remove, clear }}
+    >
       {children}
     </CartContext.Provider>
   );
