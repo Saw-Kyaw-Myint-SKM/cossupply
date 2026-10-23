@@ -68,6 +68,19 @@ class Quotation extends Model
     }
 
     /**
+     * Whether the validity date has passed.
+     *
+     * `valid_until` is a date-only column, so the quotation stays valid for
+     * the whole of that calendar day. Expiry is evaluated on request (there
+     * is no scheduler in the MVP).
+     */
+    public function isExpired(): bool
+    {
+        return $this->valid_until !== null
+            && $this->valid_until->toDateString() < now()->toDateString();
+    }
+
+    /**
      * The request this quotation version belongs to.
      */
     public function quotationRequest(): BelongsTo

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
 use App\Http\Controllers\Api\V1\AdminProductController;
 use App\Http\Controllers\Api\V1\AdminQuotationController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\V1\AdminSupplierController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerAuthController;
 use App\Http\Controllers\Api\V1\CustomerProfileController;
+use App\Http\Controllers\Api\V1\CustomerQuotationActionController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
@@ -77,6 +79,13 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
     // Quotation requests (submitted from the cart, customer-owned reads)
     Route::get('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'index']);
     Route::post('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'store']);
+    Route::get('/customer/quotation-requests/{quotationRequest}', [CustomerQuotationRequestController::class, 'show']);
+    Route::post('/customer/quotation-requests/{quotationRequest}/view', [CustomerQuotationRequestController::class, 'view']);
+
+    // Customer responses to the current quotation version
+    Route::post('/customer/quotations/{quotation}/accept', [CustomerQuotationActionController::class, 'accept']);
+    Route::post('/customer/quotations/{quotation}/reject', [CustomerQuotationActionController::class, 'reject']);
+    Route::post('/customer/quotations/{quotation}/change-request', [CustomerQuotationActionController::class, 'requestChange']);
 });
 
 /*
@@ -122,6 +131,11 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/admin/quotations/{quotation}/resend', [AdminQuotationController::class, 'resend']);
     Route::post('/admin/quotations/{quotation}/pdf', [AdminQuotationController::class, 'generatePdf']);
     Route::get('/admin/quotations/{quotation}/pdf/download', [AdminQuotationController::class, 'downloadPdf']);
+
+    // Order queue and supplier-confirmation workflow (Task 09)
+    Route::get('/admin/orders', [AdminOrderController::class, 'index']);
+    Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show']);
+    Route::patch('/admin/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

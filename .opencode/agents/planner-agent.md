@@ -8,9 +8,6 @@ permission:
   list: allow
   question: allow
   edit: deny
-  bash: deny
-  webfetch: deny
-  websearch: deny
   task:
     "*": deny
     "frontend-agent": allow

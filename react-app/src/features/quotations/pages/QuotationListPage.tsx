@@ -1,22 +1,22 @@
 /**
- * My Quotations list (Task 06 foundation).
+ * My Quotations list (Tasks 06 and 08).
  *
  * Paginated list of the authenticated customer's quotation requests. Each row
- * links to `/quotations/{id}`, which is the Task 08 detail placeholder — the
- * link already routes correctly so the navigation contract does not have to
- * change later. Approved decisions: notifications are deferred to Task 11,
- * and the ledger keeps the same loading / empty / permission-error contract
+ * links to `/quotations/{id}`. Task 08 adds the current version/status,
+ * validity, expiry, and an "Action needed" hint for a sent-but-unreviewed
+ * current quotation. Loading / empty / permission-error states stay the same
  * as every other list (Definition of Done).
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listQuotationRequests, type QuotationRequestSummary } from '../api/quotationsApi';
+import QuotationStatusBadge from '../components/QuotationStatusBadge';
+import { buildQuotationListMarkers } from '../lib/quotationView';
 import {
   EmptyState,
   LoadingPanel,
   PageHeader,
   Pagination,
-  StatusBadge,
   describeCustomerLoadError,
   linkClass,
   primaryButtonClass,
@@ -149,37 +149,74 @@ export default function QuotationListPage() {
         aria-label="Quotation requests"
       >
         <ul className="divide-y divide-rule">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <Link
-                to={`/quotations/${row.id}`}
-                className="flex flex-col gap-2 p-4 motion-safe:transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-semibold text-ink tabular-nums">
-                      {row.quotation_number}
-                    </span>
-                    <StatusBadge status={row.status} />
-                  </div>
-                  <p className="mt-1 text-sm text-gray-600">
-                    {row.customer_name} · {row.city}
-                    {row.township ? `, ${row.township}` : ''}
-                  </p>
-                  <p className="text-xs text-gray-500 sm:sr-only">{row.phone}</p>
-                </div>
+          {rows.map((row) => {
+            const markers = buildQuotationListMarkers(row);
 
-                <div className="flex-none text-left sm:text-right">
-                  <p className="text-sm text-gray-700">
-                    {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Requested {formatRequestDate(row.created_at)}
-                  </p>
-                </div>
-              </Link>
-            </li>
-          ))}
+            return (
+              <li key={row.id}>
+                <Link
+                  to={`/quotations/${row.id}`}
+                  className="flex flex-col gap-2 p-4 motion-safe:transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm font-semibold text-ink tabular-nums">
+                        {row.quotation_number}
+                      </span>
+                      <QuotationStatusBadge status={row.status} />
+                      {markers.actionNeeded ? (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                          Action needed
+                        </span>
+                      ) : null}
+                      {markers.expired ? (
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+                          Expired
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {row.customer_name} · {row.city}
+                      {row.township ? `, ${row.township}` : ''}
+                    </p>
+                    {markers.hasCurrentVersion ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
+                        <span>{markers.currentVersionLabel}</span>
+                        {row.current_status ? (
+                          <>
+                            <span aria-hidden="true" className="text-gray-400">
+                              ·
+                            </span>
+                            <QuotationStatusBadge status={row.current_status} />
+                          </>
+                        ) : null}
+                        {markers.validityLabel ? (
+                          <>
+                            <span aria-hidden="true" className="text-gray-400">
+                              ·
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {markers.validityLabel}
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <p className="text-xs text-gray-500 sm:sr-only">{row.phone}</p>
+                  </div>
+
+                  <div className="flex-none text-left sm:text-right">
+                    <p className="text-sm text-gray-700">
+                      {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Requested {formatRequestDate(row.created_at)}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         {meta && meta.last_page > 1 ? (

@@ -37,6 +37,8 @@ use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\Supplier;
 use App\Models\SupplierCommunication;
+use App\Services\Order\OrderNumberGenerator;
+use App\Services\Order\ReceiptNumberGenerator;
 use App\Services\Quotation\QuotationNumberGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -69,9 +71,23 @@ class DemoDataSeeder extends Seeder
      */
     private ?QuotationNumberGenerator $quotationNumbers = null;
 
+    private ?OrderNumberGenerator $orderNumbers = null;
+
+    private ?ReceiptNumberGenerator $receiptNumbers = null;
+
     private function quotationNumbers(): QuotationNumberGenerator
     {
         return $this->quotationNumbers ??= app(QuotationNumberGenerator::class);
+    }
+
+    private function orderNumbers(): OrderNumberGenerator
+    {
+        return $this->orderNumbers ??= app(OrderNumberGenerator::class);
+    }
+
+    private function receiptNumbers(): ReceiptNumberGenerator
+    {
+        return $this->receiptNumbers ??= app(ReceiptNumberGenerator::class);
     }
 
     /**
@@ -1166,8 +1182,8 @@ class DemoDataSeeder extends Seeder
             $request = QuotationRequest::query()->find($quotation->quotation_request_id);
             $lifecycle = $lifecycles[$index % count($lifecycles)];
 
-            $orders[] = Order::create([
-                'order_number' => 'ORD-'.str_pad((string) ($index + 1), 6, '0', STR_PAD_LEFT),
+            $order = Order::create([
+                'order_number' => Str::uuid()->toString(),
                 'quotation_id' => $quotation->id,
                 'quotation_request_id' => $quotation->quotation_request_id,
                 'customer_id' => $request->customer_id,
@@ -1191,6 +1207,10 @@ class DemoDataSeeder extends Seeder
                 'delivery_status' => $lifecycle['delivery_status']->value,
                 'customer_note' => $request->customer_note,
             ]);
+
+            $order->update(['order_number' => $this->orderNumbers()->generate($order)]);
+
+            $orders[] = $order;
         }
 
         return $orders;
@@ -1327,11 +1347,11 @@ class DemoDataSeeder extends Seeder
             }
         }
 
-        foreach ($deliveredOrders as $index => [$order, $delivery]) {
-            CashPayment::create([
+        foreach ($deliveredOrders as [$order, $delivery]) {
+            $payment = CashPayment::create([
                 'order_id' => $order->id,
                 'delivery_id' => $delivery->id,
-                'receipt_number' => 'RCP-'.str_pad((string) ($index + 1), 6, '0', STR_PAD_LEFT),
+                'receipt_number' => Str::uuid()->toString(),
                 'amount_due' => $order->total_amount,
                 'amount_collected' => $order->total_amount,
                 'amount_remaining' => 0,
@@ -1343,6 +1363,8 @@ class DemoDataSeeder extends Seeder
                 'note' => 'Full cash on delivery collected.',
                 'status' => PaymentStatus::PAYMENT_CONFIRMED->value,
             ]);
+
+            $payment->update(['receipt_number' => $this->receiptNumbers()->generate($payment)]);
         }
     }
 

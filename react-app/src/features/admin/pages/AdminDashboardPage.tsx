@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { listAdminOrders } from '../api/ordersApi';
 import { useAuth } from '../../../lib/auth-context';
 
 /**
@@ -6,6 +8,29 @@ import { useAuth } from '../../../lib/auth-context';
  */
 export default function AdminDashboardPage() {
   const { admin, adminLogout } = useAuth();
+  const [orderCount, setOrderCount] = useState<number | null>(null);
+  const [orderCountFailed, setOrderCountFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOrderCount = async () => {
+      const response = await listAdminOrders({ page: 1, per_page: 1 });
+      if (cancelled) return;
+
+      if (response.success && response.data) {
+        setOrderCount(response.data.meta.total);
+      } else {
+        setOrderCountFailed(true);
+      }
+    };
+
+    void loadOrderCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -28,11 +53,23 @@ export default function AdminDashboardPage() {
           <p className="text-3xl font-bold text-ink">0</p>
           <p className="text-sm text-gray-500 mt-1">Pending requests</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Orders</h3>
-          <p className="text-3xl font-bold text-green-600">0</p>
-          <p className="text-sm text-gray-500 mt-1">Total orders</p>
-        </div>
+        <Link
+          to="/admin/orders"
+          className="group rounded-lg border border-transparent bg-white p-6 shadow transition-colors hover:border-accent/40 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-lg font-semibold text-gray-900">Orders</h3>
+            <span className="text-xs font-medium text-gray-500 group-hover:text-accent">
+              Open queue
+            </span>
+          </div>
+          <p className="mt-2 text-3xl font-bold text-green-600" aria-live="polite">
+            {orderCount === null ? (orderCountFailed ? '—' : '…') : orderCount.toLocaleString('en-US')}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            {orderCountFailed ? 'Order count unavailable' : 'Total orders'}
+          </p>
+        </Link>
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Products</h3>
           <p className="text-3xl font-bold text-purple-600">0</p>
@@ -48,7 +85,7 @@ export default function AdminDashboardPage() {
       {/* Management Links */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Management</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           <Link
             to="/admin/suppliers"
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
@@ -76,6 +113,13 @@ export default function AdminDashboardPage() {
           >
             <span className="block font-medium text-gray-900">Quotations</span>
             <span className="text-sm text-gray-500">Manage quotations</span>
+          </Link>
+          <Link
+            to="/admin/orders"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
+          >
+            <span className="block font-medium text-gray-900">Orders</span>
+            <span className="text-sm text-gray-500">Confirm suppliers</span>
           </Link>
           <Link
             to="/admin/settings"

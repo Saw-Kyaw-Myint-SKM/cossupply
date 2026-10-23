@@ -424,9 +424,29 @@ class CustomerQuotationRequestTest extends TestCase
 
         $row = $response->json('data.quotation_requests.0');
         $this->assertSame(
-            ['id', 'quotation_number', 'status', 'customer_name', 'phone', 'city', 'township', 'item_count', 'created_at'],
+            [
+                'id',
+                'quotation_number',
+                'status',
+                'customer_name',
+                'phone',
+                'city',
+                'township',
+                'item_count',
+                'created_at',
+                'current_quotation_id',
+                'current_version',
+                'current_status',
+                'valid_until',
+                'is_expired',
+            ],
             array_keys($row),
         );
+        $this->assertNull($row['current_quotation_id']);
+        $this->assertNull($row['current_version']);
+        $this->assertNull($row['current_status']);
+        $this->assertNull($row['valid_until']);
+        $this->assertFalse($row['is_expired']);
 
         $this->withToken($token)->getJson('/api/v1/customer/quotation-requests?per_page=101')
             ->assertUnprocessable();
