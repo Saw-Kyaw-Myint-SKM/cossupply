@@ -21,7 +21,7 @@ class QuotationRequestFactory extends Factory
     public function definition(): array
     {
         return [
-            'quotation_number' => 'QT-'.fake()->unique()->numerify('######'),
+            'quotation_number' => 'QT-'.now()->year.'-'.fake()->unique()->numerify('####'),
             'customer_id' => Customer::factory(),
             'customer_name' => fake()->name(),
             'company_name' => null,

@@ -180,4 +180,51 @@ class StatusTransitionService
             throw new InvalidStatusTransitionException($domain, $from, $to);
         }
     }
+
+    /**
+     * Find the shortest valid status path from one status to another.
+     *
+     * Admin workflow steps (for example NEW -> PREPARING_QUOTATION) may need
+     * to pass through intermediate statuses; this returns every hop so the
+     * caller can keep the declared transition graph intact.
+     *
+     * @return list<string>|null Null when no valid path exists.
+     */
+    public function path(string $domain, string $from, string $to): ?array
+    {
+        $transitions = self::TRANSITIONS[strtolower($domain)] ?? null;
+
+        if ($transitions === null) {
+            return null;
+        }
+
+        if ($from === $to) {
+            return [$from];
+        }
+
+        $queue = [[$from]];
+        $visited = [$from => true];
+
+        while ($queue !== []) {
+            $currentPath = array_shift($queue);
+            $current = $currentPath[count($currentPath) - 1];
+
+            foreach ($transitions[$current] ?? [] as $next) {
+                if (isset($visited[$next])) {
+                    continue;
+                }
+
+                $nextPath = [...$currentPath, $next];
+
+                if ($next === $to) {
+                    return $nextPath;
+                }
+
+                $visited[$next] = true;
+                $queue[] = $nextPath;
+            }
+        }
+
+        return null;
+    }
 }

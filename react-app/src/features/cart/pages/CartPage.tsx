@@ -131,7 +131,11 @@ export default function CartPage() {
     }
 
     setBanner(null);
-    navigate(isAuthenticated && userType === 'customer' ? '/quotations' : '/login');
+    navigate(
+      isAuthenticated && userType === 'customer'
+        ? '/quotations/new' // the request form handles the POST (Task 06)
+        : '/login',
+    );
   };
 
   if (items.length === 0) {
@@ -305,7 +309,7 @@ export default function CartPage() {
         </button>
         <p className="mt-2 text-xs text-gray-500 hidden sm:block">
           {isAuthenticated && userType === 'customer'
-            ? 'Continue to your quotations to submit a request.'
+            ? 'Continue to the request form to submit your quotation request.'
             : 'You will be asked to sign in or register first. Your order list is kept in this browser.'}
         </p>
       </form>

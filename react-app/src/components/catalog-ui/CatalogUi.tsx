@@ -64,6 +64,60 @@ export function describeRequestError(response: ApiResponse<unknown>, fallback: s
   return response.message ?? fallback;
 }
 
+/**
+ * Customer-facing variants of the two helpers above: the session wording
+ * must not say "admin" on buyer pages (`/customer/*` endpoints, Task 06).
+ */
+export function describeCustomerLoadError(
+  response: ApiResponse<unknown>,
+  subject: string,
+): LoadErrorState {
+  if (response.status === 401) {
+    return {
+      message: `Your session has expired. Sign in again to view ${subject}.`,
+      needsLogin: true,
+    };
+  }
+
+  if (response.status === 403) {
+    return {
+      message: response.message ?? `Your account does not have permission to view ${subject}.`,
+      needsLogin: false,
+    };
+  }
+
+  if (response.status === undefined) {
+    return {
+      message: 'Could not reach the server. Check that the API is running and try again.',
+      needsLogin: false,
+    };
+  }
+
+  return {
+    message: response.message ?? `Unable to load ${subject}.`,
+    needsLogin: false,
+  };
+}
+
+export function describeCustomerRequestError(
+  response: ApiResponse<unknown>,
+  fallback: string,
+): string {
+  if (response.status === 401) {
+    return 'Your session has expired. Sign in again, then try again.';
+  }
+
+  if (response.status === 403) {
+    return response.message ?? 'Your account does not have permission to do that.';
+  }
+
+  if (response.status === undefined) {
+    return 'Could not reach the server. Try again.';
+  }
+
+  return response.message ?? fallback;
+}
+
 export function formatStatusLabel(status: string): string {
   const spaced = status.replace(/_/g, ' ').toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);

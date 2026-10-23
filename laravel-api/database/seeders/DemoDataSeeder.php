@@ -37,6 +37,7 @@ use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\Supplier;
 use App\Models\SupplierCommunication;
+use App\Services\Quotation\QuotationNumberGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -61,6 +62,17 @@ class DemoDataSeeder extends Seeder
      * Fixed faker seed so every run produces the same values.
      */
     private const FAKER_SEED = 20261018;
+
+    /**
+     * Resolved lazily because the seeder is also instantiated with
+     * `new` (no constructor arguments) beside the DI container.
+     */
+    private ?QuotationNumberGenerator $quotationNumbers = null;
+
+    private function quotationNumbers(): QuotationNumberGenerator
+    {
+        return $this->quotationNumbers ??= app(QuotationNumberGenerator::class);
+    }
 
     /**
      * Number of placeholder images written to the public disk.
@@ -396,7 +408,7 @@ class DemoDataSeeder extends Seeder
             $this->seedOrderItems($orders);
             $this->seedOrderStatusHistories($orders, $admins);
             $this->seedDeliveriesAndPayments($orders);
-            $this->seedNotifications($admins, $customers, $quotations, $orders);
+            $this->seedNotifications($admins, $customers, $quotations, $orders, $requests);
             $this->seedEmailLogs($quotations, $orders);
             $this->seedAuditLogs($admins, $products, $suppliers);
         } finally {
@@ -802,8 +814,12 @@ class DemoDataSeeder extends Seeder
                 ? null
                 : $admins[$number % count($admins)]->id;
 
-            $requests[] = QuotationRequest::create([
-                'quotation_number' => 'QT-'.str_pad((string) $number, 6, '0', STR_PAD_LEFT),
+            // quotation_number is NOT NULL, so the row is first persisted
+            // with a unique placeholder and immediately re-keyed to the
+            // id-derived number, matching the API contract format
+            // `QT-YYYY-####` (LogicFlow §5).
+            $request = QuotationRequest::create([
+                'quotation_number' => Str::uuid()->toString(),
                 'customer_id' => $customer->id,
                 'customer_name' => $customer->name,
                 'company_name' => $customer->company_name,
@@ -818,6 +834,10 @@ class DemoDataSeeder extends Seeder
                 'status' => $status->value,
                 'assigned_admin_id' => $assignedAdmin,
             ]);
+
+            $request->update(['quotation_number' => $this->quotationNumbers()->generate($request)]);
+
+            $requests[] = $request;
         }
 
         return $requests;
@@ -1334,7 +1354,11 @@ class DemoDataSeeder extends Seeder
      * @param  list<Quotation>  $quotations
      * @param  list<Order>  $orders
      */
-    private function seedNotifications(array $admins, array $customers, array $quotations, array $orders): void
+    /**
+     * @param  array<int, Quotation>  $quotations
+     * @param  array<int, QuotationRequest>  $requests
+     */
+    private function seedNotifications(array $admins, array $customers, array $quotations, array $orders, array $requests): void
     {
         $sentQuotation = collect($quotations)->first(
             static fn (Quotation $quotation): bool => $quotation->status === QuotationVersionStatus::SENT,
@@ -1396,7 +1420,7 @@ class DemoDataSeeder extends Seeder
                 'type' => 'QUOTATION_REQUEST_CREATED',
                 'title' => 'New quotation request',
                 'message' => 'A customer submitted a new quotation request.',
-                'data' => ['request_number' => 'QT-000001'],
+                'data' => ['request_number' => $requests !== [] ? $requests[0]->quotation_number : null],
                 'is_read' => false,
                 'read_at' => null,
             ],

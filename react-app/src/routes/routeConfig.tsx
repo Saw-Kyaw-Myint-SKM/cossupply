@@ -16,6 +16,7 @@ const RegisterPage = lazy(() => import('../features/auth/pages/RegisterPage'));
 
 // Customer Pages
 const CustomerDashboardPage = lazy(() => import('../features/dashboard/pages/CustomerDashboardPage'));
+const QuotationRequestFormPage = lazy(() => import('../features/quotations/pages/QuotationRequestFormPage'));
 const QuotationListPage = lazy(() => import('../features/quotations/pages/QuotationListPage'));
 const QuotationDetailPage = lazy(() => import('../features/quotations/pages/QuotationDetailPage'));
 const OrderListPage = lazy(() => import('../features/orders/pages/OrderListPage'));
@@ -33,6 +34,15 @@ const SupplierFormPage = lazy(() => import('../features/admin/pages/SupplierForm
 // `ProductDetailPage`, so the admin duplicates get an `Admin` prefix here.
 const AdminProductListPage = lazy(() => import('../features/admin/pages/ProductListPage'));
 const AdminProductFormPage = lazy(() => import('../features/admin/pages/ProductFormPage'));
+const QuotationRequestListPage = lazy(
+  () => import('../features/admin/pages/QuotationRequestListPage'),
+);
+const QuotationRequestDetailPage = lazy(
+  () => import('../features/admin/pages/QuotationRequestDetailPage'),
+);
+const QuotationVersionFormPage = lazy(
+  () => import('../features/admin/pages/QuotationVersionFormPage'),
+);
 
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
@@ -165,6 +175,16 @@ export const router = createBrowserRouter([
           <CustomerProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <QuotationListPage />
+            </Suspense>
+          </CustomerProtectedRoute>
+        ),
+      },
+      {
+        path: 'quotations/new',
+        element: (
+          <CustomerProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationRequestFormPage />
             </Suspense>
           </CustomerProtectedRoute>
         ),
@@ -319,6 +339,56 @@ export const router = createBrowserRouter([
           <AdminProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <AdminProductFormPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/quotations',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationRequestListPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/quotation-requests',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationRequestListPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/quotation-requests/:requestId',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationRequestDetailPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/quotation-requests/:requestId/versions/new',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationVersionFormPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/quotations/:quotationId/edit',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <QuotationVersionFormPage />
             </Suspense>
           </AdminProtectedRoute>
         ),

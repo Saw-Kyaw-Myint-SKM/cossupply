@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Quotation extends Model
 {
@@ -96,6 +97,14 @@ class Quotation extends Model
     public function actions(): HasMany
     {
         return $this->hasMany(QuotationAction::class);
+    }
+
+    /**
+     * Synchronous email delivery attempts for this version.
+     */
+    public function emailLogs(): MorphMany
+    {
+        return $this->morphMany(EmailLog::class, 'related');
     }
 
     /**

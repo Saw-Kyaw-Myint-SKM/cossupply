@@ -2430,3 +2430,1636 @@ Notes:
 | Status | Body | Cause |
 | --- | --- | --- |
 | `422` | `{"message": "The search field must not be greater than 100 characters.", "errors": {"search": ["The search field must not be greater than 100 characters."]}}` | `search` over 100 characters or `per_page` outside 1–100 |
+
+---
+
+## GET /api/v1/customer/profile
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/RolesPermissions.md` §2 (Customer)
+- `specification/LogicFlow.md` §5 (Quotation Request)
+- `specification/DatabaseFlow.md` §3 (`customers`)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/profile`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own profile only).
+
+### Request
+
+No body, no query parameters.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "customer": {
+      "id": 12,
+      "name": "Aung Aung",
+      "company_name": "Aung Trading Co., Ltd.",
+      "email": "aung@example.com",
+      "phone": "09123456789",
+      "customer_type": "business",
+      "status": "ACTIVE",
+      "created_at": "2026-10-18T09:15:00+00:00"
+    }
+  }
+}
+```
+
+Notes:
+
+- The password hash is never exposed.
+- `phone` is the login identifier and is read-only here.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+
+---
+
+## PUT /api/v1/customer/profile
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/RolesPermissions.md` §2 (Customer)
+- `specification/DatabaseFlow.md` §3 (`customers`)
+
+### Method
+
+`PUT`
+
+### Path
+
+`/api/v1/customer/profile`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own profile only).
+
+### Request
+
+| Field | Rules |
+| --- | --- |
+| `name` | required, string, max 255 |
+| `company_name` | nullable, string, max 255 |
+| `email` | nullable, valid email, max 255, unique on `customers.email` (own email allowed) |
+
+`phone`, `customer_type` and `status` are server-managed and are silently ignored if sent.
+
+```json
+{
+  "name": "Aung Aung",
+  "company_name": "Aung Trading Co., Ltd.",
+  "email": "aung@example.com"
+}
+```
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "customer": {
+      "id": 12,
+      "name": "Aung Aung",
+      "company_name": "Aung Trading Co., Ltd.",
+      "email": "aung@example.com",
+      "phone": "09123456789",
+      "customer_type": "business",
+      "status": "ACTIVE",
+      "created_at": "2026-10-18T09:15:00+00:00"
+    }
+  },
+  "message": "Profile updated successfully."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `422` | `{"message": "The email has already been taken.", "errors": {"email": ["The email has already been taken."]}}` | Validation failure |
+
+---
+
+## GET /api/v1/customer/addresses
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/DatabaseFlow.md` §3 (`customer_addresses`)
+- `specification/LogicFlow.md` §5 (delivery address selection)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/addresses`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own address book only).
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Rules |
+| --- | --- |
+| `page` | integer, min 1, default 1 |
+| `per_page` | integer 1–100, default 15 |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "addresses": [
+      {
+        "id": 4,
+        "customer_id": 12,
+        "contact_name": "Kyaw Kyaw",
+        "phone": "0987654321",
+        "city": "Yangon",
+        "township": "Bahan",
+        "ward": "9",
+        "street": "University Avenue",
+        "building_no": "No. 45",
+        "landmark": "Opposite the park",
+        "full_address": "No. 45, University Avenue, 9 Ward, Bahan, Yangon",
+        "is_default": true,
+        "created_at": "2026-10-18T10:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+Notes:
+
+- Ordered by `is_default` descending, then `id` descending.
+- Only the authenticated customer's rows are returned.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `422` | `{"message": "The per page field must not be greater than 100.", "errors": {"per_page": ["The per page field must not be greater than 100."]}}` | Pagination outside the allowed range |
+
+---
+
+## POST /api/v1/customer/addresses
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/DatabaseFlow.md` §3 (`customer_addresses`)
+- `specification/LogicFlow.md` §5 (delivery address selection)
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/customer/addresses`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (creates a row in their own address book).
+
+### Request
+
+| Field | Rules |
+| --- | --- |
+| `contact_name` | required, string, max 255 |
+| `phone` | required, string, max 50 |
+| `city` | required, string, max 100 |
+| `township` | required, string, max 100 |
+| `ward` | nullable, string, max 100 |
+| `street` | nullable, string, max 255 |
+| `building_no` | nullable, string, max 100 |
+| `landmark` | nullable, string, max 255 |
+| `full_address` | required, string, max 2000 |
+| `is_default` | nullable, boolean |
+
+```json
+{
+  "contact_name": "Kyaw Kyaw",
+  "phone": "0987654321",
+  "city": "Yangon",
+  "township": "Bahan",
+  "ward": "9",
+  "street": "University Avenue",
+  "building_no": "No. 45",
+  "landmark": "Opposite the park",
+  "full_address": "No. 45, University Avenue, 9 Ward, Bahan, Yangon",
+  "is_default": false
+}
+```
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "address": {
+      "id": 4,
+      "customer_id": 12,
+      "contact_name": "Kyaw Kyaw",
+      "phone": "0987654321",
+      "city": "Yangon",
+      "township": "Bahan",
+      "ward": "9",
+      "street": "University Avenue",
+      "building_no": "No. 45",
+      "landmark": "Opposite the park",
+      "full_address": "No. 45, University Avenue, 9 Ward, Bahan, Yangon",
+      "is_default": true,
+      "created_at": "2026-10-18T10:00:00+00:00"
+    }
+  },
+  "message": "Address created successfully."
+}
+```
+
+Notes:
+
+- The first address for a customer becomes the default automatically, even when `is_default` is `false` or omitted.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `422` | `{"message": "The township field is required.", "errors": {"township": ["The township field is required."]}}` | Validation failure |
+
+---
+
+## GET /api/v1/customer/addresses/{address}
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/DatabaseFlow.md` §3 (`customer_addresses`)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/addresses/{address}`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own address only).
+
+### Request
+
+No body, no query parameters. `{address}` is the address id.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "address": {
+      "id": 4,
+      "customer_id": 12,
+      "contact_name": "Kyaw Kyaw",
+      "phone": "0987654321",
+      "city": "Yangon",
+      "township": "Bahan",
+      "ward": "9",
+      "street": "University Avenue",
+      "building_no": "No. 45",
+      "landmark": "Opposite the park",
+      "full_address": "No. 45, University Avenue, 9 Ward, Bahan, Yangon",
+      "is_default": true,
+      "created_at": "2026-10-18T10:00:00+00:00"
+    }
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `404` | `{"success": false, "message": "Address not found."}` | Unknown id, or the address belongs to another customer |
+
+---
+
+## PUT /api/v1/customer/addresses/{address}
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/DatabaseFlow.md` §3 (`customer_addresses`)
+
+### Method
+
+`PUT`
+
+### Path
+
+`/api/v1/customer/addresses/{address}`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own address only).
+
+### Request
+
+The payload replaces the address and uses the same rules as `POST /api/v1/customer/addresses`.
+
+| Field | Rules |
+| --- | --- |
+| `contact_name` | required, string, max 255 |
+| `phone` | required, string, max 50 |
+| `city` | required, string, max 100 |
+| `township` | required, string, max 100 |
+| `ward` | nullable, string, max 100 |
+| `street` | nullable, string, max 255 |
+| `building_no` | nullable, string, max 100 |
+| `landmark` | nullable, string, max 255 |
+| `full_address` | required, string, max 2000 |
+| `is_default` | nullable, boolean |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "address": {
+      "id": 4,
+      "customer_id": 12,
+      "contact_name": "Kyaw Kyaw",
+      "phone": "0987654321",
+      "city": "Yangon",
+      "township": "Bahan",
+      "ward": "9",
+      "street": "University Avenue",
+      "building_no": "No. 45",
+      "landmark": "Opposite the park",
+      "full_address": "No. 45, University Avenue, 9 Ward, Bahan, Yangon",
+      "is_default": true,
+      "created_at": "2026-10-18T10:00:00+00:00"
+    }
+  },
+  "message": "Address updated successfully."
+}
+```
+
+Notes:
+
+- Setting `is_default` to `true` demotes the previous default address in the same transaction.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `404` | `{"success": false, "message": "Address not found."}` | Unknown id, or the address belongs to another customer |
+| `422` | `{"message": "The township field is required.", "errors": {"township": ["The township field is required."]}}` | Validation failure |
+
+---
+
+## DELETE /api/v1/customer/addresses/{address}
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/DatabaseFlow.md` §3 (`customer_addresses`)
+
+### Method
+
+`DELETE`
+
+### Path
+
+`/api/v1/customer/addresses/{address}`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own address only).
+
+### Request
+
+No body, no query parameters.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Address deleted successfully."
+}
+```
+
+Notes:
+
+- Deleting the default address promotes the newest remaining address to default.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `404` | `{"success": false, "message": "Address not found."}` | Unknown id, or the address belongs to another customer |
+
+---
+
+## GET /api/v1/customer/quotation-requests
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/LogicFlow.md` §5 (Quotation Request)
+- `specification/DatabaseFlow.md` §3 (`quotation_requests`)
+- `specification/RolesPermissions.md` §2 (Customer)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/quotation-requests`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer (own requests only).
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Rules |
+| --- | --- |
+| `page` | integer, min 1, default 1 |
+| `per_page` | integer 1–100, default 15 |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_requests": [
+      {
+        "id": 31,
+        "quotation_number": "QT-2026-0031",
+        "status": "NEW",
+        "customer_name": "Aung Aung",
+        "phone": "09123456789",
+        "city": "Yangon",
+        "township": "Hlaing",
+        "item_count": 2,
+        "created_at": "2026-10-18T10:30:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+Notes:
+
+- Ordered by `id` descending (newest first).
+- Only the authenticated customer's requests are returned.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `422` | `{"message": "The per page field must not be greater than 100.", "errors": {"per_page": ["The per page field must not be greater than 100."]}}` | Pagination outside the allowed range |
+
+---
+
+## POST /api/v1/customer/quotation-requests
+
+### Task
+
+Task 06 — Customer Quotation Request.
+
+### Specification
+
+- `specification/LogicFlow.md` §5 (Quotation Request)
+- `specification/DatabaseFlow.md` §3 (`quotation_requests`, `quotation_items`)
+- `specification/MoneyAndValidationRules.md` §5 (quotation request validation)
+- `specification/RolesPermissions.md` §2 (Customer)
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/customer/quotation-requests`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Roles
+
+Customer. The owner is always the authenticated customer; a body-supplied `customer_id` is ignored.
+
+### Request
+
+| Field | Rules |
+| --- | --- |
+| `items` | required, array, min 1 |
+| `items.*.product_id` | required, integer, exists on `products.id`, must be `PUBLISHED` and not `OUT_OF_STOCK` |
+| `items.*.quantity` | required, integer, min 1, at least the product's `minimum_order_quantity` |
+| `name` | required, string, max 255 |
+| `phone` | required, string, max 50 |
+| `company_name` | nullable, string, max 255 |
+| `email` | nullable, valid email, max 255 |
+| `city` | required, string, max 100 |
+| `township` | nullable, string, max 100 |
+| `delivery_address` | required, string, max 2000 |
+| `landmark` | nullable, string, max 255 |
+| `required_delivery_date` | nullable, date, today or later |
+| `customer_note` | nullable, string, max 2000 |
+
+Each product may appear only once. Per-item failures are keyed as `items.{index}.product_id` or `items.{index}.quantity`.
+
+```json
+{
+  "items": [
+    { "product_id": 15, "quantity": 3 }
+  ],
+  "name": "Aung Aung",
+  "phone": "09123456789",
+  "company_name": "Aung Trading Co., Ltd.",
+  "email": "aung@example.com",
+  "city": "Yangon",
+  "township": "Hlaing",
+  "delivery_address": "No. 123, Main Road, Hlaing Township",
+  "landmark": "Near Thingaha Hotel",
+  "required_delivery_date": "2026-10-28",
+  "customer_note": "Please include bulk pricing where applicable."
+}
+```
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_request": {
+      "id": 31,
+      "quotation_number": "QT-2026-0031",
+      "customer_id": 12,
+      "customer_name": "Aung Aung",
+      "company_name": "Aung Trading Co., Ltd.",
+      "phone": "09123456789",
+      "email": "aung@example.com",
+      "delivery_address": "No. 123, Main Road, Hlaing Township",
+      "city": "Yangon",
+      "township": "Hlaing",
+      "landmark": "Near Thingaha Hotel",
+      "required_delivery_date": "2026-10-28",
+      "customer_note": "Please include bulk pricing where applicable.",
+      "status": "NEW",
+      "items": [
+        {
+          "product_id": 15,
+          "product_name_snapshot": "Plastic Chair",
+          "specification_snapshot": "Blue, 45 cm",
+          "quantity": 3,
+          "display_price": 9000,
+          "stock_status": "IN_STOCK"
+        }
+      ]
+    }
+  },
+  "message": "Quotation request submitted successfully."
+}
+```
+
+Notes:
+
+- The quotation number follows `{prefix}-YYYY-####`; the prefix comes from the `quotation_number_prefix` master setting (default `QT`).
+- Product name, specification, supplier, display price and stock status are snapshotted at submission time and never refreshed afterwards.
+- `display_price` is the discount price when it is a real discount, otherwise the retail price; it may be `null` when the product has no price row.
+- The request and all item snapshots are persisted in one transaction.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `422` | `{"message": "The items field is required.", "errors": {"items": ["The items field is required."]}}` | Validation failure; nothing is persisted |
+| `422` | `{"message": "The selected product is not available for quotation requests.", "errors": {"items.0.product_id": ["The selected product is not available for quotation requests."]}}` | Product unpublished or out of stock |
+
+---
+
+## Task 07 Admin Quotation Workflow — shared shapes
+
+All endpoints below require an active Admin token (`auth:sanctum` + `admin` ability). Money values are integer MMK. The server calculates `line_total`, `subtotal`, `service_fee` and `total_amount`; client-supplied totals are ignored.
+
+Quotation request statuses:
+
+`NEW`, `CONTACTING_SUPPLIER`, `SUPPLIER_RESPONSE_PENDING`, `PREPARING_QUOTATION`, `QUOTATION_SENT`, `CUSTOMER_REVIEWING`, `CHANGE_REQUESTED`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `CANCELLED`.
+
+Quotation version statuses:
+
+`DRAFT`, `SENT`, `VIEWED`, `CHANGE_REQUESTED`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `SUPERSEDED`, `CANCELLED`.
+
+Shared Admin request summary shape:
+
+```json
+{
+  "id": 31,
+  "quotation_number": "QT-2026-0031",
+  "customer_id": 12,
+  "customer_name": "Aung Aung",
+  "company_name": "Aung Trading Co., Ltd.",
+  "phone": "09123456789",
+  "email": "aung@example.com",
+  "city": "Yangon",
+  "township": "Hlaing",
+  "status": "NEW",
+  "item_count": 2,
+  "assigned_admin": { "id": 4, "name": "Daw Admin" },
+  "required_delivery_date": "2026-10-28",
+  "created_at": "2026-10-20T10:00:00+00:00"
+}
+```
+
+Shared quotation version shape:
+
+```json
+{
+  "id": 71,
+  "quotation_request_id": 31,
+  "quotation_number": "QT-2026-0031",
+  "version": 1,
+  "status": "DRAFT",
+  "is_current": false,
+  "subtotal": 270000,
+  "discount": 0,
+  "delivery_fee": 5000,
+  "service_fee_percentage": 5,
+  "service_fee": 13500,
+  "total_amount": 288500,
+  "payment_method": "CASH_ON_DELIVERY",
+  "payment_terms": "Full payment on delivery (COD).",
+  "valid_until": "2026-10-27",
+  "admin_note": "Prices confirmed with supplier.",
+  "sent_at": null,
+  "viewed_at": null,
+  "accepted_at": null,
+  "rejected_at": null,
+  "created_at": "2026-10-20T11:00:00+00:00",
+  "created_by_admin": { "id": 4, "name": "Daw Admin" },
+  "items": [
+    {
+      "id": 201,
+      "product_id": 15,
+      "supplier_id": 3,
+      "product_name_snapshot": "Plastic Chair",
+      "sku_snapshot": "CHAIR-001",
+      "specification_snapshot": "Blue, 45 cm",
+      "quantity": 3,
+      "unit_price": 90000,
+      "discount": 0,
+      "line_total": 270000,
+      "delivery_date": "2026-10-25",
+      "warranty_note": "6 months",
+      "supplier_note": "Confirmed stock",
+      "supplier": { "id": 3, "shop_name": "Yangon Trading" }
+    }
+  ],
+  "pdfs": [
+    {
+      "id": 41,
+      "file_name": "QT-2026-0031-v1.pdf",
+      "generated_at": "2026-10-20T11:01:00+00:00",
+      "download_url": "/admin/quotations/71/pdf/download",
+      "generated_by_admin": { "id": 4, "name": "Daw Admin" }
+    }
+  ],
+  "email_logs": [
+    {
+      "id": 11,
+      "recipient_email": "aung@example.com",
+      "email_type": "QUOTATION_SENT",
+      "subject": "Quotation QT-2026-0031 version 1",
+      "status": "SENT",
+      "sent_at": "2026-10-20T11:01:02+00:00",
+      "error_message": null,
+      "created_at": "2026-10-20T11:01:02+00:00"
+    }
+  ]
+}
+```
+
+---
+
+## GET /api/v1/admin/admins
+
+### Task
+
+Task 07 — Admin Quotation Workflow, Service Fee, and PDF Builder.
+
+### Method / Path
+
+`GET /api/v1/admin/admins`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body, no query parameters.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "admins": [
+      { "id": 4, "name": "Daw Admin", "email": "admin@example.com", "role": "admin" }
+    ]
+  }
+}
+```
+
+Only active Admins are returned, ordered by name. Used to populate assignment controls.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Non-admin token |
+
+---
+
+## GET /api/v1/admin/quotation-requests
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Method / Path
+
+`GET /api/v1/admin/quotation-requests`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+Optional query parameters:
+
+| Parameter | Rules | Description |
+| --- | --- | --- |
+| `status` | one of the request statuses | Exact status filter |
+| `assigned_admin_id` | existing Admin id | Requests assigned to that Admin |
+| `unassigned` | boolean (`1`, `0`, `true`, `false`) | Only unassigned requests |
+| `search` | string, max 100 | Matches number, customer, company, phone, email |
+| `per_page` | integer, 1–100, default 15 | Page size |
+| `page` | integer | Page number |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_requests": [
+      {
+        "id": 31,
+        "quotation_number": "QT-2026-0031",
+        "customer_id": 12,
+        "customer_name": "Aung Aung",
+        "company_name": "Aung Trading Co., Ltd.",
+        "phone": "09123456789",
+        "email": "aung@example.com",
+        "city": "Yangon",
+        "township": "Hlaing",
+        "status": "NEW",
+        "item_count": 2,
+        "assigned_admin": null,
+        "required_delivery_date": "2026-10-28",
+        "created_at": "2026-10-20T10:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "last_page": 1,
+      "per_page": 15,
+      "total": 1
+    },
+    "statuses": ["NEW", "CONTACTING_SUPPLIER", "SUPPLIER_RESPONSE_PENDING", "PREPARING_QUOTATION", "QUOTATION_SENT", "CUSTOMER_REVIEWING", "CHANGE_REQUESTED", "ACCEPTED", "REJECTED", "EXPIRED", "CANCELLED"],
+    "service_fee_default_percentage": 5
+  }
+}
+```
+
+Notes:
+
+- Newest requests are returned first.
+- The list does not load request items, supplier groups, communications or quotation versions.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Non-admin token |
+| `422` | Laravel validation shape | Invalid filter value |
+
+---
+
+## GET /api/v1/admin/quotation-requests/{quotationRequest}
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Method / Path
+
+`GET /api/v1/admin/quotation-requests/{quotationRequest}`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_request": {
+      "id": 31,
+      "quotation_number": "QT-2026-0031",
+      "customer_id": 12,
+      "customer_name": "Aung Aung",
+      "company_name": "Aung Trading Co., Ltd.",
+      "phone": "09123456789",
+      "email": "aung@example.com",
+      "delivery_address": "No. 123, Main Road, Hlaing Township",
+      "city": "Yangon",
+      "township": "Hlaing",
+      "landmark": "Near Thingaha Hotel",
+      "required_delivery_date": "2026-10-28",
+      "customer_note": "Please include bulk pricing where applicable.",
+      "status": "PREPARING_QUOTATION",
+      "item_count": 2,
+      "assigned_admin": { "id": 4, "name": "Daw Admin" },
+      "created_at": "2026-10-20T10:00:00+00:00",
+      "updated_at": "2026-10-20T11:00:00+00:00",
+      "items": [
+        {
+          "product_id": 15,
+          "supplier_id": 3,
+          "product_name_snapshot": "Plastic Chair",
+          "specification_snapshot": "Blue, 45 cm",
+          "quantity": 3,
+          "display_price": 9000,
+          "stock_status": "IN_STOCK",
+          "sku": "CHAIR-001",
+          "supplier": { "id": 3, "shop_name": "Yangon Trading" }
+        }
+      ],
+      "suppliers": [
+        {
+          "supplier": {
+            "id": 3,
+            "shop_name": "Yangon Trading",
+            "contact_person": "U Tun",
+            "phone": "09-111-222-333",
+            "viber_phone": "09-111-222-333",
+            "email": "supplier@example.com",
+            "delivery_time": "3–5 days",
+            "warranty_policy": "6 months"
+          },
+          "items": [],
+          "communications": []
+        }
+      ],
+      "communications": [],
+      "quotations": [],
+      "current_quotation": null
+    },
+    "service_fee_default_percentage": 5,
+    "quotation_validity_days": 7,
+    "default_delivery_fee": 5000,
+    "admins": [
+      { "id": 4, "name": "Daw Admin", "email": "admin@example.com", "role": "admin" }
+    ]
+  }
+}
+```
+
+Notes:
+
+- Request items are immutable snapshots from the customer submission.
+- `suppliers[].items` contains the same item objects grouped by supplier.
+- Communications are append-only and newest first.
+- Quotation versions are newest version first; `current_quotation` is the current sent version when one exists.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Non-admin token |
+| `404` | `{"message": "No query results for model [App\\Models\\QuotationRequest] 31"}` | Unknown request id |
+
+---
+
+## PATCH /api/v1/admin/quotation-requests/{quotationRequest}/assignment
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`Content-Type: application/json`
+
+```json
+{ "assigned_admin_id": 4 }
+```
+
+Send `null` to unassign:
+
+```json
+{ "assigned_admin_id": null }
+```
+
+`assigned_admin_id` must reference an existing Admin.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_request": {
+      "id": 31,
+      "quotation_number": "QT-2026-0031",
+      "status": "NEW",
+      "assigned_admin": { "id": 4, "name": "Daw Admin" }
+    }
+  },
+  "message": "Quotation request assignment updated."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Laravel validation shape | Unknown Admin id |
+| `404` | Not found | Unknown request id |
+
+---
+
+## PATCH /api/v1/admin/quotation-requests/{quotationRequest}/status
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`Content-Type: application/json`
+
+```json
+{ "status": "CONTACTING_SUPPLIER" }
+```
+
+Only transitions allowed by the quotation-request status graph are accepted. For example `NEW → CONTACTING_SUPPLIER`, `CONTACTING_SUPPLIER → PREPARING_QUOTATION`, and `QUOTATION_SENT → CUSTOMER_REVIEWING`. Sending a quotation version also moves the request to `QUOTATION_SENT` automatically.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_request": {
+      "id": 31,
+      "quotation_number": "QT-2026-0031",
+      "status": "CONTACTING_SUPPLIER",
+      "assigned_admin": { "id": 4, "name": "Daw Admin" }
+    }
+  },
+  "message": "Quotation request status updated."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `409` | `{"success": false, "message": "Invalid status transition for [quotation_request]: [NEW] -> [ACCEPTED]."}` | Transition not allowed |
+| `422` | Laravel validation shape | Unknown status value |
+| `404` | Not found | Unknown request id |
+
+---
+
+## POST /api/v1/admin/quotation-requests/{quotationRequest}/communications
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`Content-Type: multipart/form-data`
+
+| Field | Rules |
+| --- | --- |
+| `supplier_id` | required, existing supplier that owns at least one request item |
+| `contact_method` | required: `VIBER`, `PHONE`, `EMAIL`, `TELEGRAM`, `OTHER` |
+| `message_text` | nullable, string, max 5000 |
+| `supplier_response` | nullable, string, max 5000 |
+| `contacted_at` | nullable, date, defaults to now |
+| `responded_at` | nullable, date, after/equal `contacted_at`; defaults to now when a response is present |
+| `attachment` | nullable file: PDF, JPG, JPEG, PNG, WebP, max 5 MB |
+
+The response text can record confirmed price, stock, delivery and warranty details. The log is append-only.
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "communication": {
+      "id": 88,
+      "supplier_id": 3,
+      "contact_method": "VIBER",
+      "message_text": "Can you confirm 3 chairs and delivery date?",
+      "supplier_response": "Confirmed 3 pcs at 90,000 MMK each; delivery in 5 days.",
+      "attachment_path": "supplier-communications/31/quote.pdf",
+      "attachment_url": "/admin/files/supplier-communications/31/quote.pdf",
+      "contacted_at": "2026-10-20T11:00:00+00:00",
+      "responded_at": "2026-10-20T11:05:00+00:00",
+      "created_at": "2026-10-20T11:05:00+00:00",
+      "admin": { "id": 4, "name": "Daw Admin" }
+    },
+    "request_status": "CONTACTING_SUPPLIER"
+  },
+  "message": "Supplier communication logged."
+}
+```
+
+Status effect:
+
+- A response present moves the request toward `CONTACTING_SUPPLIER`.
+- No response moves it toward `SUPPLIER_RESPONSE_PENDING`.
+- The movement follows valid transition paths; no history row is updated.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Laravel validation shape | Supplier not in request, unsupported file or invalid dates |
+| `404` | Not found | Unknown request id |
+
+---
+
+## POST /api/v1/admin/quotation-requests/{quotationRequest}/quotations
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`Content-Type: application/json`
+
+```json
+{
+  "items": [
+    {
+      "product_id": 15,
+      "quantity": 3,
+      "unit_price": 90000,
+      "discount": 0,
+      "delivery_date": "2026-10-25",
+      "warranty_note": "6 months",
+      "supplier_note": "Confirmed stock"
+    }
+  ],
+  "discount": 0,
+  "delivery_fee": 5000,
+  "service_fee_percentage": 5,
+  "payment_method": "CASH_ON_DELIVERY",
+  "payment_terms": "Full payment on delivery (COD).",
+  "valid_until": "2026-10-27",
+  "admin_note": "Prices confirmed with supplier."
+}
+```
+
+Rules:
+
+- `items` required, min 1; each `product_id` must exist and be distinct.
+- `quantity` and `unit_price` required integers, min 1.
+- `discount` per line and at quotation level nullable integers, min 0; line discount cannot exceed `quantity × unit_price`.
+- `service_fee_percentage` nullable integer 0–100; when omitted/`null` the current Master Setting default is used.
+- `valid_until` nullable date, today or later; defaults to today + `quotation_validity_days`.
+- `payment_method` may only be `CASH_ON_DELIVERY`.
+- `payment_terms` nullable max 1000; defaults to COD terms.
+
+Server formula:
+
+```text
+line_total = quantity × unit_price − line_discount
+subtotal = sum(line_total)
+service_fee = round(subtotal × service_fee_percentage / 100)
+total_amount = subtotal − discount + delivery_fee + service_fee
+```
+
+The new version starts as `DRAFT`, is not current, and snapshots product name, SKU, specification and supplier from the server data.
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": {
+      "id": 71,
+      "quotation_request_id": 31,
+      "quotation_number": "QT-2026-0031",
+      "version": 1,
+      "status": "DRAFT",
+      "is_current": false,
+      "subtotal": 270000,
+      "service_fee_percentage": 5,
+      "service_fee": 13500,
+      "total_amount": 288500,
+      "items": [],
+      "pdfs": [],
+      "email_logs": []
+    }
+  },
+  "message": "Quotation draft created."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Laravel validation shape | Invalid item, fee, date or discount |
+| `422` | `{"message": "A new version cannot be created for a closed request.", "errors": {"quotation_request": ["A new version cannot be created for a closed request."]}}` | Request is accepted, rejected or cancelled |
+| `404` | Not found | Unknown request id |
+
+---
+
+## GET /api/v1/admin/quotations/{quotation}
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Method / Path
+
+`GET /api/v1/admin/quotations/{quotation}`
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": { "...": "quotation version shape, including items, pdfs and email_logs" }
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## PUT /api/v1/admin/quotations/{quotation}
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+Same body and validation as `POST /api/v1/admin/quotation-requests/{quotationRequest}/quotations`.
+
+Only a `DRAFT` version can be updated. Sent, accepted, superseded and historical versions are immutable.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": { "...": "updated quotation version shape" }
+  },
+  "message": "Quotation draft updated."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Laravel validation shape | Invalid details or version is not a draft |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## POST /api/v1/admin/quotations/{quotation}/send
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+Send one `DRAFT` version. The operation:
+
+1. Validates the draft and moves it to `SENT`.
+2. Marks previously current versions `SUPERSEDED` and clears their `is_current`.
+3. Sets this version `is_current=true` and `sent_at=now()`.
+4. Generates an immutable version-specific PDF.
+5. Moves the request to `QUOTATION_SENT`.
+6. Emails the customer and records the attempt.
+
+Email failure does not roll back the sent quotation/PDF. The response still succeeds and the email log has `status: "FAILED"`.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": { "...": "sent quotation version shape", "status": "SENT", "is_current": true },
+    "email": {
+      "id": 11,
+      "recipient_email": "aung@example.com",
+      "email_type": "QUOTATION_SENT",
+      "status": "SENT",
+      "sent_at": "2026-10-20T11:01:02+00:00",
+      "error_message": null
+    }
+  },
+  "message": "Quotation sent."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation/envelope error | Version is not a draft or request cannot be quoted |
+| `409` | Status transition error | Request path cannot reach `QUOTATION_SENT` |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## POST /api/v1/admin/quotations/{quotation}/resend
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+Resends the quotation email for any non-draft sent version and appends a new email-log attempt. Email failure is recorded as `FAILED` without changing version status.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "email": {
+      "id": 12,
+      "recipient_email": "aung@example.com",
+      "email_type": "QUOTATION_SENT",
+      "status": "FAILED",
+      "sent_at": null,
+      "error_message": "Connection could not be established.",
+      "created_at": "2026-10-20T12:00:00+00:00"
+    }
+  },
+  "message": "Quotation email resent."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation/envelope error | Version is a draft or customer email is missing |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## POST /api/v1/admin/quotations/{quotation}/pdf
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+Generates another immutable PDF for the version. Old PDF records/files are never overwritten.
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "pdf": {
+      "id": 42,
+      "file_name": "QT-2026-0031-v1-20261020-120000.pdf",
+      "generated_at": "2026-10-20T12:00:00+00:00",
+      "download_url": "/admin/quotations/71/pdf/download",
+      "generated_by_admin": { "id": 4, "name": "Daw Admin" }
+    }
+  },
+  "message": "Quotation PDF generated."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## GET /api/v1/admin/quotations/{quotation}/pdf/download
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+Downloads the newest PDF for the version. If no PDF exists (or the stored file is missing), a new PDF is generated first.
+
+### Success response
+
+`200 OK` with `Content-Type: application/pdf` and a `Content-Disposition: attachment` header. The body is the binary PDF.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown quotation version id |
+
+---
+
+## GET /api/v1/admin/files/{path}
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`{path}` is the private relative path returned as `attachment_path` on a supplier communication (for example `supplier-communications/31/quote.pdf`). It must resolve inside the `local` private disk.
+
+### Success response
+
+`200 OK` with the stored file as a download.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | `{"success": false, "message": "File not found."}` | Missing or unsafe path |
