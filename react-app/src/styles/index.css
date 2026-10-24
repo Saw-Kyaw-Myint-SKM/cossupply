@@ -1,34 +1,75 @@
-/* Type: Plus Jakarta Sans for Latin text, Noto Sans Myanmar for Burmese
- * script. The two live in one stack so bilingual strings (Myanmar glyphs
- * beside Latin digits, e.g. "ဒေါင်းလုဒ် · MOQ 5") split glyph by glyph
- * with no extra markup. */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap');
+/* Type: Plus Jakarta Sans for Latin text — a modern, friendly, rounded
+ * humanist sans that feels warm and approachable. Padauk leads the Burmese
+ * stack for its elegant, fully-readable Myanmar glyphs, with Noto Sans
+ * Myanmar as a robust fallback. The stack handles bilingual strings
+ * (Myanmar glyphs beside Latin digits, e.g. "ဒေါင်းလုဒ် · MOQ 5") glyph by
+ * glyph with no extra markup. */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Padauk:wght@400;700&family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 /*
- * The CoSupply token layer: indigo on slate (a modern SaaS identity).
+ * The CoSupply token layer — Myanmar-friendly design system.
  *
- * - ink: the dark text color (headings, prices, wordmark) — never a button
- * - primary: the single indigo action color (all primary buttons)
- * - paper/plate: page and surface tones; verbose contrast comes from rules
- * - accent: one indigo, spent ONLY on search focus, the order-list badge,
- *   active nav, links, and active filter rows — never as decoration
+ * Core palette:
+ * - ink: rich dark text, warm and readable
+ * - primary: trustworthy cyan for actions
+ * - warm: friendly golden accent for highlights and savings
+ * - paper/plate: clean surfaces with subtle warmth
+ * - success/warning/error: semantic colors with warm undertones
+ *
+ * Design principles:
+ * - Warm, welcoming feel for Myanmar market
+ * - Clear visual hierarchy without overwhelming
+ * - Refined shadows and borders for polish
  */
 @theme {
-  --color-ink: #0f172a;
-  --color-ink-hover: #1e293b;
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
-  --color-paper: #f8fafc;
+  /* Core text colors */
+  --color-ink: #1a1a1a;
+  --color-ink-hover: #0d0d0d;
+  --color-muted: #5c5c5c;
+  --color-subtle: #8c8c8c;
+
+  /* Primary action color — trustworthy cyan */
+  --color-primary: #008ecc;
+  --color-primary-hover: #0074a8;
+  --color-primary-light: #e6f4fa;
+
+  /* Warm accent — friendly golden for highlights */
+  --color-warm: #e5a000;
+  --color-warm-hover: #cc8f00;
+  --color-warm-soft: #fef7e6;
+
+  /* Surface colors */
+  --color-paper: #f8f8f8;
   --color-plate: #ffffff;
-  --color-rule: #e2e8f0;
-  --color-accent: #4f46e5;
-  --color-accent-soft: #e0e7ff;
+  --color-rule: #ebebeb;
+  --color-line: #d4d4d4;
 
-  --font-sans: "Plus Jakarta Sans", "Noto Sans Myanmar", ui-sans-serif, system-ui, sans-serif;
+  /* Accent surfaces */
+  --color-accent: #008ecc;
+  --color-accent-soft: #f0f8fc;
+  --color-accent-hover: #e6f4fa;
 
-  /* Motion system: one settle curve, three durations. */
+  /* Dark surfaces */
+  --color-night: #1a1a1a;
+  --color-night-soft: #2a2a2a;
+  --color-hero: #1e2740;
+
+  /* Semantic colors — warm undertones */
+  --color-success: #2d9f4a;
+  --color-success-soft: #e8f5ec;
+  --color-warning: #d48806;
+  --color-warning-soft: #fff7e6;
+  --color-error: #d93636;
+  --color-error-soft: #fff1f0;
+
+  /* Typography — Plus Jakarta Sans (Latin) leads, Padauk + Noto Sans
+   * Myanmar carry Burmese script with warm, readable glyphs. */
+  --font-sans: "Plus Jakarta Sans", "Padauk", "Noto Sans Myanmar", ui-sans-serif, system-ui, sans-serif;
+
+  /* Motion system: smooth, friendly curves */
   --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-rise-in: rise-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
   --animate-badge-pop: badge-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-count-roll: count-roll 240ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -36,6 +77,7 @@
   --animate-drawer-in: drawer-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
   --animate-sheet-in: sheet-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
   --animate-bar-in: bar-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-card-shine: card-shine 400ms ease-out;
 
   @keyframes rise-in {
     from {
@@ -110,6 +152,15 @@
       opacity: 1;
     }
   }
+
+  @keyframes card-shine {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
 }
 
 @layer base {
@@ -122,25 +173,52 @@
     font-synthesis: none;
     /* Reserve the scrollbar gutter so long lists never shift content. */
     scrollbar-gutter: stable;
+    /* Smooth scroll for better UX */
+    scroll-behavior: smooth;
   }
 
-  /* Display tracking: Jakarta Sans is drawn for tight headlines; body text
-   * keeps its natural spacing. A whisper of negative tracking, nothing that
-   * rewraps a clamped title. */
+  /* Display tracking: Inter is drawn for tight headlines; body text keeps its
+   * natural spacing. A whisper of negative tracking, nothing that rewraps a
+   * clamped title. */
   h1,
   h2,
   h3 {
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
+  }
+
+  body {
+    background-color: var(--color-plate);
+    /* Warmer base text color */
+    color: var(--color-ink);
+    /* Comfortable reading rhythm for mixed Latin + Burmese text. Burmese
+     * glyphs carry stacking marks, so a slightly taller leading keeps
+     * lines from crowding. */
+    line-height: 1.6;
+  }
+
+  /* Burmese script carries vowel and tone marks that stack above and below
+   * the baseline; a touch more leading on paragraph-level text keeps those
+   * marks clear without rewrapping clamped titles. */
+  p,
+  li,
+  dd,
+  label {
+    line-height: 1.65;
+  }
+
+  /* Selection highlight with brand color */
+  ::selection {
+    background-color: var(--color-primary-light);
+    color: var(--color-ink);
   }
 
   /*
-   * A quiet, slate-toned scrollbar: a rounded pill thumb floating on a
-   * transparent track; hovering darkens it, grabbing it warms to the accent.
+   * A warm, friendly scrollbar: smooth rounded pill that feels inviting.
    * Firefox reads the token pair, WebKit the pseudo-elements.
    */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(15, 23, 42, 0.3) transparent;
+    scrollbar-color: rgba(26, 26, 26, 0.25) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -155,17 +233,17 @@
   ::-webkit-scrollbar-thumb {
     border: 3px solid transparent;
     border-radius: 999px;
-    background-color: rgba(15, 23, 42, 0.3);
+    background-color: rgba(26, 26, 26, 0.25);
     background-clip: content-box;
     transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(15, 23, 42, 0.55);
+    background-color: rgba(26, 26, 26, 0.45);
   }
 
   ::-webkit-scrollbar-thumb:active {
-    background-color: var(--color-accent);
+    background-color: var(--color-primary);
   }
 
   /*

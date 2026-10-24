@@ -14,7 +14,7 @@ import type {
   PublicProductPrice,
   StockStatus,
 } from "../../../api/catalog";
-import { Alert, ReceiptCheckMark, useReceipt } from "../../../components/catalog-ui/CatalogUi";
+import { Alert, FALLBACK_THUMB, ReceiptCheckMark, useReceipt } from "../../../components/catalog-ui/CatalogUi";
 import { FiLock, FiPlus } from "react-icons/fi";
 import { formatMMK } from "../../../lib/money";
 import {
@@ -34,11 +34,11 @@ const STOCK_LABELS: Record<StockStatus, string> = {
 };
 
 const STOCK_BADGE_CLASSES: Record<StockStatus, string> = {
-  IN_STOCK: "bg-green-100 text-green-800",
-  LOW_STOCK: "bg-amber-100 text-amber-800",
-  OUT_OF_STOCK: "bg-red-100 text-red-800",
-  PRE_ORDER: "bg-blue-100 text-blue-800",
-  SUPPLIER_CONFIRMATION_REQUIRED: "bg-purple-100 text-purple-800",
+  IN_STOCK: "bg-success-soft text-success",
+  LOW_STOCK: "bg-warning-soft text-warning",
+  OUT_OF_STOCK: "bg-error-soft text-error",
+  PRE_ORDER: "bg-primary-light text-primary",
+  SUPPLIER_CONFIRMATION_REQUIRED: "bg-purple-50 text-purple-700",
 };
 
 export function StockBadge({
@@ -48,7 +48,7 @@ export function StockBadge({
 }): ReactNode {
   if (!stock) {
     return (
-      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+      <span className="inline-flex items-center rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
         Availability on request
       </span>
     );
@@ -70,13 +70,13 @@ export function StockBadge({
  * is never the only carrier of the stock meaning.
  */
 const STOCK_LINE_TONES: Record<StockStatus, { pill: string; dot: string }> = {
-  IN_STOCK: { pill: "bg-green-50 text-green-700", dot: "bg-green-600" },
-  LOW_STOCK: { pill: "bg-amber-100 text-amber-800", dot: "bg-amber-500" },
-  OUT_OF_STOCK: { pill: "bg-red-50 text-red-700", dot: "bg-red-500" },
-  PRE_ORDER: { pill: "bg-blue-50 text-blue-800", dot: "bg-blue-600" },
+  IN_STOCK: { pill: "bg-success-soft text-success", dot: "bg-success" },
+  LOW_STOCK: { pill: "bg-warning-soft text-warning", dot: "bg-warning" },
+  OUT_OF_STOCK: { pill: "bg-error-soft text-error", dot: "bg-error" },
+  PRE_ORDER: { pill: "bg-primary-light text-primary", dot: "bg-primary" },
   SUPPLIER_CONFIRMATION_REQUIRED: {
-    pill: "bg-violet-50 text-violet-700",
-    dot: "bg-violet-500",
+    pill: "bg-purple-50 text-purple-700",
+    dot: "bg-purple-500",
   },
 };
 
@@ -87,7 +87,7 @@ export function StockLine({
 }): ReactNode {
   const tone = stock
     ? STOCK_LINE_TONES[stock.stock_status]
-    : { pill: "bg-gray-100 text-gray-600", dot: "bg-gray-400" };
+    : { pill: "bg-paper text-muted", dot: "bg-subtle" };
   const word = stock
     ? STOCK_LABELS[stock.stock_status]
     : "Availability on request";
@@ -120,7 +120,7 @@ export function PriceBlock({
 
   if (unit === null || !price) {
     return (
-      <p className="text-sm font-medium text-gray-600">
+      <p className="text-sm font-medium text-muted">
         Price will be confirmed in quotation
       </p>
     );
@@ -133,24 +133,24 @@ export function PriceBlock({
       <div className="flex flex-wrap items-baseline gap-2">
         {discounted ? (
           <span
-            className="text-sm text-gray-400 line-through"
+            className="text-sm text-subtle line-through"
             aria-label="Original display price"
           >
             {formatMMK(price.retail_price)} MMK
           </span>
         ) : null}
         <span
-          className="text-lg font-semibold text-gray-900"
+          className="text-lg font-semibold text-ink"
           aria-label="Display price"
         >
           {formatMMK(unit)} MMK
         </span>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-subtle">
         Display price — final price is confirmed in the quotation.
       </p>
       {showValidity && price.price_valid_until ? (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-subtle">
           Display price valid until {price.price_valid_until}.
         </p>
       ) : null}
@@ -245,158 +245,142 @@ export function ProductCard({
   const blockedLabel =
     product.stock?.stock_status === "OUT_OF_STOCK" ? "Out of stock" : "Unavailable";
 
+  const retail = price?.retail_price ?? null;
+  const hasReduction =
+    unitPrice !== null && retail !== null && unitPrice < retail;
+  const discountPercent =
+    hasReduction && retail !== null && unitPrice !== null
+      ? Math.round(((retail - unitPrice) / retail) * 100)
+      : null;
+
   return (
     <article
-      className={`group relative flex flex-col overflow-hidden rounded-xl border ${
+      className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white ${
         blocked
-          ? "cursor-not-allowed border-rule bg-plate"
-          : "border-rule bg-white motion-safe:transition-all hover:border-ink/20 hover:shadow-[0_6px_20px_-8px_rgba(26,37,48,0.25)]"
+          ? "cursor-not-allowed border-rule"
+          : "border-rule/60 motion-safe:transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
       }`}
     >
-      {/* Upper strip: category on the left (with the minimum order, since
-          the SKU strip is gone), status badge on the right. A blocked
-          card whispers: its meta text drops a tone. */}
-      <div className="flex items-center justify-between gap-2 px-4 pb-1.5 pt-2.5">
-        <p className={`truncate text-xs ${blocked ? "text-ink/40" : "text-ink/55"}`}>
-          {product.category?.name_en ?? "Uncategorised"}
-          {moq > 1 ? (
-            <span className={blocked ? "text-ink/30" : "text-ink/40"}>{` · MOQ ${moq}`}</span>
-          ) : null}
-        </p>
-
-        {product.stock?.stock_status === "SUPPLIER_CONFIRMATION_REQUIRED" ? (
-          <span
-            title="Price and stock will be confirmed by the supplier before the quotation"
-            className="inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-full bg-[#F3E8FF] px-2 py-0.5 text-[11px] font-medium text-[#7E22CE]"
-          >
-            <span aria-hidden="true" className="h-1.5 w-1.5 flex-none rounded-full bg-[#8B5CF6]" />
-            Confirm
-          </span>
-        ) : (
-          <StockLine stock={product.stock} />
-        )}
-      </div>
-
-      {/* Image plate on the warm paper tone; the photo centers
-          (object-contain), detail navigation lives here. Height scales
-          down with the card so mobile 2-up stays short.
-          A blocked card's photo desaturates (grayscale + contrast drop),
-          takes a soft dark wash, and earns the always-visible glass lock
-          — the site-reference treatment, no hover required to read it. */}
-      <Link
-        to={`/products/${product.id}`}
-        className="relative block overflow-hidden bg-[#F7F6F3]"
-      >
-        {product.photo_url ? (
+      {/* Photo plate on the tint; the discount badge clips into the
+          top-right corner exactly as the storefront design draws it. */}
+      <div className="relative">
+        <Link
+          to={`/products/${product.id}`}
+          className="relative flex h-40 items-center justify-center overflow-hidden rounded-t-2xl p-4"
+        >
           <img
-            src={product.photo_url}
+            src={product.photo_url ?? FALLBACK_THUMB}
             alt={displayName}
             loading="lazy"
             decoding="async"
-            className={`h-28 w-full object-contain sm:h-36 ${
+            className={`h-full w-full object-contain ${
               blocked ? "opacity-70 contrast-90 grayscale" : ""
             }`}
-          />
-        ) : (
-          <div
-            className={`flex h-28 w-full items-center justify-center text-sm text-ink/25 sm:h-36 ${
-              blocked ? "" : "motion-safe:transition-colors group-hover:text-ink/40"
-            }`}
-          >
-            No photo
-          </div>
-        )}
+          />          
 
-        {blocked ? (
-          <>
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/25 via-ink/5 to-transparent"
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm">
-                <FiLock aria-hidden="true" className="h-4 w-4 text-ink/60" />
+          {blocked ? (
+            <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/25 via-ink/5 to-transparent"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 flex items-center justify-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm">
+                  <FiLock aria-hidden="true" className="h-4 w-4 text-muted" />
+                </div>
               </div>
-            </div>
-          </>
-        ) : null}
-      </Link>
+            </>
+          ) : null}
+        </Link>
 
-      <div className="flex flex-1 flex-col px-4 pb-3 pt-3">
-        <h3
-          className={`text-sm font-semibold leading-snug tracking-tight ${blocked ? "text-ink/50" : "text-ink"}`}
+        <div className="absolute left-2.5 top-2.5 max-w-[70%]">
+          {product.stock?.stock_status === "SUPPLIER_CONFIRMATION_REQUIRED" ? (
+            <span
+              title="Price and stock will be confirmed by the supplier before the quotation"
+              className="inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 flex-none rounded-full bg-violet-500"
+              />
+              Confirm
+            </span>
+          ) : (
+            <StockLine stock={product.stock} />
+          )}
+        </div>
+
+        {discountPercent !== null ? (
+          <span
+            aria-label={`${discountPercent} percent off`}
+            className="absolute right-0 top-0 flex h-[53px] w-[51px] flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-warm text-[13px] font-semibold leading-4 text-white"
+          >
+            {discountPercent}%
+            <span className="text-[10px] font-medium leading-3">OFF</span>
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-1 flex-col rounded-b-2xl bg-white px-3.5 pb-3.5 pt-3">
+        <p
+          className={`truncate text-[11px] font-medium ${
+            blocked ? "text-subtle/60" : "text-muted"
+          }`}
         >
+          {product.category?.name_en ?? "Uncategorised"}
+          {` · ${product.unit}`}
+          {moq > 1 ? ` · MOQ ${moq}` : null}
+        </p>
+
+        <h3 className="mt-1 text-[13px] font-medium leading-[18px]">
           <Link
             to={`/products/${product.id}`}
-            className={`line-clamp-2 motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 ${
-              blocked ? "" : "hover:text-accent"
+            className={`line-clamp-2 motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
+              blocked ? "text-ink/50" : "text-ink hover:text-primary"
             }`}
           >
             {displayName}
           </Link>
         </h3>
 
-        <div className="mt-2 border-t border-rule" />
-
-        {/*
-         * Price block (LogicFlow §4): one label row (the unit perches on
-         * the price label, dropping the third line), one value row —
-         * the display price anchors the left, the running order tally
-         * anchors the right when there is one. The "final price confirmed
-         * in quotation" guarantee lives in the page's PricingNotice.
-         */}
-        <div className="mt-1.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className={`text-xs ${blocked ? "text-ink/35" : "text-ink/45"}`}>
-              {unitPrice !== null && price
-                ? `Unit price / ${product.unit}`
-                : "Unit price"}
-            </p>
-            {lineQuantity > 0 ? (
-              <p className="text-xs font-medium text-ink/45">In order</p>
-            ) : null}
-          </div>
-
-          <div className="mt-0.5 flex items-baseline justify-between gap-2">
-            {unitPrice !== null && price ? (
-              <p className="flex flex-wrap items-baseline gap-x-1.5">
-                {unitPrice !== price.retail_price ? (
-                  <span className="text-xs text-ink/30 line-through">
-                    {formatMMK(price.retail_price)}
-                  </span>
-                ) : null}
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
+          {unitPrice !== null ? (
+            <>
+              <span
+                className={`text-base font-bold tabular-nums ${
+                  blocked ? "text-ink/45" : "text-ink"
+                }`}
+              >
+                {formatMMK(unitPrice)}
+              </span>
+              <span className="text-[11px] font-medium text-muted">MMK</span>
+              {hasReduction && retail !== null ? (
                 <span
-                  className={`text-xl font-semibold tabular-nums ${blocked ? "text-ink/45" : "text-ink"}`}
+                  aria-label="Original display price"
+                  className="text-[13px] text-muted line-through"
                 >
-                  {formatMMK(unitPrice)}
+                  {formatMMK(retail)}
                 </span>
-                <span className={`text-sm font-medium ${blocked ? "text-ink/35" : "text-ink/60"}`}>
-                  MMK
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm font-medium text-ink/60">
-                Price will be confirmed in quotation
-              </p>
-            )}
-            {lineQuantity > 0 ? (
-              <p className="whitespace-nowrap text-sm font-semibold tabular-nums text-accent">
-                {lineQuantity} {product.unit}
-              </p>
-            ) : null}
-          </div>
+              ) : null}
+            </>
+          ) : (
+            <span className="text-[13px] text-muted">
+              Price on quotation
+            </span>
+          )}
         </div>
+
+        <div className="mt-2 border-t border-rule/60" />
 
         <div className="mt-auto pt-3">
           {/*
-           * The marketplace CTA: neutral-dark block, "+ Add another
-           * {label}" once a line exists, white pill tally on the right,
+           * The storefront CTA: full-width primary block, "+ Add another"
+           * once a line exists, a white pill tally on the right, and the
            * 1.5 s receipt flip. A blocked product keeps the exact same
-           * button box, but as a printed ghost bar — same height as the
-           * real button, visibly not a clickable that got refused.
+           * button box as a printed ghost bar — visibly not a refused click.
            */}
           <button
             type="button"
@@ -411,10 +395,10 @@ export function ProductCard({
             }
             className={
               blocked
-                ? "inline-flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-rule bg-plate px-4 py-1.5 text-sm font-semibold text-ink/40 focus:outline-none"
+                ? "inline-flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-rule bg-paper px-4 py-2 text-[13px] font-semibold text-ink/40 focus:outline-none"
                 : receipt
-                  ? "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-800 px-4 py-1.5 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 motion-safe:transition-colors"
-                  : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  ? "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-success px-4 py-2 text-[13px] font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 motion-safe:transition-all"
+                  : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50"
             }
           >
             <span className="inline-flex items-center justify-center gap-2">

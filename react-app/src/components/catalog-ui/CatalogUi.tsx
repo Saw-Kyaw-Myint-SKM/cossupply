@@ -3,7 +3,7 @@
  *
  * The visual language matches the existing admin pages
  * (AdminDashboardPage / AdminSettingsPage): white cards, gray text, and
- * gray-800 primary buttons on a gray-50 page background. The public
+ * primary buttons on a paper background. The public
  * browse/cart pages reuse the same primitives so loading, empty, and error
  * states look and behave identically everywhere. The cart "receipt moment"
  * (addedButtonClass, useReceipt, ReceiptCheckMark) also lives here so every
@@ -124,21 +124,21 @@ export function formatStatusLabel(status: string): string {
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
-  ACTIVE: 'bg-green-50 text-green-700 ring-green-600/20',
-  INACTIVE: 'bg-gray-100 text-gray-600 ring-gray-500/20',
-  SUSPENDED: 'bg-red-50 text-red-700 ring-red-600/20',
-  DRAFT: 'bg-gray-100 text-gray-600 ring-gray-500/20',
-  PUBLISHED: 'bg-green-50 text-green-700 ring-green-600/20',
-  HIDDEN: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-  OUT_OF_STOCK: 'bg-red-50 text-red-700 ring-red-600/20',
-  IN_STOCK: 'bg-green-50 text-green-700 ring-green-600/20',
-  LOW_STOCK: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-  PRE_ORDER: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  SUPPLIER_CONFIRMATION_REQUIRED: 'bg-purple-50 text-purple-700 ring-purple-600/20',
+  ACTIVE: 'bg-success-soft text-success ring-success/20',
+  INACTIVE: 'bg-paper text-muted ring-line/20',
+  SUSPENDED: 'bg-error-soft text-error ring-error/20',
+  DRAFT: 'bg-paper text-muted ring-line/20',
+  PUBLISHED: 'bg-success-soft text-success ring-success/20',
+  HIDDEN: 'bg-warning-soft text-warning ring-warning/20',
+  OUT_OF_STOCK: 'bg-error-soft text-error ring-error/20',
+  IN_STOCK: 'bg-success-soft text-success ring-success/20',
+  LOW_STOCK: 'bg-warning-soft text-warning ring-warning/20',
+  PRE_ORDER: 'bg-primary-light text-primary ring-primary/20',
+  SUPPLIER_CONFIRMATION_REQUIRED: 'bg-purple-50 text-purple-700 ring-purple-500/20',
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const tone = STATUS_BADGE_CLASSES[status] ?? 'bg-gray-100 text-gray-700 ring-gray-500/20';
+  const tone = STATUS_BADGE_CLASSES[status] ?? 'bg-paper text-ink ring-gray-500/20';
 
   return (
     <span
@@ -149,36 +149,52 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Primary action button — friendly, trustworthy, prominent.
+ * Warm cyan with smooth hover states for Myanmar users.
+ */
 export const primaryButtonClass =
-  'inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
+  'inline-flex items-center justify-center rounded-lg border border-transparent bg-primary px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
 /**
  * Success state of the cart "receipt moment": right after a line registers,
- * the ink button flips to the stock-vocabulary green ("Added — N") for the
+ * the ink button flips to the warm success green ("Added — N") for the
  * length of the beat, then components settle back to `primaryButtonClass`.
  */
 export const addedButtonClass =
-  'inline-flex items-center justify-center rounded-md border border-transparent bg-green-800 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-700 focus:ring-offset-2 motion-reduce:transition-none';
+  'inline-flex items-center justify-center rounded-lg border border-transparent bg-success px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-success focus:ring-offset-2 motion-reduce:transition-none';
 
+/**
+ * Secondary action button — subtle, supportive, ready when needed.
+ */
 export const secondaryButtonClass =
-  'inline-flex items-center justify-center rounded-md border border-gray-300 bg-plate px-4 py-1.5 text-sm font-semibold text-ink shadow-sm hover:bg-gray-50 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
+  'inline-flex items-center justify-center rounded-lg border border-line bg-plate px-4 py-1.5 text-sm font-semibold text-ink shadow-sm hover:bg-accent-soft hover:border-primary/30 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
+/**
+ * Small button for compact UI areas — tables, inline actions.
+ */
 export const smallButtonClass =
-  'inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 bg-plate px-2.5 py-0.5 text-xs font-semibold text-ink shadow-sm hover:bg-gray-50 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
+  'inline-flex items-center justify-center gap-1 rounded-lg border border-line bg-plate px-2.5 py-0.5 text-xs font-semibold text-ink shadow-sm hover:bg-accent-soft hover:border-primary/30 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
+/**
+ * Danger action button — clear warning, but not alarming.
+ */
 export const dangerSmallButtonClass =
-  'inline-flex items-center justify-center gap-1 rounded-md border border-red-300 bg-plate px-2.5 py-0.5 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
+  'inline-flex items-center justify-center gap-1 rounded-lg border border-error-soft bg-plate px-2.5 py-0.5 text-xs font-semibold text-error shadow-sm hover:bg-error-soft active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-error focus:ring-offset-1 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
+/**
+ * Text link — friendly and clear.
+ */
 export const linkClass =
-  'inline-flex items-center gap-1 rounded text-sm font-medium text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2';
+  'inline-flex items-center gap-1 rounded text-sm font-medium text-primary hover:text-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 motion-safe:transition-colors';
 
 export const dangerLinkClass =
-  'rounded text-sm font-medium text-red-700 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2';
+  'rounded text-sm font-medium text-error hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-error focus:ring-offset-2';
 
 export const inputBaseClass =
-  'block w-full rounded-md border px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500';
-export const inputNormalClass = 'border-gray-300 focus:border-accent focus:ring-accent';
-export const inputErrorClass = 'border-red-300 focus:border-red-500 focus:ring-red-500';
+  'block w-full rounded-lg border px-3 py-2 text-sm text-ink shadow-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-paper disabled:text-subtle motion-safe:transition-all';
+export const inputNormalClass = 'border-line bg-white focus:border-primary focus:ring-primary/30';
+export const inputErrorClass = 'border-error bg-white focus:border-error focus:ring-error/30';
 
 export function inputClass(hasError: boolean): string {
   return `${inputBaseClass} ${hasError ? inputErrorClass : inputNormalClass}`;
@@ -194,6 +210,33 @@ export function joinIds(...ids: Array<string | null | undefined | false>): strin
 }
 
 export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp';
+
+/**
+ * Fallback imagery shown when a product/record has no photo of its own.
+ * `FALLBACK_BANNER` suits large stages (hero carousel, product detail);
+ * `FALLBACK_THUMB` suits cards, list rows, and cart lines.
+ */
+export const FALLBACK_BANNER =
+  'https://ds.ecisolutions.com/pixere.com/ECinteractivePlus/Merrifield-Office-Supply/NewUI/images/banner-img01.jpg';
+export const FALLBACK_THUMB =
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_3W8JAy115erl-nuzfNpkuKHihXzhYWHdim8ExFPEkw&s=10';
+
+/**
+ * Category placeholder imagery. When a category has no image of its own, we
+ * pick one of these by its id so the same category always shows the same
+ * stand-in (stable across renders, varied across the grid).
+ */
+export const FALLBACK_CATEGORY_IMAGES = [
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQkbg9a6EXoXmsLJ_vwoA8OXmFDzKe6XBzowPGdeUuxaQ&s=10',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQz3PXZt3pJG-REHMFmQTXmIXbymeiA2lqo0VgVhfM6FA&s=10',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSo17LW0QyujXByPkeLufEOEEjIXDX_JHTelT1EQR0RXw&s',
+] as const;
+
+/** Deterministic category fallback image for a given category id. */
+export function categoryFallbackImage(id: number): string {
+  const index = Math.abs(id) % FALLBACK_CATEGORY_IMAGES.length;
+  return FALLBACK_CATEGORY_IMAGES[index];
+}
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -264,8 +307,8 @@ export function ReceiptCheckMark(): ReactNode {
  */
 export function PricingNotice({ className = '' }: { className?: string }): ReactNode {
   return (
-    <p className={`flex items-center gap-2 text-[13px] leading-5 text-gray-500 ${className}`}>
-      <FiInfo aria-hidden="true" className="h-4 w-4 flex-none text-gray-400" />
+    <p className={`flex items-center gap-2 text-[13px] leading-5 text-subtle ${className}`}>
+      <FiInfo aria-hidden="true" className="h-4 w-4 flex-none text-subtle" />
       All prices shown are display prices — final pricing is confirmed by the supplier in your
       quotation.
     </p>
@@ -284,10 +327,10 @@ export function PageHeader({
   /* Open composition: the header sits on paper, closed by a hairline rule —
    * not a floating card. Section pages own the surface beneath it. */
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 border-b border-rule pb-4">
+    <div className="flex flex-wrap items-end justify-between gap-4 border-b border-rule pb-4 mb-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-gray-600">{description}</p> : null}
+        {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -297,9 +340,9 @@ export function PageHeader({
 type AlertTone = 'error' | 'success' | 'warning';
 
 const ALERT_TONE_CLASSES: Record<AlertTone, string> = {
-  error: 'border-red-200 bg-red-50 text-red-800',
-  success: 'border-green-200 bg-green-50 text-green-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  error: 'border-error/30 bg-error-soft text-error',
+  success: 'border-success/30 bg-success-soft text-success',
+  warning: 'border-warning/30 bg-warning-soft text-warning',
 };
 
 const ALERT_TONE_ICONS: Record<AlertTone, ReactNode> = {
@@ -323,10 +366,10 @@ export function Alert({
     <div
       id={id}
       role={tone === 'success' ? 'status' : 'alert'}
-      className={`flex items-start gap-2 rounded-lg border p-4 ${ALERT_TONE_CLASSES[tone]} ${className}`}
+      className={`flex items-start gap-2.5 rounded-xl border p-4 ${ALERT_TONE_CLASSES[tone]} ${className}`}
     >
       {ALERT_TONE_ICONS[tone]}
-      <div className="min-w-0 text-sm">{children}</div>
+      <div className="min-w-0 text-sm font-medium">{children}</div>
     </div>
   );
 }
@@ -334,12 +377,12 @@ export function Alert({
 export function LoadingPanel({ label }: { label: string }) {
   return (
     <div
-      className="flex min-h-[40vh] items-center justify-center rounded-lg bg-plate p-6 border border-rule"
+      className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-rule bg-white p-6"
       role="status"
       aria-live="polite"
     >
       <div
-        className="h-10 w-10 animate-spin rounded-full border-b-2 border-ink motion-reduce:animate-none"
+        className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary motion-reduce:animate-none"
         aria-hidden="true"
       />
       <span className="sr-only">{label}</span>
@@ -356,18 +399,18 @@ export function SkeletonCard(): ReactNode {
   return (
     <div
       aria-hidden="true"
-      className="flex flex-col overflow-hidden rounded-lg border border-rule bg-plate"
+      className="flex flex-col overflow-hidden rounded-2xl border border-rule bg-white"
     >
-      <div className="h-44 animate-pulse border-b border-rule bg-gray-100" />
+      <div className="h-44 animate-pulse border-b border-rule bg-paper" />
       <div className="flex flex-1 flex-col p-4">
-        <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-gray-100" />
-        <div className="mt-3 flex items-center justify-between border-t border-dashed border-rule pt-3">
-          <div className="h-6 w-2/5 animate-pulse rounded bg-gray-200" />
-          <div className="h-2.5 w-1/5 animate-pulse rounded-full bg-gray-200" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-rule" />
+        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-paper" />
+        <div className="mt-3 flex items-center justify-between border-t border-dashed border-rule/60 pt-3">
+          <div className="h-6 w-2/5 animate-pulse rounded bg-rule" />
+          <div className="h-2.5 w-1/5 animate-pulse rounded-full bg-rule" />
         </div>
         <div className="mt-auto pt-4">
-          <div className="h-10 w-full animate-pulse rounded-md bg-gray-100" />
+          <div className="h-10 w-full animate-pulse rounded-lg bg-paper" />
         </div>
       </div>
     </div>
@@ -378,13 +421,13 @@ export function SkeletonCard(): ReactNode {
 export function SkeletonRow(): ReactNode {
   return (
     <div aria-hidden="true" className="flex gap-4 p-4">
-      <div className="h-20 w-20 flex-none animate-pulse rounded-md bg-gray-100" />
+      <div className="h-20 w-20 flex-none animate-pulse rounded-md bg-paper" />
       <div className="flex flex-1 flex-col gap-2">
-        <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200" />
-        <div className="h-3 w-1/3 animate-pulse rounded bg-gray-100" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-line" />
+        <div className="h-3 w-1/3 animate-pulse rounded bg-paper" />
         <div className="mt-2 flex items-center justify-between">
-          <div className="h-9 w-28 animate-pulse rounded-md bg-gray-100" />
-          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+          <div className="h-9 w-28 animate-pulse rounded-md bg-paper" />
+          <div className="h-4 w-20 animate-pulse rounded bg-line" />
         </div>
       </div>
     </div>
@@ -405,11 +448,11 @@ export function Pagination({
   const lastPage = Math.max(meta.last_page, 1);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-3">
-      <p className="text-sm text-gray-600">
-        Showing <span className="font-medium text-ink">{from}</span>–
-        <span className="font-medium text-ink">{to}</span> of{' '}
-        <span className="font-medium text-ink tabular-nums">{meta.total}</span>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule bg-white px-4 py-3 rounded-b-2xl">
+      <p className="text-sm text-muted">
+        Showing <span className="font-semibold text-ink">{from}</span>–
+        <span className="font-semibold text-ink">{to}</span> of{' '}
+        <span className="font-semibold text-ink tabular-nums">{meta.total}</span>
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -421,8 +464,8 @@ export function Pagination({
           <FiChevronLeft aria-hidden="true" className="h-4 w-4" />
           Previous
         </button>
-        <span className="text-sm text-gray-600" aria-live="polite">
-          Page {meta.current_page} of {lastPage}
+        <span className="text-sm font-medium text-ink" aria-live="polite">
+          {meta.current_page} / {lastPage}
         </span>
         <button
           type="button"
@@ -457,7 +500,7 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
 
   return (
     <div>
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-900">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
         {label}
         {required ? (
           <>
@@ -470,7 +513,7 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
         ) : null}
       </label>
       {hint ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-500">
+        <p id={hintId} className="mt-1 text-xs text-subtle">
           {hint}
         </p>
       ) : null}
@@ -487,10 +530,10 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
 /** Neutral empty state used by both the admin tables and the public catalog. */
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-rule bg-plate p-10 text-center">
-      <FiInbox aria-hidden="true" className="h-10 w-10 text-gray-300" />
+    <div className="flex flex-col items-center rounded-2xl border border-rule bg-white p-10 text-center">
+      <FiInbox aria-hidden="true" className="h-10 w-10 text-muted/60" />
       <h2 className="mt-3 text-base font-semibold text-ink">{title}</h2>
-      {hint ? <p className="mt-1 max-w-md text-sm text-gray-500">{hint}</p> : null}
+      {hint ? <p className="mt-1 max-w-md text-sm text-muted">{hint}</p> : null}
     </div>
   );
 }

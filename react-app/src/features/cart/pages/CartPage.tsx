@@ -13,6 +13,7 @@ import { FiMinus, FiPlus, FiTrash2 } from 'react-icons/fi';
 import {
   Alert,
   EmptyState,
+  FALLBACK_THUMB,
   PageHeader,
   primaryButtonClass,
   secondaryButtonClass,
@@ -174,40 +175,34 @@ export default function CartPage() {
             return (
               <li key={item.product_id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
                 <Link to={`/products/${item.product_id}`} className="flex-none">
-                  {item.photo_url ? (
-                    <img
-                      src={item.photo_url}
-                      alt={item.name_en ?? item.name_mm}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-20 w-20 rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-20 w-20 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-400">
-                      No photo
-                    </div>
-                  )}
+                  <img
+                    src={item.photo_url ?? FALLBACK_THUMB}
+                    alt={item.name_en ?? item.name_mm}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-20 w-20 rounded-md object-cover"
+                  />
                 </Link>
 
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold text-gray-900">
+                  <h2 className="text-sm font-semibold text-ink">
                     <Link to={`/products/${item.product_id}`} className="hover:text-accent">
                       {item.name_en ?? item.name_mm}
                     </Link>
                   </h2>
-                  <p className="mt-0.5 text-xs text-gray-500">
+                  <p className="mt-0.5 text-xs text-subtle">
                     {item.supplier_name ?? 'Supplier'}
                     {item.sku ? ` · SKU ${item.sku}` : ''}
                   </p>
 
                   <div className="mt-2 space-y-1">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-ink">
                       {formatMMK(item.unit_price)} MMK / {item.unit}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-subtle">
                       Display price — final price confirmed in quotation.
                     </p>
-                    <p className="text-xs text-gray-500">Minimum order: {minimum}</p>
+                    <p className="text-xs text-subtle">Minimum order: {minimum}</p>
                   </div>
 
                   {needsSupplierConfirmation(item.stock_status) ? (
@@ -218,12 +213,12 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex flex-none flex-col items-start gap-2 sm:items-end">
-                  <div className="flex items-center rounded-md border border-gray-300 bg-plate">
+                  <div className="flex items-center rounded-md border border-line bg-plate">
                   <button
                     type="button"
                     onClick={() => handleStep(item, -1)}
                     disabled={atMinimum}
-                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-gray-300"
+                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
                     aria-label={`Decrease quantity of ${item.name_en ?? item.name_mm}`}
                   >
                     <FiMinus aria-hidden="true" className="h-4 w-4" />
@@ -238,7 +233,7 @@ export default function CartPage() {
                       onBlur={() => handleDraftCommit(item)}
                       aria-label={`Quantity of ${item.name_en ?? item.name_mm}`}
                       aria-invalid={Boolean(rowError) || undefined}
-                      className="w-20 border-x border-gray-300 px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+                      className="w-20 border-x border-line px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
                     />
                     <button
                       type="button"
@@ -274,8 +269,8 @@ export default function CartPage() {
           })}
         </ul>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
-          <p className="text-sm text-gray-600">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-4">
+          <p className="text-sm text-muted">
             {items.length} {items.length === 1 ? 'line' : 'lines'} in your order list
           </p>
           <button type="button" onClick={handleClear} className={secondaryButtonClass}>
@@ -299,7 +294,7 @@ export default function CartPage() {
             {formatMMK(subtotal)} MMK
           </span>
         </div>
-        <p className="mt-1 text-xs text-gray-500 sm:block hidden">
+        <p className="mt-1 text-xs text-subtle sm:block hidden">
           Indicative only. Delivery, discounts and the service fee are calculated by the server
           when the quotation is issued.
         </p>
@@ -307,7 +302,7 @@ export default function CartPage() {
         <button type="submit" className={`${primaryButtonClass} mt-5 w-full sm:mt-4`}>
           Request Quotation
         </button>
-        <p className="mt-2 text-xs text-gray-500 hidden sm:block">
+        <p className="mt-2 text-xs text-subtle hidden sm:block">
           {isAuthenticated && userType === 'customer'
             ? 'Continue to the request form to submit your quotation request.'
             : 'You will be asked to sign in or register first. Your order list is kept in this browser.'}

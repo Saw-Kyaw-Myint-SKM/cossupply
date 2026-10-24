@@ -81,10 +81,10 @@ export default function CustomerDashboardPage() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        <h1 className="text-2xl font-bold text-ink mb-4">
           Welcome, {user?.name}!
         </h1>
-        <p className="text-gray-600 mb-4">
+        <p className="text-muted mb-4">
           This is your customer dashboard. From here you can manage your quotations and orders.
         </p>
       </div>
@@ -92,24 +92,24 @@ export default function CustomerDashboardPage() {
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Quotations</h3>
+          <h3 className="text-lg font-semibold text-ink mb-2">Quotations</h3>
           <p className="text-3xl font-bold text-ink">{quotationTotal ?? '—'}</p>
-          <p className="text-sm text-gray-500 mt-1">Quotation requests</p>
+          <p className="text-sm text-subtle mt-1">Quotation requests</p>
           <Link to="/quotations" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
           </Link>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Orders</h3>
+          <h3 className="text-lg font-semibold text-ink mb-2">Orders</h3>
           <p className="text-3xl font-bold text-green-600">0</p>
-          <p className="text-sm text-gray-500 mt-1">Total orders</p>
+          <p className="text-sm text-subtle mt-1">Total orders</p>
           <Link to="/orders" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
           </Link>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">New Quotation</h3>
-          <p className="text-gray-600 text-sm mb-4">
+          <h3 className="text-lg font-semibold text-ink mb-2">New Quotation</h3>
+          <p className="text-muted text-sm mb-4">
             Add products to your order list and request a quotation.
           </p>
           <Link to="/cart" className="text-sm text-accent hover:text-accent/80">
@@ -129,7 +129,7 @@ export default function CustomerDashboardPage() {
             <h2 id="current-quotation-heading" className="text-lg font-semibold text-ink">
               Current quotation
             </h2>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-muted">
               The quotation waiting for your review, if any.
             </p>
           </div>
@@ -141,8 +141,8 @@ export default function CustomerDashboardPage() {
         {quotationLoading ? (
           <div className="mt-4 space-y-2" role="status" aria-live="polite">
             <span className="sr-only">Loading your current quotation…</span>
-            <div aria-hidden="true" className="h-4 w-1/3 animate-pulse rounded bg-gray-200 motion-reduce:animate-none" />
-            <div aria-hidden="true" className="h-3 w-1/2 animate-pulse rounded bg-gray-100 motion-reduce:animate-none" />
+            <div aria-hidden="true" className="h-4 w-1/3 animate-pulse rounded bg-line motion-reduce:animate-none" />
+            <div aria-hidden="true" className="h-3 w-1/2 animate-pulse rounded bg-paper motion-reduce:animate-none" />
           </div>
         ) : quotationError ? (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4" role="alert">
@@ -184,11 +184,11 @@ export default function CustomerDashboardPage() {
               ) : null}
             </div>
             {markers?.hasCurrentVersion ? (
-              <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
+              <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-ink">
                 <span>{markers.currentVersionLabel}</span>
                 {currentQuotation.current_status ? (
                   <>
-                    <span aria-hidden="true" className="text-gray-400">
+                    <span aria-hidden="true" className="text-subtle">
                       ·
                     </span>
                     <QuotationStatusBadge status={currentQuotation.current_status} />
@@ -196,10 +196,10 @@ export default function CustomerDashboardPage() {
                 ) : null}
                 {markers.validityLabel ? (
                   <>
-                    <span aria-hidden="true" className="text-gray-400">
+                    <span aria-hidden="true" className="text-subtle">
                       ·
                     </span>
-                    <span className="text-xs text-gray-500">{markers.validityLabel}</span>
+                    <span className="text-xs text-subtle">{markers.validityLabel}</span>
                   </>
                 ) : null}
               </p>
@@ -215,7 +215,7 @@ export default function CustomerDashboardPage() {
         ) : (
           <div className="mt-4 rounded-lg border border-dashed border-rule p-4">
             <p className="text-sm font-medium text-ink">No quotation is waiting for you.</p>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-subtle">
               Add products to your order list, then request a quotation to see it here.
             </p>
             <Link to="/cart" className={`${linkClass} mt-2`}>
@@ -227,30 +227,30 @@ export default function CustomerDashboardPage() {
 
       {/* Profile Info */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
+        <h2 className="text-lg font-semibold text-ink mb-4">Profile Information</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <dt className="text-sm font-medium text-gray-500">Name</dt>
-            <dd className="mt-1 text-sm text-gray-900">{user?.name}</dd>
+            <dt className="text-sm font-medium text-subtle">Name</dt>
+            <dd className="mt-1 text-sm text-ink">{user?.name}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Phone</dt>
-            <dd className="mt-1 text-sm text-gray-900">{user?.phone}</dd>
+            <dt className="text-sm font-medium text-subtle">Phone</dt>
+            <dd className="mt-1 text-sm text-ink">{user?.phone}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Email</dt>
-            <dd className="mt-1 text-sm text-gray-900">{user?.email || 'Not provided'}</dd>
+            <dt className="text-sm font-medium text-subtle">Email</dt>
+            <dd className="mt-1 text-sm text-ink">{user?.email || 'Not provided'}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Company</dt>
-            <dd className="mt-1 text-sm text-gray-900">{user?.company_name || 'Not provided'}</dd>
+            <dt className="text-sm font-medium text-subtle">Company</dt>
+            <dd className="mt-1 text-sm text-ink">{user?.company_name || 'Not provided'}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Account Type</dt>
-            <dd className="mt-1 text-sm text-gray-900 capitalize">{user?.customer_type}</dd>
+            <dt className="text-sm font-medium text-subtle">Account Type</dt>
+            <dd className="mt-1 text-sm text-ink capitalize">{user?.customer_type}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Status</dt>
+            <dt className="text-sm font-medium text-subtle">Status</dt>
             <dd className="mt-1">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 {user?.status}
@@ -258,7 +258,7 @@ export default function CustomerDashboardPage() {
             </dd>
           </div>
         </dl>
-        <div className="mt-6 pt-6 border-t border-gray-200">
+        <div className="mt-6 pt-6 border-t border-rule">
           <button
             onClick={logout}
             className="text-sm text-red-600 hover:text-red-800"

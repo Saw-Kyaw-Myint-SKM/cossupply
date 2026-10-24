@@ -65,7 +65,7 @@ export default function RegisterPage() {
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-lg shadow-md p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+        <h1 className="text-2xl font-bold text-ink mb-6 text-center">
           Create Account
         </h1>
 
@@ -77,7 +77,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="name" className="block text-sm font-medium text-ink mb-1">
               Full Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -86,7 +86,7 @@ export default function RegisterPage() {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               required
             />
             {fieldErrors.name && (
@@ -95,7 +95,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-ink mb-1">
               Phone Number <span className="text-red-500">*</span>
             </label>
             <input
@@ -104,7 +104,7 @@ export default function RegisterPage() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               placeholder="09xxxxxxxxx"
               required
             />
@@ -114,7 +114,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">
               Email (Optional)
             </label>
             <input
@@ -123,7 +123,7 @@ export default function RegisterPage() {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
             />
             {fieldErrors.email && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.email[0]}</p>
@@ -131,7 +131,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="company_name" className="block text-sm font-medium text-ink mb-1">
               Company Name (Optional)
             </label>
             <input
@@ -140,7 +140,7 @@ export default function RegisterPage() {
               name="company_name"
               value={formData.company_name}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
             />
             {fieldErrors.company_name && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.company_name[0]}</p>
@@ -148,7 +148,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">
               Password <span className="text-red-500">*</span>
             </label>
             <input
@@ -157,7 +157,7 @@ export default function RegisterPage() {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               required
               minLength={8}
             />
@@ -167,7 +167,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="password_confirmation" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password_confirmation" className="block text-sm font-medium text-ink mb-1">
               Confirm Password <span className="text-red-500">*</span>
             </label>
             <input
@@ -176,7 +176,7 @@ export default function RegisterPage() {
               name="password_confirmation"
               value={formData.password_confirmation}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               required
             />
           </div>
@@ -191,7 +191,7 @@ export default function RegisterPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted">
             Already have an account?{' '}
             <Link to="/login" className="font-medium text-accent hover:text-accent/80">
               Login here

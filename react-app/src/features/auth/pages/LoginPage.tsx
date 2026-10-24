@@ -40,7 +40,7 @@ export default function LoginPage() {
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-lg shadow-md p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+        <h1 className="text-2xl font-bold text-ink mb-6 text-center">
           Customer Login
         </h1>
 
@@ -52,7 +52,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-ink mb-1">
               Phone Number
             </label>
             <input
@@ -60,7 +60,7 @@ export default function LoginPage() {
               id="phone"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               placeholder="09xxxxxxxxx"
               required
             />
@@ -70,7 +70,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">
               Password
             </label>
             <input
@@ -78,7 +78,7 @@ export default function LoginPage() {
               id="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               required
             />
             {fieldErrors.password && (
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted">
             Don't have an account?{' '}
             <Link to="/register" className="font-medium text-accent hover:text-accent/80">
               Register here
@@ -104,10 +104,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-500 text-center">
+        <div className="mt-4 pt-4 border-t border-rule">
+          <p className="text-sm text-subtle text-center">
             Admin?{' '}
-            <Link to="/admin/login" className="font-medium text-gray-700 hover:text-gray-900">
+            <Link to="/admin/login" className="font-medium text-ink hover:text-ink">
               Login here
             </Link>
           </p>

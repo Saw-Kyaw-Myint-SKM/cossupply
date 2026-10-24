@@ -11,6 +11,7 @@ import { FiArrowRight } from 'react-icons/fi';
 import { listCategories, type PublicCategory } from '../../../api/catalog';
 import {
   Alert,
+  categoryFallbackImage,
   EmptyState,
   LoadingPanel,
   PageHeader,
@@ -71,25 +72,19 @@ export default function CategoryListPage() {
               to={`/products?category_id=${category.id}`}
               className="group flex overflow-hidden rounded-lg border border-rule bg-plate hover:border-accent/40 active:scale-[.99] motion-safe:transition-colors"
             >
-              {category.image_url ? (
-                <img
-                  src={category.image_url}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="h-28 w-28 flex-none object-cover sm:h-32 sm:w-32"
-                />
-              ) : (
-                <div className="flex h-28 w-28 flex-none items-center justify-center bg-gray-100 text-xs text-gray-300 sm:h-32 sm:w-32">
-                  No image
-                </div>
-              )}
+              <img
+                src={category.image_url ?? categoryFallbackImage(category.id)}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-28 w-28 flex-none object-cover sm:h-32 sm:w-32"
+              />
 
               <div className="flex min-w-0 flex-1 flex-col p-4">
                 <h2 className="text-sm font-semibold text-ink">{category.name_en}</h2>
-                <p className="mt-0.5 truncate text-sm text-gray-500">{category.name_mm}</p>
+                <p className="mt-0.5 truncate text-sm text-subtle">{category.name_mm}</p>
                 {category.description ? (
-                  <p className="mt-1 line-clamp-2 text-xs leading-4 text-gray-600">
+                  <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted">
                     {category.description}
                   </p>
                 ) : null}

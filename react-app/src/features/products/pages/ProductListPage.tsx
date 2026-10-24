@@ -38,7 +38,7 @@ import {
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
 
 const STOCK_FILTERS: Array<{ value: StockStatus | ''; label: string; dot?: string }> = [
-  { value: '', label: 'All availability', dot: 'bg-gray-400' },
+  { value: '', label: 'All availability', dot: 'bg-subtle' },
   { value: 'IN_STOCK', label: 'In stock', dot: 'bg-green-600' },
   { value: 'LOW_STOCK', label: 'Low stock', dot: 'bg-amber-500' },
   { value: 'PRE_ORDER', label: 'Pre-order', dot: 'bg-blue-600' },
@@ -71,7 +71,7 @@ function FilterRadio({
   return (
     <label
       className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm motion-safe:transition-colors ${
-        checked ? 'bg-accent-soft font-medium text-accent' : 'text-gray-700 hover:bg-gray-50'
+        checked ? 'bg-accent-soft font-medium text-accent' : 'text-ink hover:bg-paper'
       }`}
     >
       <input
@@ -86,7 +86,7 @@ function FilterRadio({
         className={`h-3.5 w-3.5 flex-none rounded-full border ${
           checked
             ? 'border-accent bg-accent shadow-[inset_0_0_0_2px_var(--color-plate)]'
-            : 'border-gray-300 bg-plate'
+            : 'border-line bg-plate'
         } peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2`}
       />
       {option.dot ? (
@@ -176,7 +176,7 @@ function LoadingMoreRow({ label }: { label: string }) {
   return (
     <div
       role="status"
-      className="flex justify-center py-6 text-sm text-gray-500"
+      className="flex justify-center py-6 text-sm text-subtle"
       aria-live="polite"
     >
       <FiLoader
@@ -409,11 +409,11 @@ export default function ProductListPage() {
   const sheetFields = (
     <>
       <div className="lg:col-span-2">
-        <label htmlFor="sheet-search" className="block text-xs font-medium text-gray-600">
+        <label htmlFor="sheet-search" className="block text-xs font-medium text-muted">
           Search
         </label>
-        <div className="mt-1 flex overflow-hidden rounded-md border border-gray-300 bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
-          <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-gray-400" />
+        <div className="mt-1 flex overflow-hidden rounded-md border border-line bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
+          <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-subtle" />
           <input
             id="sheet-search"
             type="search"
@@ -433,7 +433,7 @@ export default function ProductListPage() {
       </div>
 
       <div>
-        <label htmlFor="sheet-category" className="block text-xs font-medium text-gray-600">
+        <label htmlFor="sheet-category" className="block text-xs font-medium text-muted">
           Category
         </label>
         <select
@@ -452,7 +452,7 @@ export default function ProductListPage() {
       </div>
 
       <div>
-        <label htmlFor="sheet-supplier" className="block text-xs font-medium text-gray-600">
+        <label htmlFor="sheet-supplier" className="block text-xs font-medium text-muted">
           Supplier
         </label>
         <select
@@ -471,7 +471,7 @@ export default function ProductListPage() {
       </div>
 
       <div>
-        <label htmlFor="sheet-stock" className="block text-xs font-medium text-gray-600">
+        <label htmlFor="sheet-stock" className="block text-xs font-medium text-muted">
           Availability
         </label>
         <select
@@ -523,8 +523,8 @@ export default function ProductListPage() {
             <label htmlFor="rail-search" className="sr-only">
               Search the catalog
             </label>
-            <div className="flex overflow-hidden rounded-md border border-gray-300 bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
-              <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-gray-400" />
+            <div className="flex overflow-hidden rounded-md border border-line bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
+              <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-subtle" />
               <input
                 id="rail-search"
                 type="search"
@@ -590,7 +590,7 @@ export default function ProductListPage() {
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-plate px-3 py-1.5 text-sm font-medium text-ink active:scale-[.99]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-plate px-3 py-1.5 text-sm font-medium text-ink active:scale-[.99]"
             >
               <FiFilter aria-hidden="true" className="h-4 w-4" />
               Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
@@ -611,7 +611,7 @@ export default function ProductListPage() {
           {loadError && !products.length ? <Alert tone="error">{loadError}</Alert> : null}
 
           {meta && !isLoading && !loadError ? (
-            <p className="text-sm text-gray-600" aria-live="polite">
+            <p className="text-sm text-muted" aria-live="polite">
               <span className="font-medium text-ink tabular-nums">{meta.total}</span>{' '}
               {meta.total === 1 ? 'product' : 'products'}
               {hasFilters ? ' match your filters' : ' in the catalog'}
@@ -664,7 +664,7 @@ export default function ProductListPage() {
           {loadingMore ? <LoadingMoreRow label="Bringing up more products…" /> : null}
 
           {meta && !isLoading && !loadError && !hasMore ? (
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-subtle">
               End of catalog — {meta.total}{' '}
               {meta.total === 1 ? 'product' : 'products'} shown
             </p>
@@ -704,7 +704,7 @@ export default function ProductListPage() {
                 type="button"
                 onClick={() => setSheetOpen(false)}
                 aria-label="Close filters"
-                className="flex h-10 w-10 items-center justify-center rounded-md text-ink active:bg-gray-50"
+                className="flex h-10 w-10 items-center justify-center rounded-md text-ink active:bg-paper"
               >
                 <FiX aria-hidden="true" className="h-5 w-5" />
               </button>

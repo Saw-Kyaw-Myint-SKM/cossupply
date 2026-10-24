@@ -22,6 +22,7 @@ import {
 import {
   Alert,
   addedButtonClass,
+  FALLBACK_BANNER,
   LoadingPanel,
   PageHeader,
   primaryButtonClass,
@@ -183,7 +184,7 @@ export default function ProductDetailPage() {
       disabled={Boolean(blocked)}
       className={`${extraClass}${
         blocked
-          ? 'cursor-not-allowed bg-gray-200 text-gray-500'
+          ? 'cursor-not-allowed bg-line text-subtle'
           : receipt
             ? addedButtonClass
             : primaryButtonClass
@@ -214,17 +215,17 @@ export default function ProductDetailPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1 text-sm text-gray-500" aria-label="Breadcrumb">
+      <nav className="flex items-center gap-1 text-sm text-subtle" aria-label="Breadcrumb">
         <Link to="/" className="rounded hover:text-ink">
           Home
         </Link>
-        <FiChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-gray-400" />
+        <FiChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-subtle" />
         <Link to="/products" className="rounded hover:text-ink">
           Products
         </Link>
         {product.category ? (
           <>
-            <FiChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-gray-400" />
+            <FiChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-subtle" />
             <Link
               to={`/products?category_id=${product.category.id}`}
               className="rounded hover:text-ink"
@@ -238,30 +239,24 @@ export default function ProductDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <section className="lg:col-span-2">
           <div className="overflow-hidden rounded-lg border border-rule bg-plate">
-            {product.photo_url ? (
-              <img
-                src={product.photo_url}
-                alt={displayName}
-                loading="lazy"
-                decoding="async"
-                className="h-64 w-full object-cover sm:h-80"
-              />
-            ) : (
-              <div className="flex h-64 w-full items-center justify-center bg-gray-100 text-sm text-gray-300 sm:h-80">
-                No photo available
-              </div>
-            )}
+            <img
+              src={product.photo_url ?? FALLBACK_BANNER}
+              alt={displayName}
+              loading="lazy"
+              decoding="async"
+              className="h-64 w-full object-cover sm:h-80"
+            />
           </div>
         </section>
 
         <section className="space-y-5 lg:col-span-3">
           {/* The 30-second pitch: everything needed to decide, in one run. */}
           <div id="product-pitch" className="rounded-lg border border-rule bg-plate p-6">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-subtle">
               {product.category?.name_en ?? 'Uncategorised'}
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">{displayName}</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-subtle">
               {product.brand ?? 'No brand'}
               {product.model ? ` · ${product.model}` : ''}
               {product.sku ? ` · SKU ${product.sku}` : ''}
@@ -271,7 +266,7 @@ export default function ProductDetailPage() {
               <StockBadge stock={product.stock} />
               {product.stock?.stock_quantity !== null &&
               product.stock?.stock_quantity !== undefined ? (
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-muted">
                   {product.stock.stock_quantity} {product.unit} available
                 </span>
               ) : null}
@@ -296,12 +291,12 @@ export default function ProductDetailPage() {
               </label>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center rounded-md border border-gray-300 bg-plate">
+                <div className="flex items-center rounded-md border border-line bg-plate">
                   <button
                     type="button"
                     onClick={() => step(-1)}
                     disabled={quantity <= moq || Boolean(blocked)}
-                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-gray-300"
+                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
                     aria-label="Decrease quantity"
                   >
                     <FiMinus aria-hidden="true" className="h-4 w-4" />
@@ -315,7 +310,7 @@ export default function ProductDetailPage() {
                     value={Number.isFinite(quantity) ? quantity : ''}
                     onChange={(event) => handleQuantityInput(event.target.value)}
                     disabled={Boolean(blocked)}
-                    className="w-20 border-x border-gray-300 px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+                    className="w-20 border-x border-line px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
                     aria-describedby={message ? 'quantity-error' : undefined}
                     aria-invalid={Boolean(message) || undefined}
                   />
@@ -323,7 +318,7 @@ export default function ProductDetailPage() {
                     type="button"
                     onClick={() => step(1)}
                     disabled={Boolean(blocked)}
-                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-gray-300"
+                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
                     aria-label="Increase quantity"
                   >
                     <FiPlus aria-hidden="true" className="h-4 w-4" />
@@ -356,11 +351,11 @@ export default function ProductDetailPage() {
                 type="button"
                 onClick={handleRequestQuotation}
                 disabled={Boolean(blocked)}
-                className={`${blocked ? 'cursor-not-allowed bg-gray-200 text-gray-500' : secondaryButtonClass} w-full`}
+                className={`${blocked ? 'cursor-not-allowed border border-line bg-line text-subtle' : secondaryButtonClass} h-11 w-full`}
               >
                 Request quotation from this item
               </button>
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-subtle">
                 Guests are asked to sign in or register first. Nothing is submitted to the API at
                 this step.
               </p>
@@ -383,21 +378,21 @@ export default function ProductDetailPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink">{product.supplier.shop_name}</p>
                   {product.supplier.company_name ? (
-                    <p className="text-sm text-gray-600">{product.supplier.company_name}</p>
+                    <p className="text-sm text-muted">{product.supplier.company_name}</p>
                   ) : null}
                   {product.supplier.business_description ? (
-                    <p className="mt-1 text-sm text-gray-600">{product.supplier.business_description}</p>
+                    <p className="mt-1 text-sm text-muted">{product.supplier.business_description}</p>
                   ) : null}
-                  <dl className="mt-2 grid grid-cols-1 gap-1 text-sm text-gray-600 sm:grid-cols-2">
+                  <dl className="mt-2 grid grid-cols-1 gap-1 text-sm text-muted sm:grid-cols-2">
                     {product.supplier.delivery_area ? (
                       <div>
-                        <dt className="inline font-medium text-gray-700">Delivery area: </dt>
+                        <dt className="inline font-medium text-ink">Delivery area: </dt>
                         <dd className="inline">{product.supplier.delivery_area}</dd>
                       </div>
                     ) : null}
                     {product.supplier.delivery_time ? (
                       <div>
-                        <dt className="inline font-medium text-gray-700">Delivery time: </dt>
+                        <dt className="inline font-medium text-ink">Delivery time: </dt>
                         <dd className="inline">{product.supplier.delivery_time}</dd>
                       </div>
                     ) : null}
@@ -418,11 +413,11 @@ export default function ProductDetailPage() {
         <h2 className="text-base font-semibold text-ink">Product details</h2>
 
         {product.description ? (
-          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">
+          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink">
             {product.description}
           </p>
         ) : (
-          <p className="mt-3 text-sm text-gray-500">No description has been provided.</p>
+          <p className="mt-3 text-sm text-subtle">No description has been provided.</p>
         )}
 
         <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -439,14 +434,14 @@ export default function ProductDetailPage() {
             .filter((entry): entry is [string, string] => Boolean(entry[1]))
             .map(([label, value]) => (
               <div key={label} className="flex justify-between gap-3 border-b border-rule pb-2">
-                <dt className="font-medium text-gray-600">{label}</dt>
+                <dt className="font-medium text-muted">{label}</dt>
                 <dd className="text-right text-ink">{value}</dd>
               </div>
             ))}
         </dl>
 
         {product.price?.retail_price ? (
-          <p className="mt-5 text-xs text-gray-500">
+          <p className="mt-5 text-xs text-subtle">
             Reference display price: <span className="tabular-nums">{formatMMK(product.price.retail_price)}</span> MMK per {product.unit}.
             Final pricing is issued with the supplier quotation.
           </p>
