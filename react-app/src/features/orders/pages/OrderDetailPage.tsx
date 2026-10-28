@@ -13,6 +13,7 @@ import {
   FiCheckCircle,
   FiClock,
   FiCreditCard,
+  FiDownload,
   FiFileText,
   FiTruck,
 } from 'react-icons/fi';
@@ -29,7 +30,13 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { formatMMK } from '../../../lib/money';
-import { getOrder, type OrderDetail, type OrderItem } from '../api/ordersApi';
+import { saveDownloadedFile } from '../../../lib/downloadFile';
+import {
+  downloadOrderReceipt,
+  getOrder,
+  type OrderDetail,
+  type OrderItem,
+} from '../api/ordersApi';
 import {
   formatOrderDate,
   formatOrderDateTime,
@@ -85,6 +92,8 @@ export default function OrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadErrorState | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +127,23 @@ export default function OrderDetailPage() {
       cancelled = true;
     };
   }, [orderId, reloadToken]);
+
+  const downloadReceipt = async () => {
+    if (!order) return;
+
+    setDownloadingReceipt(true);
+    setReceiptError(null);
+
+    const response = await downloadOrderReceipt(order.id);
+
+    if (response.success && response.data) {
+      saveDownloadedFile(response.data);
+    } else {
+      setReceiptError(response.message ?? 'The receipt could not be downloaded.');
+    }
+
+    setDownloadingReceipt(false);
+  };
 
   if (isLoading && order === null) {
     return (
@@ -330,6 +356,26 @@ export default function OrderDetailPage() {
                 Receipt <span className="font-mono">{payment.receipt_number}</span>
                 {payment.collected_at ? ` · collected ${formatOrderDateTime(payment.collected_at)}` : ''}
               </p>
+            ) : null}
+
+            {payment?.receipt_available ? (
+              <button
+                type="button"
+                onClick={() => void downloadReceipt()}
+                disabled={downloadingReceipt}
+                className={`${secondaryButtonClass} mt-3`}
+              >
+                <FiDownload aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                {downloadingReceipt ? 'Downloading…' : 'Download receipt'}
+              </button>
+            ) : null}
+
+            {receiptError ? (
+              <div className="mt-3">
+                <Alert tone="error">
+                  <p>{receiptError}</p>
+                </Alert>
+              </div>
             ) : null}
           </section>
 

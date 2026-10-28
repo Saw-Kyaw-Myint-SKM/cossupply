@@ -14,9 +14,14 @@ function stubStorage() {
 
 import {
   cancelOrder,
+  collectCash,
+  confirmCashPayment,
   confirmSupplier,
+  downloadOrderReceipt,
   getAdminOrder,
   listAdminOrders,
+  recordCustomerRefusal,
+  updateDeliveryStatus,
 } from '../orderAdminApi';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -235,5 +240,143 @@ describe('cancelOrder', () => {
       note: 'Customer requested cancellation.',
     });
     expect(response.data?.order.order_status).toBe('CANCELLED');
+  });
+});
+
+describe('updateDeliveryStatus', () => {
+  it('posts the full-delivery step with trimmed optional fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(detailBody('OUT_FOR_DELIVERY')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await updateDeliveryStatus(8, {
+      status: 'OUT_FOR_DELIVERY',
+      note: '  Handed to Royal Express.  ',
+      delivery_partner: ' Royal Express ',
+      tracking_number: ' TRK-9012 ',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/orders/8/delivery-status'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      status: 'OUT_FOR_DELIVERY',
+      note: 'Handed to Royal Express.',
+      delivery_partner: 'Royal Express',
+      tracking_number: 'TRK-9012',
+    });
+    expect(response.data?.order.order_status).toBe('OUT_FOR_DELIVERY');
+  });
+
+  it('records who received a full delivery', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(detailBody('DELIVERED')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await updateDeliveryStatus(8, {
+      status: 'DELIVERED',
+      received_by: '  Daw Mya  ',
+    });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      status: 'DELIVERED',
+      received_by: 'Daw Mya',
+    });
+  });
+});
+
+describe('collectCash', () => {
+  it('posts the full amount, receiver and receipt number', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(detailBody('DELIVERED')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await collectCash(8, {
+      amount_collected: 26750,
+      received_by: '  Daw Mya  ',
+      receipt_number: ' RCP-2026-000008 ',
+      note: '  Counted twice.  ',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/orders/8/cash-collection'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      amount_collected: 26750,
+      received_by: 'Daw Mya',
+      receipt_number: 'RCP-2026-000008',
+      note: 'Counted twice.',
+    });
+    expect(response.success).toBe(true);
+  });
+});
+
+describe('confirmCashPayment', () => {
+  it('posts the optional verification note', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(detailBody('COMPLETED')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await confirmCashPayment(8, '  Counted and verified.  ');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/orders/8/payment-confirmation'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      note: 'Counted and verified.',
+    });
+    expect(response.data?.order.order_status).toBe('COMPLETED');
+  });
+});
+
+describe('recordCustomerRefusal', () => {
+  it('posts the delivery outcome, responsible person and note', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(detailBody('DELIVERY_FAILED')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await recordCustomerRefusal(8, {
+      delivery_outcome: 'DELIVERY_FAILED',
+      responsible_person: '  Ko Aung  ',
+      note: '  Customer refused to pay the full amount.  ',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/orders/8/customer-refused-payment'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      delivery_outcome: 'DELIVERY_FAILED',
+      responsible_person: 'Ko Aung',
+      note: 'Customer refused to pay the full amount.',
+    });
+    expect(response.data?.order.order_status).toBe('DELIVERY_FAILED');
+  });
+});
+
+describe('downloadOrderReceipt', () => {
+  it('fetches the private receipt as an authenticated blob', async () => {
+    const blob = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+    const headers = new Headers({
+      'Content-Disposition': 'attachment; filename="RCP-2026-000008.pdf"',
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers,
+      blob: async () => blob,
+      json: async () => ({}),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await downloadOrderReceipt(8);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/orders/8/receipt/download'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer admin-token' }),
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.fileName).toBe('RCP-2026-000008.pdf');
+    expect(response.data?.blob).toBe(blob);
   });
 });

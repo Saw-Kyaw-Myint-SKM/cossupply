@@ -12,7 +12,13 @@ function stubStorage() {
   });
 }
 
-import { getOrder, listOrders, ORDER_STATUSES, PAYMENT_STATUSES } from '../ordersApi';
+import {
+  downloadOrderReceipt,
+  getOrder,
+  listOrders,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+} from '../ordersApi';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return {
@@ -147,6 +153,7 @@ describe('getOrder', () => {
               customer_name: 'Daw Hla',
               note: null,
               status: 'NOT_PAID',
+              receipt_available: false,
             },
             status_histories: [],
             quotation: null,
@@ -190,5 +197,43 @@ describe('order vocabulary', () => {
     expect(ORDER_STATUSES).toContain('CANCELLED');
     expect(PAYMENT_STATUSES).toContain('NOT_PAID');
     expect(PAYMENT_STATUSES).toContain('PAYMENT_CONFIRMED');
+  });
+});
+
+describe('downloadOrderReceipt', () => {
+  it('fetches the receipt with the customer token', async () => {
+    const blob = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'Content-Disposition': 'attachment; filename="receipt.pdf"' }),
+      blob: async () => blob,
+      json: async () => ({}),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await downloadOrderReceipt(8);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/customer/orders/8/receipt/download'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer customer-token' }),
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.fileName).toBe('receipt.pdf');
+  });
+
+  it('surfaces 404 for another customer receipt', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: false, message: 'Order not found.' }, 404),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await downloadOrderReceipt(999);
+
+    expect(response.success).toBe(false);
+    expect(response.status).toBe(404);
+    expect(response.message).toBe('Order not found.');
   });
 });

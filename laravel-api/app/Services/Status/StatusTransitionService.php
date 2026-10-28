@@ -2,6 +2,7 @@
 
 namespace App\Services\Status;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\QuotationRequestStatus;
@@ -10,11 +11,11 @@ use App\Exceptions\InvalidStatusTransitionException;
 
 /**
  * Server-side guard for the valid status transitions defined in
- * specification/StatusDefinitions.md §10.
+ * specification/StatusDefinitions.md §10 and the delivery flow in
+ * specification/LogicFlow.md §11.
  *
  * The maps are deliberately explicit so unsupported transitions are
- * rejected instead of silently accepted. Delivery transitions are not
- * defined in §10 and are therefore intentionally absent.
+ * rejected instead of silently accepted.
  */
 class StatusTransitionService
 {
@@ -23,6 +24,8 @@ class StatusTransitionService
     public const DOMAIN_QUOTATION_VERSION = 'quotation_version';
 
     public const DOMAIN_ORDER = 'order';
+
+    public const DOMAIN_DELIVERY = 'delivery';
 
     public const DOMAIN_CASH_PAYMENT = 'cash_payment';
 
@@ -138,6 +141,29 @@ class StatusTransitionService
             OrderStatus::DELIVERED->value => [
                 OrderStatus::COMPLETED->value,
                 OrderStatus::RETURNED->value,
+            ],
+        ],
+        self::DOMAIN_DELIVERY => [
+            DeliveryStatus::NOT_ASSIGNED->value => [
+                DeliveryStatus::PREPARING->value,
+            ],
+            DeliveryStatus::PREPARING->value => [
+                DeliveryStatus::OUT_FOR_DELIVERY->value,
+                DeliveryStatus::DELIVERY_FAILED->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::OUT_FOR_DELIVERY->value => [
+                DeliveryStatus::DELIVERED->value,
+                DeliveryStatus::DELIVERY_FAILED->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::DELIVERY_FAILED->value => [
+                DeliveryStatus::PREPARING->value,
+                DeliveryStatus::OUT_FOR_DELIVERY->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::DELIVERED->value => [
+                DeliveryStatus::RETURNED->value,
             ],
         ],
         self::DOMAIN_CASH_PAYMENT => [

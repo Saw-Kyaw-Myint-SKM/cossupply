@@ -4456,7 +4456,7 @@ A detail response adds:
 
 - `items[]` — immutable lines copied from `quotation_version_items` (`product_name_snapshot`, `sku_snapshot`, `specification_snapshot`, `quantity`, `unit_price`, `discount`, `line_total`, optional `supplier { id, shop_name }`).
 - `delivery` — the single full-delivery record (`delivery_status`, address/contact snapshot, `delivery_fee`, `estimated_delivery_date`, tracking fields).
-- `cash_payment` — the COD record (`receipt_number`, `amount_due`, `amount_collected`, `amount_remaining`, `status`).
+- `cash_payment` — the COD record (`receipt_number`, `amount_due`, `amount_collected`, `amount_remaining`, `status`, `receipt_available`). `receipt_available` is `true` once the receipt PDF can be downloaded; private file paths are never returned.
 - `status_histories[]` — append-only `old_status → new_status` rows with `changed_by_type` (`SYSTEM`/`ADMIN`), `changed_by_id`, `note`, `created_at`.
 - `quotation` — source version (`quotation_number`, `version`, `status`, `accepted_at`, `valid_until`).
 - `suppliers[]` — **admin only**: supplier lines grouped for Viber confirmation, each with `supplier` contact fields (`shop_name`, `contact_person`, `phone`, `viber_phone`, `email`, `delivery_time`, `warranty_policy`) and the `items` they cover. Always `[]` for customer responses.
@@ -4741,3 +4741,358 @@ Cancellation is allowed only from `SUPPLIER_CONFIRMATION_REQUIRED`, `ORDER_CONFI
 | `404` | Not found | Unknown order id |
 | `422` | Validation errors keyed `note` | Missing or too-short reason |
 | `422` | `{"message": "An order in DELIVERED cannot be cancelled.", "errors": {"order": ["..."]}}` | Current status does not allow cancellation |
+
+---
+
+# Task 10 — Delivery, Full COD Collection and Receipts
+
+Task 10 adds the full-delivery workflow, full COD collection, payment verification and private receipt downloads. Partial delivery and partial payment are rejected throughout. Money values are integer MMK.
+
+### Delivery and payment status flow
+
+```text
+Order:    PREPARING → READY_TO_SHIP → OUT_FOR_DELIVERY → DELIVERED → COMPLETED
+Delivery: PREPARING → OUT_FOR_DELIVERY → DELIVERED
+Payment:  NOT_PAID → CASH_COLLECTION_PENDING → CASH_COLLECTED → PAYMENT_CONFIRMED
+```
+
+- Dispatching an order (`OUT_FOR_DELIVERY`) also moves the COD record from `NOT_PAID` to `CASH_COLLECTION_PENDING`.
+- A failed delivery keeps the payment `CASH_COLLECTION_PENDING` so re-delivery can collect it.
+- Returning an order turns an uncollected (`NOT_PAID` / `CASH_COLLECTION_PENDING`) payment into `PAYMENT_FAILED`.
+- A customer refusal records `CUSTOMER_REFUSED_TO_PAY` plus a delivery outcome (`DELIVERY_FAILED` or `RETURNED`).
+- Payment confirmation requires order and delivery `DELIVERED`, full collection (`amount_collected = amount_due`, `amount_remaining = 0`) and a receipt number, then moves the payment to `PAYMENT_CONFIRMED` and the order to `COMPLETED`.
+
+Every order status change writes an append-only `order_status_histories` row and an `audit_logs` row. Delivery and payment status changes are included in the audit entry.
+
+---
+
+## POST /api/v1/admin/orders/{order}/delivery-status
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §11 (Delivery flow)
+- `specification/StatusDefinitions.md` §10 (Order and delivery transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/delivery-status`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "status": "OUT_FOR_DELIVERY",
+  "note": "Handed to Royal Express for full delivery.",
+  "delivery_partner": "Royal Express",
+  "tracking_number": "TRK-9012",
+  "estimated_delivery_date": "2026-10-30"
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `status` | string | yes | One of `PREPARING`, `READY_TO_SHIP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED`, `RETURNED` |
+| `note` | string | for failure/return | 3–2000 chars; required when status is `DELIVERY_FAILED` or `RETURNED` |
+| `delivery_partner` | string | no | Max 255 chars; stored on the delivery record |
+| `tracking_number` | string | no | Max 100 chars |
+| `estimated_delivery_date` | date | no | `YYYY-MM-DD` |
+| `received_by` | string | for delivery | Required when status is `DELIVERED`; max 255 chars |
+
+### Behaviour
+
+- `PREPARING` starts delivery preparation when the order is `ORDER_CONFIRMED` or already `PREPARING`.
+- `READY_TO_SHIP` accepts `PREPARING` and `DELIVERY_FAILED` (re-delivery) orders and keeps the delivery at `PREPARING`.
+- `OUT_FOR_DELIVERY` requires `READY_TO_SHIP`, sets `shipped_at` when empty, and moves the payment to `CASH_COLLECTION_PENDING`.
+- `DELIVERED` requires both order and delivery `OUT_FOR_DELIVERY`, sets `delivered_at` and `received_by`, and keeps the cash pending.
+- `DELIVERY_FAILED` requires an in-transit order and keeps the payment pending for a retry.
+- `RETURNED` accepts `OUT_FOR_DELIVERY`, `DELIVERY_FAILED` or `DELIVERED`; any uncollected payment becomes `PAYMENT_FAILED`.
+- The delivery record and `orders.delivery_status` always mirror each other.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Delivery status updated.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `status` / `note` / `received_by` | Unsupported target or missing required note/receiver |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Current order or delivery status does not allow the step |
+
+---
+
+## POST /api/v1/admin/orders/{order}/cash-collection
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §12 (Cash collection flow)
+- `specification/MoneyAndValidationRules.md` §4 (COD full-payment rules)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/cash-collection`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "amount_collected": 25750,
+  "received_by": "Daw Mya",
+  "receipt_number": "RCP-2026-000008",
+  "note": "Cash counted twice at the door."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `amount_collected` | integer | yes | Must equal `amount_due`; partial payment is rejected |
+| `received_by` | string | yes | Admin or receiver who counted the cash; 2–255 chars |
+| `receipt_number` | string | no | Max 100 chars, unique across payments; defaults to the pre-generated receipt number |
+| `collected_at` | date-time | no | Defaults to now |
+| `note` | string | no | Max 2000 chars |
+
+### Behaviour
+
+- Cash can only be collected when the order **and** delivery are `DELIVERED`.
+- The payment must be in `NOT_PAID` or `CASH_COLLECTION_PENDING`; previously collected/confirmed/refused payments are rejected.
+- `amount_collected` must exactly equal `amount_due`; `amount_remaining` becomes `0` and the status becomes `CASH_COLLECTED`.
+- A non-empty receipt number is required. The pre-generated `RCP-YYYY-######` number is used when no replacement is supplied.
+- The private receipt PDF is generated immediately under `receipts/...` on the local disk and its path is stored in `cash_payments.receipt_file_path`. The path is never exposed in API responses.
+- The action writes a `CASH_COLLECTED` audit row with the amount, receipt number and receiver.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Cash collection recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `amount_collected` / `received_by` / `receipt_number` | Missing/invalid fields, duplicate receipt number or partial amount |
+| `422` | `{"message": "Cash can only be collected after the full order is delivered.", "errors": {"order": ["..."]}}` | Order/delivery not delivered |
+| `422` | `{"message": "The cash for this order has already been collected.", "errors": {"payment": ["..."]}}` | Payment already collected or confirmed |
+
+---
+
+## POST /api/v1/admin/orders/{order}/payment-confirmation
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §12
+- `specification/MoneyAndValidationRules.md` §4
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/payment-confirmation`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{ "note": "Cash counted and verified against the receipt." }
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `note` | string | no | 3–2000 chars; stored on the `DELIVERED → COMPLETED` history row |
+
+### Behaviour
+
+Requires order and delivery `DELIVERED`, payment `CASH_COLLECTED`, `amount_collected = amount_due`, `amount_remaining = 0` and a receipt number. The payment becomes `PAYMENT_CONFIRMED`, the order becomes `COMPLETED`, and one `ADMIN` history row plus a `CASH_PAYMENT_CONFIRMED` audit row are written. The receipt is regenerated if the private file is missing.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Payment confirmed and order completed.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | `{"message": "...", "errors": {"payment": ["..."]}}` | Payment not collected, partial, or missing a receipt number |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Order is not delivered in full |
+
+---
+
+## POST /api/v1/admin/orders/{order}/customer-refused-payment
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/MoneyAndValidationRules.md` §4 (refusal must record payment status, delivery outcome, responsible admin/receiver and note)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/customer-refused-payment`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "delivery_outcome": "DELIVERY_FAILED",
+  "responsible_person": "Ko Aung",
+  "note": "Customer refused to pay the full COD amount at the door."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `delivery_outcome` | string | yes | `DELIVERY_FAILED` or `RETURNED` |
+| `responsible_person` | string | yes | Admin or receiver who handled the refusal; 2–255 chars |
+| `note` | string | yes | 3–2000 chars; also appended to the payment note |
+
+### Behaviour
+
+Only allowed while the order and delivery are `OUT_FOR_DELIVERY` and the payment is `NOT_PAID` / `CASH_COLLECTION_PENDING`. The payment becomes `CUSTOMER_REFUSED_TO_PAY`; the delivery and order move to the chosen outcome. The order history note records the outcome, responsible person and reason. A `CUSTOMER_REFUSED_PAYMENT` audit row is written.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Customer payment refusal recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `delivery_outcome` / `responsible_person` / `note` | Missing or invalid fields |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Order is not out for delivery |
+| `422` | `{"message": "...", "errors": {"payment": ["..."]}}` | Cash already collected or payment not pending |
+
+---
+
+## GET /api/v1/admin/orders/{order}/receipt/download
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- Receipt/proof files are private and authorization-protected.
+
+### Method / Path
+
+`GET /api/v1/admin/orders/{order}/receipt/download`
+
+### Authentication
+
+Required. Admin token.
+
+### Behaviour
+
+Streams the private receipt PDF as `application/pdf` with an attachment filename of `RCP-YYYY-######.pdf`. A receipt exists only after cash has been collected (`CASH_COLLECTED` or `PAYMENT_CONFIRMED`); earlier requests answer `404`. The file is regenerated if the stored private file is missing. No private path appears in any JSON response.
+
+### Success response
+
+`200 OK` — binary PDF stream.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | `{"success": false, "message": "Receipt not found."}` | Unknown order or cash not collected yet |
+
+---
+
+## GET /api/v1/customer/orders/{order}/receipt/download
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- Customer can only view their own delivery/receipt records.
+
+### Method / Path
+
+`GET /api/v1/customer/orders/{order}/receipt/download`
+
+### Authentication
+
+Required. Customer token.
+
+### Behaviour
+
+Same private receipt stream as the admin route, but the order must belong to the authenticated customer. A foreign order id answers `404` so ids cannot be probed. The receipt must already be available (`CASH_COLLECTED` / `PAYMENT_CONFIRMED`).
+
+### Success response
+
+`200 OK` — binary PDF stream.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing or non-customer token |
+| `404` | `{"success": false, "message": "Order not found."}` | Order belongs to another customer or does not exist |
+| `404` | `{"success": false, "message": "Receipt not found."}` | Cash has not been collected yet |

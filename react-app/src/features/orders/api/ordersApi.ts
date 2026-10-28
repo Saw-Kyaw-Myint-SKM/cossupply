@@ -11,6 +11,7 @@
  * foreign order id answers 404.
  */
 import { apiRequest, type ApiResponse } from '../../../api/client';
+import { downloadAuthorizedFile, type DownloadedFile } from '../../../api/download';
 import { toQueryString, type PaginationMeta } from '../../../api/query';
 
 export type { PaginationMeta };
@@ -93,6 +94,8 @@ export interface OrderCashPayment {
   customer_name: string | null;
   note: string | null;
   status: PaymentStatus;
+  /** True once the private COD receipt can be downloaded. */
+  receipt_available: boolean;
 }
 
 /** One append-only order status change. */
@@ -193,4 +196,14 @@ export async function listOrders(
 
 export async function getOrder(id: number): Promise<ApiResponse<{ order: OrderDetail }>> {
   return apiRequest<{ order: OrderDetail }>(`/customer/orders/${id}`);
+}
+
+/**
+ * Download the private COD receipt for an owned order. The server checks
+ * ownership again, so a foreign id answers 404.
+ */
+export async function downloadOrderReceipt(
+  id: number,
+): Promise<ApiResponse<DownloadedFile>> {
+  return downloadAuthorizedFile(`/customer/orders/${id}/receipt/download`, `receipt-${id}.pdf`);
 }

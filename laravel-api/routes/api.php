@@ -90,6 +90,7 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
     // Customer orders (created only from an accepted quotation)
     Route::get('/customer/orders', [CustomerOrderController::class, 'index']);
     Route::get('/customer/orders/{order}', [CustomerOrderController::class, 'show']);
+    Route::get('/customer/orders/{order}/receipt/download', [CustomerOrderController::class, 'downloadReceipt']);
 });
 
 /*
@@ -141,6 +142,13 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show']);
     Route::post('/admin/orders/{order}/supplier-confirmation', [AdminOrderController::class, 'supplierConfirmation']);
     Route::post('/admin/orders/{order}/cancel', [AdminOrderController::class, 'cancel']);
+
+    // Delivery workflow, full COD collection, verification and receipts
+    Route::post('/admin/orders/{order}/delivery-status', [AdminOrderController::class, 'deliveryStatus']);
+    Route::post('/admin/orders/{order}/cash-collection', [AdminOrderController::class, 'cashCollection']);
+    Route::post('/admin/orders/{order}/payment-confirmation', [AdminOrderController::class, 'paymentConfirmation']);
+    Route::post('/admin/orders/{order}/customer-refused-payment', [AdminOrderController::class, 'customerRefusedPayment']);
+    Route::get('/admin/orders/{order}/receipt/download', [AdminOrderController::class, 'downloadReceipt']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

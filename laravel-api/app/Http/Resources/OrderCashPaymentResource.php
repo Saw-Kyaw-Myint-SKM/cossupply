@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\PaymentStatus;
 use App\Models\CashPayment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -30,6 +31,10 @@ class OrderCashPaymentResource extends JsonResource
             'customer_name' => $this->customer_name,
             'note' => $this->note,
             'status' => $this->status->value,
+            'receipt_available' => in_array($this->status, [
+                PaymentStatus::CASH_COLLECTED,
+                PaymentStatus::PAYMENT_CONFIRMED,
+            ], true),
         ];
     }
 }

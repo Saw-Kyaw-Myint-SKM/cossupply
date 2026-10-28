@@ -6,7 +6,8 @@
  * integer MMK and every total is calculated by the server; the UI only shows
  * a local preview before saving.
  */
-import { API_BASE_URL, apiRequest, type ApiResponse } from '../../../api/client';
+import { apiRequest, type ApiResponse } from '../../../api/client';
+import { downloadAuthorizedFile, type DownloadedFile } from '../../../api/download';
 import { toQueryString, type PaginationMeta } from '../../../api/query';
 
 export type QuotationRequestStatus =
@@ -354,63 +355,15 @@ export async function generateQuotationPdf(
   return apiRequest(`/admin/quotations/${id}/pdf`, { method: 'POST' });
 }
 
-export interface DownloadedFile {
-  blob: Blob;
-  fileName: string;
-}
-
-/**
- * Authenticated binary download. A plain <a href> cannot carry the bearer
- * token, so the file is fetched and handed to the browser as a blob.
- */
-async function downloadFile(
-  path: string,
-  fallbackName: string,
-): Promise<ApiResponse<DownloadedFile>> {
-  const token = localStorage.getItem('auth_token');
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Accept: 'application/pdf,application/octet-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-
-  if (!response.ok) {
-    let message = 'The file could not be downloaded.';
-
-    try {
-      const data = (await response.json()) as { message?: string };
-      message = data.message ?? message;
-    } catch {
-      // Binary or empty error body.
-    }
-
-    return { success: false, message, status: response.status };
-  }
-
-  const disposition = response.headers.get('Content-Disposition') ?? '';
-  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
-  const plain = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
-  const fileName = encoded
-    ? decodeURIComponent(encoded)
-    : plain
-      ? plain.replace(/\\/g, '')
-      : fallbackName;
-
-  return {
-    success: true,
-    data: { blob: await response.blob(), fileName },
-    status: response.status,
-  };
-}
+export type { DownloadedFile };
 
 export async function downloadQuotationPdf(id: number): Promise<ApiResponse<DownloadedFile>> {
-  return downloadFile(`/admin/quotations/${id}/pdf/download`, `quotation-${id}.pdf`);
+  return downloadAuthorizedFile(`/admin/quotations/${id}/pdf/download`, `quotation-${id}.pdf`);
 }
 
 export async function downloadAdminPrivateFile(
   path: string,
   fallbackName: string,
 ): Promise<ApiResponse<DownloadedFile>> {
-  return downloadFile(`/admin/files/${path}`, fallbackName);
+  return downloadAuthorizedFile(`/admin/files/${path}`, fallbackName);
 }

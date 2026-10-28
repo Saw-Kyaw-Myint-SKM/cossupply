@@ -42,6 +42,7 @@ import {
   confirmSupplier,
   getAdminOrder,
 } from '../api/orderAdminApi';
+import OrderFulfilmentPanel from '../components/OrderFulfilmentPanel';
 import type {
   OrderDetail,
   OrderItem,
@@ -692,6 +693,13 @@ export default function OrderDetailPage() {
               </form>
             ) : null}
           </section>
+
+          <OrderFulfilmentPanel
+            order={order}
+            onOrderUpdated={setOrder}
+            onNotice={setNotice}
+            onError={setActionError}
+          />
 
           <section className="rounded-lg border border-rule bg-plate p-4" aria-label="Customer">
             <h2 className="text-sm font-semibold text-ink">Customer</h2>

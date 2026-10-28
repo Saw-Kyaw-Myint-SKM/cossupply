@@ -1,4 +1,4 @@
-import type { DownloadedFile } from '../api/quotationAdminApi';
+import type { DownloadedFile } from '../api/download';
 
 /** Hand a fetched blob to the browser as a normal file download. */
 export function saveDownloadedFile(file: DownloadedFile): void {

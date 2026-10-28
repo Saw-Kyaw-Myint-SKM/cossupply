@@ -2,8 +2,10 @@
 
 namespace App\Services\Order;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Models\Admin;
+use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Services\Audit\AuditLogService;
@@ -58,6 +60,24 @@ class OrderWorkflowService
                 $admin,
                 $note ?? 'Order moved to preparation after supplier confirmation.',
             );
+
+            // The delivery workflow starts as soon as the products are in
+            // preparation; the delivery record mirrors the order status.
+            $delivery = Delivery::query()
+                ->where('order_id', $locked->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($delivery !== null && $delivery->delivery_status === DeliveryStatus::NOT_ASSIGNED) {
+                $this->statuses->assertTransition(
+                    StatusTransitionService::DOMAIN_DELIVERY,
+                    DeliveryStatus::NOT_ASSIGNED->value,
+                    DeliveryStatus::PREPARING->value,
+                );
+
+                $delivery->update(['delivery_status' => DeliveryStatus::PREPARING->value]);
+                $locked->update(['delivery_status' => DeliveryStatus::PREPARING->value]);
+            }
 
             $this->auditLogs->log(
                 $admin,
