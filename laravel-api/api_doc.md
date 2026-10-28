@@ -3405,6 +3405,29 @@ No body is required. Any body fields are ignored.
 
 `200 OK` with the shared customer decision envelope (`quotation.status = ACCEPTED`, request `ACCEPTED`, `accepted_at` set, one `ACCEPTED` action row).
 
+Task 09 extends this response with the order created in the same transaction:
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": { "id": 77, "status": "ACCEPTED", "...": "..." },
+    "quotation_request": { "id": 42, "status": "ACCEPTED" },
+    "order": {
+      "id": 8,
+      "order_number": "ORD-2026-000008",
+      "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
+      "payment_method": "CASH_ON_DELIVERY",
+      "payment_status": "NOT_PAID",
+      "delivery_status": "NOT_ASSIGNED",
+      "total_amount": 25750
+    }
+  }
+}
+```
+
+The order, immutable items, delivery, COD payment and initial status history are written in the same database transaction as the quotation acceptance. If any step fails, the whole acceptance is rolled back and the response is `500`; no partial order/payment/delivery rows remain. A repeated accept is rejected with `422` and never creates a second order.
+
 ### Error responses
 
 | Status | Body | Cause |
@@ -4386,3 +4409,335 @@ Required. Admin token.
 | --- | --- | --- |
 | `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
 | `404` | `{"success": false, "message": "File not found."}` | Missing or unsafe path |
+
+---
+
+# Task 09 — Transactional Order Conversion and Supplier Confirmation
+
+An order exists only after a customer accepts the current valid quotation version. Its header, item lines, delivery and COD payment records are frozen snapshots; later catalog or quotation changes never alter them. `GET /customer/orders*` is customer-scoped, while `/admin/orders*` requires an admin token and drives the supplier-confirmation workflow.
+
+## Shared order shape
+
+`order` summary objects (list rows and the nested accept response) contain:
+
+```json
+{
+  "id": 8,
+  "order_number": "ORD-2026-000008",
+  "quotation_id": 77,
+  "quotation_request_id": 42,
+  "customer_id": 3,
+  "customer_name": "Daw Hla",
+  "company_name": "Hla Trading",
+  "phone": "09-770-100-200",
+  "email": "daw.hla@example.com",
+  "delivery_address": "No. 12, Merchant St",
+  "city": "Yangon",
+  "township": "Bahan",
+  "landmark": "Near Bogyoke Market",
+  "subtotal": 25000,
+  "discount": 1000,
+  "delivery_fee": 500,
+  "service_fee_percentage": 5,
+  "service_fee": 1250,
+  "total_amount": 25750,
+  "payment_method": "CASH_ON_DELIVERY",
+  "payment_status": "NOT_PAID",
+  "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
+  "delivery_status": "NOT_ASSIGNED",
+  "customer_note": null,
+  "item_count": 1,
+  "created_at": "2026-10-23T09:00:00+00:00",
+  "updated_at": "2026-10-23T09:00:00+00:00"
+}
+```
+
+A detail response adds:
+
+- `items[]` — immutable lines copied from `quotation_version_items` (`product_name_snapshot`, `sku_snapshot`, `specification_snapshot`, `quantity`, `unit_price`, `discount`, `line_total`, optional `supplier { id, shop_name }`).
+- `delivery` — the single full-delivery record (`delivery_status`, address/contact snapshot, `delivery_fee`, `estimated_delivery_date`, tracking fields).
+- `cash_payment` — the COD record (`receipt_number`, `amount_due`, `amount_collected`, `amount_remaining`, `status`).
+- `status_histories[]` — append-only `old_status → new_status` rows with `changed_by_type` (`SYSTEM`/`ADMIN`), `changed_by_id`, `note`, `created_at`.
+- `quotation` — source version (`quotation_number`, `version`, `status`, `accepted_at`, `valid_until`).
+- `suppliers[]` — **admin only**: supplier lines grouped for Viber confirmation, each with `supplier` contact fields (`shop_name`, `contact_person`, `phone`, `viber_phone`, `email`, `delivery_time`, `warranty_policy`) and the `items` they cover. Always `[]` for customer responses.
+
+Money values are integer MMK and are never recalculated from current prices.
+
+---
+
+## GET /api/v1/customer/orders
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/customer/orders`
+
+### Authentication
+
+Required. Customer token.
+
+### Request query
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | no | Default `1` |
+| `per_page` | integer | no | 1–100, default `15` |
+| `status` | enum | no | One of the order statuses below |
+
+Order statuses: `SUPPLIER_CONFIRMATION_REQUIRED`, `ORDER_CONFIRMED`, `PREPARING`, `READY_TO_SHIP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `COMPLETED`, `SUPPLIER_UNAVAILABLE`, `DELIVERY_FAILED`, `RETURNED`, `CANCELLED`.
+
+### Success response
+
+`200 OK`, newest first, scoped to the authenticated customer:
+
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [ { "...": "order summary" } ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 1, "last_page": 1 },
+    "statuses": ["SUPPLIER_CONFIRMATION_REQUIRED", "ORDER_CONFIRMED", "..."]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Non-customer token |
+| `422` | Validation errors keyed `status` | Unknown status value |
+
+---
+
+## GET /api/v1/customer/orders/{order}
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/customer/orders/{order}`
+
+### Authentication
+
+Required. Customer token.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": { "order": { "...": "order summary + detail fields", "suppliers": [] } }
+}
+```
+
+`{order}` must belong to the authenticated customer. Supplier contact groups are never included on this endpoint.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Order not found."}` | Unknown id or another customer's order |
+
+---
+
+## GET /api/v1/admin/orders
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/admin/orders`
+
+### Authentication
+
+Required. Admin token.
+
+### Request query
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | no | Default `1` |
+| `per_page` | integer | no | 1–100, default `15` |
+| `status` | enum | no | Order status |
+| `payment_status` | enum | no | `NOT_PAID`, `CASH_COLLECTION_PENDING`, `CASH_COLLECTED`, `PAYMENT_CONFIRMED`, `PAYMENT_FAILED`, `CUSTOMER_REFUSED_TO_PAY` |
+| `search` | string | no | Max 100 chars; matches order number, customer name, company, phone or email |
+
+### Success response
+
+`200 OK`, newest first:
+
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [ { "...": "order summary" } ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 1, "last_page": 1 },
+    "statuses": ["SUPPLIER_CONFIRMATION_REQUIRED", "ORDER_CONFIRMED", "..."],
+    "payment_statuses": ["NOT_PAID", "CASH_COLLECTION_PENDING", "..."]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation errors keyed `status` / `payment_status` | Unknown enum value |
+
+---
+
+## GET /api/v1/admin/orders/{order}
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/admin/orders/{order}`
+
+### Authentication
+
+Required. Admin token.
+
+### Success response
+
+`200 OK` with the full detail fields above, including the admin-only `suppliers[]` groups used to contact suppliers over Viber.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+
+---
+
+## POST /api/v1/admin/orders/{order}/supplier-confirmation
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Specification
+
+- `specification/LogicFlow.md` §10 (Supplier Confirmation by Admin)
+- `specification/StatusDefinitions.md` §10 (Order status transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/supplier-confirmation`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "result": "CONFIRMED",
+  "note": "Supplier confirmed stock and delivery date over Viber."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `result` | enum | yes | `CONFIRMED` or `UNAVAILABLE` |
+| `note` | string | conditional | 3–2000 chars; required when `result = UNAVAILABLE`, optional for `CONFIRMED` |
+
+### Behaviour
+
+- `CONFIRMED` moves the order `SUPPLIER_CONFIRMATION_REQUIRED → ORDER_CONFIRMED → PREPARING` in one transaction and writes **two** `ADMIN` history rows.
+- `UNAVAILABLE` moves `SUPPLIER_CONFIRMATION_REQUIRED → SUPPLIER_UNAVAILABLE` (terminal) and writes one `ADMIN` history row.
+- Every action writes an `audit_logs` row (`ORDER_SUPPLIER_CONFIRMED` / `ORDER_SUPPLIER_UNAVAILABLE`) with the admin id and IP.
+- Only an order currently in `SUPPLIER_CONFIRMATION_REQUIRED` can be confirmed or marked unavailable. Repeated calls return `422`.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Supplier confirmation recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `result` / `note` | Unknown result or missing unavailable reason |
+| `422` | `{"message": "Only an order waiting for supplier confirmation can be confirmed.", "errors": {"order": ["..."]}}` | Order is already confirmed, unavailable, or otherwise past supplier confirmation |
+
+---
+
+## POST /api/v1/admin/orders/{order}/cancel
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Specification
+
+- `specification/StatusDefinitions.md` §10 (Order status transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/cancel`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{ "note": "Customer requested cancellation before dispatch." }
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `note` | string | yes | 3–2000 chars; stored on the status history row and shown to the customer |
+
+### Behaviour
+
+Cancellation is allowed only from `SUPPLIER_CONFIRMATION_REQUIRED`, `ORDER_CONFIRMED`, `PREPARING`, `READY_TO_SHIP` or `DELIVERY_FAILED`. Terminal, delivered and in-transit orders are rejected. The action writes one `ADMIN` history row and an `ORDER_CANCELLED` audit row.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Order cancelled.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `note` | Missing or too-short reason |
+| `422` | `{"message": "An order in DELIVERED cannot be cancelled.", "errors": {"order": ["..."]}}` | Current status does not allow cancellation |

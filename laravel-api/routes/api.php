@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
 use App\Http\Controllers\Api\V1\AdminProductController;
 use App\Http\Controllers\Api\V1\AdminQuotationController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Api\V1\AdminSettingController;
 use App\Http\Controllers\Api\V1\AdminSupplierController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerAuthController;
+use App\Http\Controllers\Api\V1\CustomerOrderController;
 use App\Http\Controllers\Api\V1\CustomerProfileController;
 use App\Http\Controllers\Api\V1\CustomerQuotationController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
@@ -84,6 +86,10 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
     Route::post('/customer/quotations/{quotation}/accept', [CustomerQuotationController::class, 'accept']);
     Route::post('/customer/quotations/{quotation}/reject', [CustomerQuotationController::class, 'reject']);
     Route::post('/customer/quotations/{quotation}/request-change', [CustomerQuotationController::class, 'requestChange']);
+
+    // Customer orders (created only from an accepted quotation)
+    Route::get('/customer/orders', [CustomerOrderController::class, 'index']);
+    Route::get('/customer/orders/{order}', [CustomerOrderController::class, 'show']);
 });
 
 /*
@@ -129,6 +135,12 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/admin/quotations/{quotation}/resend', [AdminQuotationController::class, 'resend']);
     Route::post('/admin/quotations/{quotation}/pdf', [AdminQuotationController::class, 'generatePdf']);
     Route::get('/admin/quotations/{quotation}/pdf/download', [AdminQuotationController::class, 'downloadPdf']);
+
+    // Order queue and supplier-confirmation workflow
+    Route::get('/admin/orders', [AdminOrderController::class, 'index']);
+    Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show']);
+    Route::post('/admin/orders/{order}/supplier-confirmation', [AdminOrderController::class, 'supplierConfirmation']);
+    Route::post('/admin/orders/{order}/cancel', [AdminOrderController::class, 'cancel']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

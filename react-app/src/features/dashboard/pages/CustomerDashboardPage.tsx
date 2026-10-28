@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth-context';
 import { listQuotationRequests, type QuotationRequestSummary } from '../../quotations/api/quotationsApi';
+import { listOrders } from '../../orders/api/ordersApi';
 import { StatusBadge, linkClass, secondaryButtonClass } from '../../../components/catalog-ui/CatalogUi';
 import { formatMMK } from '../../../lib/money';
 
@@ -10,9 +11,9 @@ const CLOSED_STATUSES = ['ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED'];
 /**
  * Customer dashboard.
  *
- * Quotations are live from Task 08: the card counts open requests and lists
- * the newest ones so a customer can reach a sent quotation in one click.
- * Orders stay at zero until Task 09 creates them from accepted quotations.
+ * Quotations and orders are both live from Tasks 08–09: the cards count open
+ * requests and total orders, and the recent-quotations list links straight to
+ * a sent quotation.
  */
 export default function CustomerDashboardPage() {
   const { user, logout } = useAuth();
@@ -21,6 +22,9 @@ export default function CustomerDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+
+  const [orderCount, setOrderCount] = useState<number | null>(null);
+  const [orderCountError, setOrderCountError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +57,34 @@ export default function CustomerDashboardPage() {
     };
   }, [reloadToken]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      setOrderCountError(null);
+
+      const response = await listOrders({ page: 1, per_page: 1 });
+
+      if (cancelled) return;
+
+      if (response.success && response.data) {
+        setOrderCount(response.data.meta.total);
+      } else {
+        setOrderCountError(
+          response.status === 401
+            ? 'Your session expired. Sign in again to see your orders.'
+            : response.message ?? 'Could not load your orders.',
+        );
+      }
+    };
+
+    void loadOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
   const openRequests =
     requests?.filter((request) => !CLOSED_STATUSES.includes(request.status)) ?? [];
 
@@ -79,8 +111,15 @@ export default function CustomerDashboardPage() {
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Orders</h3>
-          <p className="text-3xl font-bold text-green-600">0</p>
+          <p className="text-3xl font-bold text-green-600">
+            {orderCount === null ? '…' : orderCount}
+          </p>
           <p className="text-sm text-gray-500 mt-1">Total orders</p>
+          {orderCountError ? (
+            <p className="text-xs text-red-700 mt-1" role="alert">
+              {orderCountError}
+            </p>
+          ) : null}
           <Link to="/orders" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
           </Link>

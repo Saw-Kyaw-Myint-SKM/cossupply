@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
       {/* Management Links */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Management</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           <Link
             to="/admin/suppliers"
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
@@ -76,6 +76,13 @@ export default function AdminDashboardPage() {
           >
             <span className="block font-medium text-gray-900">Quotations</span>
             <span className="text-sm text-gray-500">Manage quotations</span>
+          </Link>
+          <Link
+            to="/admin/orders"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
+          >
+            <span className="block font-medium text-gray-900">Orders</span>
+            <span className="text-sm text-gray-500">Confirm suppliers</span>
           </Link>
           <Link
             to="/admin/settings"

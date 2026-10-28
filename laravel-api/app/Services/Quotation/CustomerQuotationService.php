@@ -6,9 +6,11 @@ use App\Enums\QuotationAction as QuotationActionEnum;
 use App\Enums\QuotationRequestStatus;
 use App\Enums\QuotationVersionStatus;
 use App\Models\Customer;
+use App\Models\Order;
 use App\Models\Quotation;
 use App\Models\QuotationAction;
 use App\Models\QuotationRequest;
+use App\Services\Order\OrderConversionService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +27,7 @@ class CustomerQuotationService
 {
     public function __construct(
         private readonly StatusTransitionService $statuses,
+        private readonly OrderConversionService $orders,
     ) {}
 
     /**
@@ -119,12 +122,15 @@ class CustomerQuotationService
     }
 
     /**
-     * Accept the current valid quotation version.
+     * Accept the current valid quotation version and convert it into exactly
+     * one order (LogicFlow §9).
      *
-     * Order creation is Task 09; this method only settles the quotation and
-     * request statuses.
+     * The version and request are locked first, so a second concurrent
+     * accept waits, then fails the actionable check instead of creating a
+     * second order. The order conversion shares this transaction, so a
+     * failure leaves no partial order, payment or delivery rows.
      *
-     * @return array{quotation: Quotation, quotation_request: QuotationRequest}
+     * @return array{quotation: Quotation, quotation_request: QuotationRequest, order: Order}
      */
     public function accept(
         Customer $customer,
@@ -154,9 +160,12 @@ class CustomerQuotationService
 
             $this->recordAction($version, QuotationActionEnum::ACCEPTED, null, $ip, $customer);
 
+            $order = $this->orders->convert($customer, $version, $request);
+
             return [
                 'quotation' => $version->fresh(['items.supplier']),
                 'quotation_request' => $request->refresh(),
+                'order' => $order,
             ];
         });
     }

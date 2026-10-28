@@ -229,6 +229,7 @@ export default function QuotationDetailPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<{ id: number; order_number: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -268,6 +269,7 @@ export default function QuotationDetailPage() {
     setPanel(next);
     setActionError(null);
     setNotice(null);
+    setCreatedOrder(null);
     setNote('');
   };
 
@@ -303,9 +305,10 @@ export default function QuotationDetailPage() {
     if (response.success) {
       setPanel(null);
       setNote('');
+      setCreatedOrder(action === 'accept' ? (response.data?.order ?? null) : null);
       setNotice(
         action === 'accept'
-          ? 'Quotation accepted. We have recorded your confirmation.'
+          ? 'Quotation accepted. Your order has been created and we have recorded your confirmation.'
           : action === 'reject'
             ? 'Quotation rejected. The supplier team has been notified.'
             : 'Change request sent. The supplier team will prepare a revised quotation.',
@@ -516,7 +519,17 @@ export default function QuotationDetailPage() {
 
           {notice ? (
             <Alert tone="success">
-              <p>{notice}</p>
+              <div>
+                <p>{notice}</p>
+                {createdOrder ? (
+                  <Link
+                    to={`/orders/${createdOrder.id}`}
+                    className={`${linkClass} mt-2`}
+                  >
+                    View order {createdOrder.order_number} →
+                  </Link>
+                ) : null}
+              </div>
             </Alert>
           ) : null}
 

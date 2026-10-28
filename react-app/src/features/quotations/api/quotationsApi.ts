@@ -159,6 +159,12 @@ export interface CustomerQuotationDetail extends QuotationRequest {
 export interface QuotationDecisionResult {
   quotation: QuotationVersion;
   quotation_request: { id: number; status: QuotationRequestStatus };
+  /** Present only when an accept created the order (Task 09). */
+  order?: {
+    id: number;
+    order_number: string;
+    order_status: string;
+  };
 }
 
 

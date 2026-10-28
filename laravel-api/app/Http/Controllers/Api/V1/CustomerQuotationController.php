@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\RejectQuotationRequest;
 use App\Http\Requests\Api\V1\RequestQuotationChangeRequest;
 use App\Http\Resources\CustomerQuotationDetailResource;
+use App\Http\Resources\OrderSummaryResource;
 use App\Http\Resources\QuotationVersionResource;
 use App\Models\Customer;
+use App\Models\Order;
 use App\Models\Quotation;
 use App\Models\QuotationRequest;
 use App\Services\Quotation\CustomerQuotationService;
@@ -153,17 +155,24 @@ class CustomerQuotationController extends Controller
     }
 
     /**
-     * @param  array{quotation: Quotation, quotation_request: QuotationRequest}  $result
+     * @param  array{quotation: Quotation, quotation_request: QuotationRequest, order?: Order}  $result
      * @return array<string, mixed>
      */
     private function decisionPayload(array $result): array
     {
-        return [
+        $payload = [
             'quotation' => new QuotationVersionResource($result['quotation']),
             'quotation_request' => [
                 'id' => $result['quotation_request']->id,
                 'status' => $result['quotation_request']->status->value,
             ],
         ];
+
+        // Accepting also converts the version into an order (Task 09).
+        if (isset($result['order'])) {
+            $payload['order'] = new OrderSummaryResource($result['order']);
+        }
+
+        return $payload;
     }
 }

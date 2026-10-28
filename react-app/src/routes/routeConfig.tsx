@@ -43,6 +43,8 @@ const QuotationRequestDetailPage = lazy(
 const QuotationVersionFormPage = lazy(
   () => import('../features/admin/pages/QuotationVersionFormPage'),
 );
+const AdminOrderListPage = lazy(() => import('../features/admin/pages/OrderListPage'));
+const AdminOrderDetailPage = lazy(() => import('../features/admin/pages/OrderDetailPage'));
 
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
@@ -389,6 +391,26 @@ export const router = createBrowserRouter([
           <AdminProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <QuotationVersionFormPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/orders',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminOrderListPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/orders/:orderId',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminOrderDetailPage />
             </Suspense>
           </AdminProtectedRoute>
         ),

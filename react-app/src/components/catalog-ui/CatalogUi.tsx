@@ -145,6 +145,22 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   CANCELLED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
   QUOTATION_SENT: 'bg-blue-50 text-blue-700 ring-blue-600/20',
   CUSTOMER_REVIEWING: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+  ORDER_CONFIRMED: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  PREPARING: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+  READY_TO_SHIP: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+  OUT_FOR_DELIVERY: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  DELIVERED: 'bg-green-50 text-green-700 ring-green-600/20',
+  COMPLETED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  SUPPLIER_UNAVAILABLE: 'bg-red-50 text-red-700 ring-red-600/20',
+  DELIVERY_FAILED: 'bg-red-50 text-red-700 ring-red-600/20',
+  RETURNED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  NOT_ASSIGNED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  NOT_PAID: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  CASH_COLLECTION_PENDING: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  CASH_COLLECTED: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  PAYMENT_CONFIRMED: 'bg-green-50 text-green-700 ring-green-600/20',
+  CUSTOMER_REFUSED_TO_PAY: 'bg-red-50 text-red-700 ring-red-600/20',
+  PAYMENT_FAILED: 'bg-red-50 text-red-700 ring-red-600/20',
 };
 
 export function StatusBadge({ status }: { status: string }) {
