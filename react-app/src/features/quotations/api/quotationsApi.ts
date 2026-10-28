@@ -71,8 +71,96 @@ export interface QuotationRequestSummary {
   city: string;
   township: string | null;
   item_count: number;
+  current_quotation: QuotationVersionSummary | null;
   created_at: string;
 }
+
+/**
+ * The customer-facing Final Quotation version state. Task 08 fixes the
+ * vocabulary; values remain plain strings so unknown future statuses render
+ * instead of breaking the page.
+ */
+export type QuotationVersionStatus = string;
+
+/** Compact version row used by the list and the detail history. */
+export interface QuotationVersionSummary {
+  id: number;
+  version: number;
+  status: QuotationVersionStatus;
+  is_current: boolean;
+  total_amount: number;
+  valid_until: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  created_at: string | null;
+}
+
+/** One immutable item snapshot inside a Final Quotation version. */
+export interface QuotationVersionItem {
+  id: number;
+  product_id: number | null;
+  supplier_id: number | null;
+  product_name_snapshot: string;
+  sku_snapshot: string | null;
+  specification_snapshot: string | null;
+  quantity: number;
+  unit_price: number;
+  discount: number;
+  line_total: number;
+  delivery_date: string | null;
+  warranty_note: string | null;
+  supplier_note: string | null;
+  supplier: { id: number; shop_name: string } | null;
+}
+
+/** Full version payload returned on the detail view and after a decision. */
+export interface QuotationVersion extends QuotationVersionSummary {
+  quotation_request_id: number;
+  quotation_number: string;
+  subtotal: number;
+  discount: number;
+  delivery_fee: number;
+  service_fee_percentage: number;
+  service_fee: number;
+  payment_method: string;
+  payment_terms: string;
+  admin_note: string | null;
+  items: QuotationVersionItem[];
+}
+
+/** Customer action trail entry (VIEWED, ACCEPTED, REJECTED, REQUESTED_CHANGE). */
+export interface QuotationActionEntry {
+  id: number;
+  action: string;
+  customer_note: string | null;
+  created_at: string | null;
+}
+
+/** Full response for `/customer/quotation-requests/{id}`. */
+export interface CustomerQuotationDetail extends QuotationRequest {
+  company_name: string | null;
+  email: string | null;
+  landmark: string | null;
+  required_delivery_date: string | null;
+  customer_note: string | null;
+  created_at: string;
+  current_quotation: QuotationVersion | null;
+  quotation_history: QuotationVersionSummary[];
+  actions: QuotationActionEntry[];
+  can_accept: boolean;
+  can_reject: boolean;
+  can_request_change: boolean;
+  is_expired: boolean;
+}
+
+/** Result envelope shared by accept, reject and request-change. */
+export interface QuotationDecisionResult {
+  quotation: QuotationVersion;
+  quotation_request: { id: number; status: QuotationRequestStatus };
+}
+
 
 export interface QuotationRequestListParams {
   page?: number;
@@ -115,6 +203,64 @@ export async function createQuotationRequest(
     {
       method: 'POST',
       body: JSON.stringify(input),
+    },
+  );
+}
+
+/**
+ * GET /customer/quotation-requests/{id} — the request with its current
+ * quotation, history and decision flags.
+ *
+ * The first open of a sent quotation is also the customer's "viewed" action;
+ * the server records it and returns the updated VIEWED status. A 404 covers
+ * both an unknown request and another customer's request.
+ */
+export async function getQuotationRequest(
+  id: number,
+): Promise<ApiResponse<{ quotation_request: CustomerQuotationDetail }>> {
+  return apiRequest<{ quotation_request: CustomerQuotationDetail }>(
+    `/customer/quotation-requests/${id}`,
+  );
+}
+
+/**
+ * POST /customer/quotations/{id}/accept — accepts the current valid version.
+ * Order creation (Task 09) starts from this decision.
+ */
+export async function acceptQuotation(
+  id: number,
+): Promise<ApiResponse<QuotationDecisionResult>> {
+  return apiRequest<QuotationDecisionResult>(`/customer/quotations/${id}/accept`, {
+    method: 'POST',
+  });
+}
+
+/** POST /customer/quotations/{id}/reject — closes the quotation as rejected. */
+export async function rejectQuotation(
+  id: number,
+  customerNote?: string,
+): Promise<ApiResponse<QuotationDecisionResult>> {
+  const note = customerNote?.trim();
+
+  return apiRequest<QuotationDecisionResult>(`/customer/quotations/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify(note ? { customer_note: note } : {}),
+  });
+}
+
+/**
+ * POST /customer/quotations/{id}/request-change — sends a mandatory revision
+ * note to Admin; the server rejects notes shorter than 5 characters.
+ */
+export async function requestQuotationChange(
+  id: number,
+  customerNote: string,
+): Promise<ApiResponse<QuotationDecisionResult>> {
+  return apiRequest<QuotationDecisionResult>(
+    `/customer/quotations/${id}/request-change`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ customer_note: customerNote }),
     },
   );
 }

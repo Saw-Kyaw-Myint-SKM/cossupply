@@ -424,7 +424,7 @@ class CustomerQuotationRequestTest extends TestCase
 
         $row = $response->json('data.quotation_requests.0');
         $this->assertSame(
-            ['id', 'quotation_number', 'status', 'customer_name', 'phone', 'city', 'township', 'item_count', 'created_at'],
+            ['id', 'quotation_number', 'status', 'customer_name', 'phone', 'city', 'township', 'item_count', 'current_quotation', 'created_at'],
             array_keys($row),
         );
 

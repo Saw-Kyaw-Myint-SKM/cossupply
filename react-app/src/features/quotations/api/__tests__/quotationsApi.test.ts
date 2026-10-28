@@ -15,9 +15,16 @@ function stubStorage() {
 }
 
 import {
+  acceptQuotation,
   createQuotationRequest,
+  getQuotationRequest,
   listQuotationRequests,
+  rejectQuotation,
+  requestQuotationChange,
+  type CustomerQuotationDetail,
+  type QuotationDecisionResult,
   type QuotationRequest,
+  type QuotationVersion,
 } from '../quotationsApi';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -69,6 +76,19 @@ describe('listQuotationRequests', () => {
               city: 'Yangon',
               township: 'Bahan',
               item_count: 3,
+              current_quotation: {
+                id: 77,
+                version: 2,
+                status: 'VIEWED',
+                is_current: true,
+                total_amount: 25750,
+                valid_until: '2026-10-30',
+                sent_at: '2026-10-23T08:00:00+00:00',
+                viewed_at: '2026-10-23T09:00:00+00:00',
+                accepted_at: null,
+                rejected_at: null,
+                created_at: '2026-10-23T07:59:00+00:00',
+              },
               created_at: '2026-10-19T08:00:00.000000Z',
             },
           ],
@@ -91,6 +111,7 @@ describe('listQuotationRequests', () => {
     );
     expect(response.success).toBe(true);
     expect(response.data?.quotation_requests[0].quotation_number).toBe('QT-2026-0042');
+    expect(response.data?.quotation_requests[0].current_quotation?.total_amount).toBe(25750);
     expect(response.data?.meta.total).toBe(1);
   });
 });
@@ -213,5 +234,197 @@ describe('createQuotationRequest', () => {
     expect(response.success).toBe(false);
     expect(response.status).toBeUndefined();
     expect(response.message).toBe('ECONNREFUSED');
+  });
+});
+
+const sampleVersion: QuotationVersion = {
+  id: 77,
+  quotation_request_id: 42,
+  quotation_number: 'QT-2026-0042',
+  version: 2,
+  status: 'VIEWED',
+  is_current: true,
+  subtotal: 25000,
+  discount: 1000,
+  delivery_fee: 500,
+  service_fee_percentage: 5,
+  service_fee: 1250,
+  total_amount: 25750,
+  payment_method: 'CASH_ON_DELIVERY',
+  payment_terms: 'Full payment on delivery (COD).',
+  valid_until: '2026-10-30',
+  admin_note: 'Supplier confirms delivery within five days.',
+  sent_at: '2026-10-23T08:00:00+00:00',
+  viewed_at: '2026-10-23T09:00:00+00:00',
+  accepted_at: null,
+  rejected_at: null,
+  created_at: '2026-10-23T07:59:00+00:00',
+  items: [
+    {
+      id: 1,
+      product_id: 1,
+      supplier_id: 3,
+      product_name_snapshot: 'Plastic Chair',
+      sku_snapshot: 'SKU-0001-AA',
+      specification_snapshot: 'Stackable, blue',
+      quantity: 5,
+      unit_price: 5000,
+      discount: 0,
+      line_total: 25000,
+      delivery_date: '2026-10-29',
+      warranty_note: 'One year',
+      supplier_note: null,
+      supplier: { id: 3, shop_name: 'Yangon Office Supply' },
+    },
+  ],
+};
+
+const sampleDetail: CustomerQuotationDetail = {
+  ...sampleRequest,
+  company_name: 'Daw Hla Trading',
+  email: 'daw.hla@example.com',
+  landmark: 'Near Bogyoke Market',
+  required_delivery_date: '2026-10-29',
+  customer_note: 'Please deliver in the morning.',
+  created_at: '2026-10-19T08:00:00.000000Z',
+  current_quotation: sampleVersion,
+  quotation_history: [sampleVersion],
+  actions: [
+    {
+      id: 1,
+      action: 'VIEWED',
+      customer_note: null,
+      created_at: '2026-10-23T09:00:00+00:00',
+    },
+  ],
+  can_accept: true,
+  can_reject: true,
+  can_request_change: true,
+  is_expired: false,
+};
+
+const sampleDecision: QuotationDecisionResult = {
+  quotation: { ...sampleVersion, status: 'ACCEPTED' },
+  quotation_request: { id: 42, status: 'ACCEPTED' },
+};
+
+describe('getQuotationRequest', () => {
+  it('loads the current quotation, history and decision flags', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: true, data: { quotation_request: sampleDetail } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await getQuotationRequest(42);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/customer/quotation-requests/42'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer customer-token' }),
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.quotation_request.current_quotation?.total_amount).toBe(25750);
+    expect(response.data?.quotation_request.current_quotation?.items[0].line_total).toBe(25000);
+    expect(response.data?.quotation_request.can_accept).toBe(true);
+    expect(response.data?.quotation_request.quotation_history[0].status).toBe('VIEWED');
+  });
+
+  it('surfaces 404 when the quotation belongs to another customer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({ success: false, message: 'Quotation request not found.' }, 404),
+      ),
+    );
+
+    const response = await getQuotationRequest(999);
+
+    expect(response.success).toBe(false);
+    expect(response.status).toBe(404);
+    expect(response.message).toBe('Quotation request not found.');
+  });
+});
+
+describe('quotation decisions', () => {
+  it('accepts the current quotation with an empty POST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: true, data: sampleDecision }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await acceptQuotation(77);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/customer/quotations/77/accept'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.quotation_request.status).toBe('ACCEPTED');
+  });
+
+  it('rejects with a trimmed optional note', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: {
+          ...sampleDecision,
+          quotation: { ...sampleDecision.quotation, status: 'REJECTED' },
+          quotation_request: { id: 42, status: 'REJECTED' },
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await rejectQuotation(77, '  Over budget.  ');
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body).toEqual({ customer_note: 'Over budget.' });
+  });
+
+  it('sends the mandatory change note', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: {
+          ...sampleDecision,
+          quotation: { ...sampleDecision.quotation, status: 'CHANGE_REQUESTED' },
+          quotation_request: { id: 42, status: 'CHANGE_REQUESTED' },
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await requestQuotationChange(77, 'Please reduce the delivery fee.');
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body).toEqual({ customer_note: 'Please reduce the delivery fee.' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/customer/quotations/77/request-change'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('surfaces an expired-quotation 422 so the panel can explain it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            message: 'This quotation expired on 2026-10-20 and can no longer be accepted.',
+            errors: {
+              quotation: ['This quotation expired on 2026-10-20 and can no longer be accepted.'],
+            },
+          },
+          422,
+        ),
+      ),
+    );
+
+    const response = await acceptQuotation(77);
+
+    expect(response.success).toBe(false);
+    expect(response.status).toBe(422);
+    expect(response.errors?.quotation?.[0]).toContain('expired');
   });
 });

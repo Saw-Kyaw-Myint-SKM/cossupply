@@ -23,6 +23,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import type { PaginationMeta } from '../../../api/query';
+import { formatMMK } from '../../../lib/money';
 
 const PER_PAGE = 10;
 
@@ -32,6 +33,19 @@ const PER_PAGE = 10;
  */
 function formatRequestDate(iso: string): string {
   return new Date(iso).toLocaleString();
+}
+
+/** Date-only validity values stay on their calendar day in every timezone. */
+function formatDateOnly(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+
+  if (!year || !month || !day) return value;
+
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export default function QuotationListPage() {
@@ -74,7 +88,7 @@ export default function QuotationListPage() {
   const header = (
     <PageHeader
       title="My quotations"
-      description="Quotation requests submitted from your order list. Final pricing arrives when the quotation is issued."
+      description="Requests submitted from your order list. Open one to review the final quotation, accept it, or ask for a change."
     />
   );
 
@@ -170,9 +184,23 @@ export default function QuotationListPage() {
                 </div>
 
                 <div className="flex-none text-left sm:text-right">
-                  <p className="text-sm text-gray-700">
-                    {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
-                  </p>
+                  {row.current_quotation ? (
+                    <>
+                      <p className="font-mono text-sm font-semibold tabular-nums text-ink">
+                        {formatMMK(row.current_quotation.total_amount)} MMK
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Version {row.current_quotation.version}
+                        {row.current_quotation.valid_until
+                          ? ` · valid until ${formatDateOnly(row.current_quotation.valid_until)}`
+                          : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-700">
+                      {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500">
                     Requested {formatRequestDate(row.created_at)}
                   </p>

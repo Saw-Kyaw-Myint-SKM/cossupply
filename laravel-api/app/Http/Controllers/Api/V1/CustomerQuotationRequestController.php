@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreQuotationRequestRequest;
 use App\Http\Resources\QuotationRequestResource;
+use App\Http\Resources\QuotationVersionSummaryResource;
 use App\Http\Traits\PaginationMeta;
 use App\Models\Customer;
 use App\Models\QuotationRequest;
@@ -45,6 +46,7 @@ class CustomerQuotationRequestController extends Controller
         $requests = QuotationRequest::query()
             ->where('customer_id', $customer->id)
             ->withCount('items')
+            ->with('currentQuotation')
             ->orderByDesc('id')
             ->paginate($filters['per_page'] ?? 15);
 
@@ -59,6 +61,9 @@ class CustomerQuotationRequestController extends Controller
                     'city' => $quotationRequest->city,
                     'township' => $quotationRequest->township,
                     'item_count' => $quotationRequest->items_count,
+                    'current_quotation' => $quotationRequest->currentQuotation !== null
+                        ? (new QuotationVersionSummaryResource($quotationRequest->currentQuotation))->resolve()
+                        : null,
                     'created_at' => $quotationRequest->created_at?->toIso8601String(),
                 ])
                 ->all(),

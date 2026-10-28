@@ -1,11 +1,60 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth-context';
+import { listQuotationRequests, type QuotationRequestSummary } from '../../quotations/api/quotationsApi';
+import { StatusBadge, linkClass, secondaryButtonClass } from '../../../components/catalog-ui/CatalogUi';
+import { formatMMK } from '../../../lib/money';
+
+const CLOSED_STATUSES = ['ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED'];
 
 /**
- * Customer Dashboard Page
+ * Customer dashboard.
+ *
+ * Quotations are live from Task 08: the card counts open requests and lists
+ * the newest ones so a customer can reach a sent quotation in one click.
+ * Orders stay at zero until Task 09 creates them from accepted quotations.
  */
 export default function CustomerDashboardPage() {
   const { user, logout } = useAuth();
+
+  const [requests, setRequests] = useState<QuotationRequestSummary[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+
+      const response = await listQuotationRequests({ page: 1, per_page: 100 });
+
+      if (cancelled) return;
+
+      if (response.success && response.data) {
+        setRequests(response.data.quotation_requests);
+      } else {
+        setLoadError(
+          response.status === 401
+            ? 'Your session expired. Sign in again to see your quotations.'
+            : response.message ?? 'Could not load your quotations.',
+        );
+      }
+
+      setIsLoading(false);
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
+  const openRequests =
+    requests?.filter((request) => !CLOSED_STATUSES.includes(request.status)) ?? [];
 
   return (
     <div className="space-y-6">
@@ -22,7 +71,7 @@ export default function CustomerDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Quotations</h3>
-          <p className="text-3xl font-bold text-ink">0</p>
+          <p className="text-3xl font-bold text-ink">{isLoading && requests === null ? '…' : openRequests.length}</p>
           <p className="text-sm text-gray-500 mt-1">Active quotations</p>
           <Link to="/quotations" className="text-sm text-accent hover:text-accent/80 mt-2 inline-block">
             View all &rarr;
@@ -45,6 +94,71 @@ export default function CustomerDashboardPage() {
             Open order list &rarr;
           </Link>
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-gray-900">Recent quotations</h2>
+          <Link to="/quotations" className={linkClass}>
+            All quotations
+          </Link>
+        </div>
+
+        {isLoading && requests === null ? (
+          <p className="text-sm text-gray-500" role="status" aria-live="polite">
+            Loading your quotations…
+          </p>
+        ) : null}
+
+        {loadError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            <p>{loadError}</p>
+            <button
+              type="button"
+              onClick={() => setReloadToken((token) => token + 1)}
+              className={`${secondaryButtonClass} mt-3`}
+            >
+              Try again
+            </button>
+          </div>
+        ) : null}
+
+        {!isLoading && !loadError && requests !== null && requests.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No quotations yet. Add products to your order list, then request a quotation.
+          </p>
+        ) : null}
+
+        {requests !== null && requests.length > 0 ? (
+          <ul className="divide-y divide-gray-200">
+            {requests.slice(0, 3).map((request) => (
+              <li key={request.id}>
+                <Link
+                  to={`/quotations/${request.id}`}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3 hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+                >
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-ink">
+                      {request.quotation_number}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {request.item_count} {request.item_count === 1 ? 'line' : 'lines'} ·{' '}
+                      {new Date(request.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right">
+                    {request.current_quotation ? (
+                      <p className="font-mono text-sm tabular-nums text-ink">
+                        {formatMMK(request.current_quotation.total_amount)} MMK
+                      </p>
+                    ) : null}
+                    <StatusBadge status={request.status} />
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       {/* Profile Info */}

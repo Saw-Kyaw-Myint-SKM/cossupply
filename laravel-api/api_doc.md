@@ -3045,6 +3045,7 @@ Notes:
 
 - Ordered by `id` descending (newest first).
 - Only the authenticated customer's requests are returned.
+- `current_quotation` is `null` until Admin sends a version; otherwise it carries `id`, `version`, `status`, `is_current`, `total_amount`, `valid_until` and decision timestamps.
 
 ### Error responses
 
@@ -3177,6 +3178,328 @@ Notes:
 | `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
 | `422` | `{"message": "The items field is required.", "errors": {"items": ["The items field is required."]}}` | Validation failure; nothing is persisted |
 | `422` | `{"message": "The selected product is not available for quotation requests.", "errors": {"items.0.product_id": ["The selected product is not available for quotation requests."]}}` | Product unpublished or out of stock |
+
+---
+
+## Task 08 Customer Quotation View and Actions — shared shapes
+
+All endpoints below require an active Customer token (`auth:sanctum` + `customer` ability). Identity always comes from the bearer token; there is no customer id in any path or body, and no token/OTP/email-link quotation access.
+
+Quotation version statuses:
+
+`DRAFT`, `SENT`, `VIEWED`, `CHANGE_REQUESTED`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `SUPERSEDED`, `CANCELLED`.
+
+Customer decision rules (server-enforced):
+
+- The quotation must belong to the authenticated customer; a foreign id answers `404`, never `403`.
+- Only the current version (`is_current = true`) in `SENT` or `VIEWED` can be accepted, rejected or changed.
+- A version is expired when today's date is after `valid_until` (the validity date is inclusive). Expired versions are moved to `EXPIRED` and cannot be accepted.
+- The first open of a sent version moves it to `VIEWED`, moves the request to `CUSTOMER_REVIEWING`, and appends one `VIEWED` row to `quotation_actions`. Repeat opens are idempotent.
+- `CHANGE_REQUESTED` requires a customer note of 5–2000 characters.
+- Task 08 settles quotation/request statuses only. Order creation from an accepted version is Task 09.
+
+Customer decision envelope (`accept`, `reject`, `request-change`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": {
+      "id": 77,
+      "quotation_request_id": 31,
+      "quotation_number": "QT-2026-0031",
+      "version": 2,
+      "status": "ACCEPTED",
+      "is_current": true,
+      "subtotal": 25000,
+      "discount": 1000,
+      "delivery_fee": 500,
+      "service_fee_percentage": 5,
+      "service_fee": 1250,
+      "total_amount": 25750,
+      "payment_method": "CASH_ON_DELIVERY",
+      "payment_terms": "Full payment on delivery (COD).",
+      "valid_until": "2026-10-30",
+      "admin_note": "Supplier confirms delivery within five days.",
+      "sent_at": "2026-10-23T08:00:00+00:00",
+      "viewed_at": "2026-10-23T09:00:00+00:00",
+      "accepted_at": "2026-10-23T10:00:00+00:00",
+      "rejected_at": null,
+      "items": [
+        {
+          "id": 1,
+          "product_id": 15,
+          "product_name_snapshot": "Plastic Chair",
+          "sku_snapshot": "SKU-0001-AA",
+          "quantity": 5,
+          "unit_price": 5000,
+          "discount": 0,
+          "line_total": 25000,
+          "delivery_date": "2026-10-29",
+          "warranty_note": "One year",
+          "supplier": { "id": 3, "shop_name": "Yangon Office Supply" }
+        }
+      ]
+    },
+    "quotation_request": { "id": 31, "status": "ACCEPTED" }
+  },
+  "message": "Quotation accepted successfully."
+}
+```
+
+---
+
+## GET /api/v1/customer/quotation-requests/{quotationRequest}
+
+### Task
+
+Task 08 — Customer Quotation View and Actions.
+
+### Specification
+
+- `specification/LogicFlow.md` §8 (Customer Reviews Quotation)
+- `specification/StatusDefinitions.md` §4, §5, §6 (request, version and action statuses)
+- `specification/RolesPermissions.md` §2 (Customer owns their own quotation)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/quotation-requests/{quotationRequest}`
+
+`{quotationRequest}` is the quotation request id shown in `GET /customer/quotation-requests`.
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `customer` ability.
+
+### Request
+
+No body, no query parameters.
+
+This read is also the customer's `VIEWED` action. When the current version is `SENT` and not expired, the response already reflects `VIEWED` and `CUSTOMER_REVIEWING`, and `actions` includes the new `VIEWED` row.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation_request": {
+      "id": 31,
+      "quotation_number": "QT-2026-0031",
+      "status": "CUSTOMER_REVIEWING",
+      "customer_name": "Aung Aung",
+      "company_name": "Aung Trading Co., Ltd.",
+      "phone": "09123456789",
+      "email": "aung@example.com",
+      "delivery_address": "No. 123, Main Road, Hlaing Township",
+      "city": "Yangon",
+      "township": "Hlaing",
+      "landmark": "Near Thingaha Hotel",
+      "required_delivery_date": "2026-10-28",
+      "customer_note": "Please include bulk pricing where applicable.",
+      "created_at": "2026-10-18T10:30:00+00:00",
+      "items": [
+        {
+          "product_id": 15,
+          "product_name_snapshot": "Plastic Chair",
+          "specification_snapshot": "Blue, 45 cm",
+          "quantity": 3,
+          "display_price": 9000,
+          "stock_status": "IN_STOCK"
+        }
+      ],
+      "current_quotation": {
+        "id": 77,
+        "version": 2,
+        "status": "VIEWED",
+        "is_current": true,
+        "total_amount": 25750,
+        "valid_until": "2026-10-30",
+        "items": []
+      },
+      "quotation_history": [
+        {
+          "id": 77,
+          "version": 2,
+          "status": "VIEWED",
+          "is_current": true,
+          "total_amount": 25750,
+          "valid_until": "2026-10-30",
+          "sent_at": "2026-10-23T08:00:00+00:00"
+        },
+        {
+          "id": 70,
+          "version": 1,
+          "status": "SUPERSEDED",
+          "is_current": false,
+          "total_amount": 29000,
+          "valid_until": "2026-10-20",
+          "sent_at": "2026-10-15T08:00:00+00:00"
+        }
+      ],
+      "actions": [
+        {
+          "id": 9,
+          "action": "VIEWED",
+          "customer_note": null,
+          "created_at": "2026-10-23T09:00:00+00:00"
+        }
+      ],
+      "can_accept": true,
+      "can_reject": true,
+      "can_request_change": true,
+      "is_expired": false
+    }
+  }
+}
+```
+
+`current_quotation` is `null` while Admin is still preparing the first version. `quotation_history` is newest version first. `actions` contains the customer's actions for the current version only.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `404` | `{"success": false, "message": "Quotation request not found."}` | Unknown id, another customer's request, or a malformed id |
+
+---
+
+## POST /api/v1/customer/quotations/{quotation}/accept
+
+### Task
+
+Task 08 — Customer Quotation View and Actions.
+
+### Specification
+
+- `specification/LogicFlow.md` §8 (Customer Reviews Quotation), §9 (Convert Accepted Quotation to Order)
+- `specification/StatusDefinitions.md` §4, §5, §6
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/customer/quotations/{quotation}/accept`
+
+`{quotation}` is the quotation **version** id (`current_quotation.id` / `quotation_history[].id`).
+
+### Authentication
+
+Required. Customer token.
+
+### Request
+
+No body is required. Any body fields are ignored.
+
+### Success response
+
+`200 OK` with the shared customer decision envelope (`quotation.status = ACCEPTED`, request `ACCEPTED`, `accepted_at` set, one `ACCEPTED` action row).
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
+| `422` | `{"message": "Only the current quotation version can be acted on.", "errors": {"quotation": ["Only the current quotation version can be acted on."]}}` | Superseded/non-current version, already accepted/rejected, change already requested, or expiry |
+| `422` | `{"message": "This quotation expired on 2026-10-20 and can no longer be accepted.", "errors": {"quotation": ["..."]}}` | `valid_until` has passed; the version and request are moved to `EXPIRED` |
+
+---
+
+## POST /api/v1/customer/quotations/{quotation}/reject
+
+### Task
+
+Task 08 — Customer Quotation View and Actions.
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/customer/quotations/{quotation}/reject` (quotation version id)
+
+### Authentication
+
+Required. Customer token.
+
+### Request
+
+```json
+{
+  "customer_note": "The price is above our budget."
+}
+```
+
+| Field | Rules |
+| --- | --- |
+| `customer_note` | optional string, max 2000 |
+
+The note is stored on the `REJECTED` action row and trimmed; an empty note is stored as `null`.
+
+### Success response
+
+`200 OK` with the shared customer decision envelope (`quotation.status = REJECTED`, request `REJECTED`, `rejected_at` set).
+
+### Error responses
+
+Same authorization/ownership rules and 422 state rules as `accept`.
+
+---
+
+## POST /api/v1/customer/quotations/{quotation}/request-change
+
+### Task
+
+Task 08 — Customer Quotation View and Actions.
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/customer/quotations/{quotation}/request-change` (quotation version id)
+
+### Authentication
+
+Required. Customer token.
+
+### Request
+
+```json
+{
+  "customer_note": "Please reduce the delivery fee and confirm the warranty."
+}
+```
+
+| Field | Rules |
+| --- | --- |
+| `customer_note` | required string, 5–2000 characters |
+
+### Success response
+
+`200 OK` with the shared customer decision envelope. The version and request move to `CHANGE_REQUESTED`; `customer_note` is stored on a `REQUESTED_CHANGE` action row. Admin can then return the request to `PREPARING_QUOTATION` and send a new version.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
+| `422` | `{"message": "The customer note field is required.", "errors": {"customer_note": ["The customer note field is required."]}}` | Missing or shorter than 5 characters |
+| `422` | Shared state error | Non-current, superseded, expired, accepted or already-rejected quotation |
 
 ---
 

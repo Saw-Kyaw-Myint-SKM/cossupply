@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class QuotationRequest extends Model
 {
@@ -85,6 +86,14 @@ class QuotationRequest extends Model
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class);
+    }
+
+    /**
+     * The single current Final Quotation version, when one has been sent.
+     */
+    public function currentQuotation(): HasOne
+    {
+        return $this->hasOne(Quotation::class)->where('is_current', true);
     }
 
     /**

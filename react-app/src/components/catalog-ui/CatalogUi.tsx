@@ -135,6 +135,16 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   LOW_STOCK: 'bg-amber-50 text-amber-800 ring-amber-600/20',
   PRE_ORDER: 'bg-blue-50 text-blue-700 ring-blue-600/20',
   SUPPLIER_CONFIRMATION_REQUIRED: 'bg-purple-50 text-purple-700 ring-purple-600/20',
+  SENT: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  VIEWED: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+  CHANGE_REQUESTED: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  ACCEPTED: 'bg-green-50 text-green-700 ring-green-600/20',
+  REJECTED: 'bg-red-50 text-red-700 ring-red-600/20',
+  EXPIRED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  SUPERSEDED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  CANCELLED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  QUOTATION_SENT: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  CUSTOMER_REVIEWING: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
 };
 
 export function StatusBadge({ status }: { status: string }) {
@@ -183,6 +193,9 @@ export const inputErrorClass = 'border-red-300 focus:border-red-500 focus:ring-r
 export function inputClass(hasError: boolean): string {
   return `${inputBaseClass} ${hasError ? inputErrorClass : inputNormalClass}`;
 }
+
+/** Multiline variant of the shared input treatment. */
+export const textareaClass = `${inputBaseClass} ${inputNormalClass} resize-y`;
 
 /**
  * Join optional id fragments for `aria-describedby`, returning undefined when

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\AdminSupplierController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerAuthController;
 use App\Http\Controllers\Api\V1\CustomerProfileController;
+use App\Http\Controllers\Api\V1\CustomerQuotationController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
@@ -77,6 +78,12 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
     // Quotation requests (submitted from the cart, customer-owned reads)
     Route::get('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'index']);
     Route::post('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'store']);
+    Route::get('/customer/quotation-requests/{quotationRequest}', [CustomerQuotationController::class, 'show']);
+
+    // Customer quotation review and decisions (current valid version only)
+    Route::post('/customer/quotations/{quotation}/accept', [CustomerQuotationController::class, 'accept']);
+    Route::post('/customer/quotations/{quotation}/reject', [CustomerQuotationController::class, 'reject']);
+    Route::post('/customer/quotations/{quotation}/request-change', [CustomerQuotationController::class, 'requestChange']);
 });
 
 /*
