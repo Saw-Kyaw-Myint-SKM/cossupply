@@ -9,6 +9,8 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Services\Audit\AuditLogService;
+use App\Services\Notification\EmailNotificationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -27,6 +29,8 @@ class OrderWorkflowService
     public function __construct(
         private readonly StatusTransitionService $statuses,
         private readonly AuditLogService $auditLogs,
+        private readonly NotificationService $notifications,
+        private readonly EmailNotificationService $emails,
     ) {}
 
     /**
@@ -38,7 +42,7 @@ class OrderWorkflowService
         ?string $note = null,
         ?string $ip = null,
     ): Order {
-        return DB::transaction(function () use ($order, $admin, $note, $ip): Order {
+        $confirmed = DB::transaction(function () use ($order, $admin, $note, $ip): Order {
             $locked = $this->lockOrder($order);
 
             $this->assertCurrentStatus(
@@ -94,6 +98,11 @@ class OrderWorkflowService
 
             return $this->freshDetail($locked);
         });
+
+        $this->notifications->orderConfirmed($confirmed);
+        $this->emails->sendOrderConfirmed($confirmed);
+
+        return $confirmed;
     }
 
     /**
@@ -147,7 +156,7 @@ class OrderWorkflowService
         string $note,
         ?string $ip = null,
     ): Order {
-        return DB::transaction(function () use ($order, $admin, $note, $ip): Order {
+        $cancelled = DB::transaction(function () use ($order, $admin, $note, $ip): Order {
             $locked = $this->lockOrder($order);
             $from = $locked->order_status->value;
 
@@ -178,6 +187,11 @@ class OrderWorkflowService
 
             return $this->freshDetail($locked);
         });
+
+        $this->notifications->orderCancelled($cancelled);
+        $this->emails->sendOrderCancelled($cancelled);
+
+        return $cancelled;
     }
 
     /**

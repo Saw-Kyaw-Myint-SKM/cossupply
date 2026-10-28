@@ -11,6 +11,8 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Services\Audit\AuditLogService;
+use App\Services\Notification\EmailNotificationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +31,8 @@ class CashCollectionService
         private readonly StatusTransitionService $statuses,
         private readonly AuditLogService $auditLogs,
         private readonly CashReceiptPdfService $receipts,
+        private readonly NotificationService $notifications,
+        private readonly EmailNotificationService $emails,
     ) {}
 
     /**
@@ -42,7 +46,7 @@ class CashCollectionService
         array $data,
         ?string $ip = null,
     ): Order {
-        return DB::transaction(function () use ($order, $admin, $data, $ip): Order {
+        $collected = DB::transaction(function () use ($order, $admin, $data, $ip): Order {
             $locked = $this->lockOrder($order);
             $payment = $this->lockPayment($locked);
             $delivery = $this->delivery($locked);
@@ -133,6 +137,10 @@ class CashCollectionService
 
             return $this->freshDetail($locked);
         });
+
+        $this->notifications->cashCollected($collected, $admin);
+
+        return $collected;
     }
 
     /**
@@ -144,7 +152,7 @@ class CashCollectionService
         ?string $note = null,
         ?string $ip = null,
     ): Order {
-        return DB::transaction(function () use ($order, $admin, $note, $ip): Order {
+        $confirmed = DB::transaction(function () use ($order, $admin, $note, $ip): Order {
             $locked = $this->lockOrder($order);
             $payment = $this->lockPayment($locked);
             $delivery = $this->delivery($locked);
@@ -213,6 +221,11 @@ class CashCollectionService
 
             return $this->freshDetail($locked);
         });
+
+        $this->notifications->paymentConfirmed($confirmed);
+        $this->emails->sendPaymentConfirmed($confirmed);
+
+        return $confirmed;
     }
 
     /**

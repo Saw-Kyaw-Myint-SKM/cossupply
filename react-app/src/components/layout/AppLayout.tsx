@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { FiBox, FiChevronRight, FiClipboard, FiGrid, FiHome, FiMenu, FiMessageCircle, FiSearch, FiTruck, FiX } from 'react-icons/fi';
 import { useAuth } from '../../lib/auth-context';
 import { useCart } from '../../lib/cart-context';
+import { NotificationBell } from '../../features/notifications/components/NotificationBell';
 
 /** Active state = ink + amber underline; the accent is spent here on purpose. */
 const NAV_ITEM_CLASS =
@@ -158,26 +159,30 @@ export function AppLayout() {
               </NavLink>
             </nav>
 
-            <Link
-              to="/cart"
-              className="relative ml-auto inline-flex h-10 w-10 items-center justify-center rounded-md text-ink active:scale-[.99] sm:ml-2 lg:hidden"
-              aria-label={`Order list${count > 0 ? `, ${count} items` : ''}`}
-            >
-              <FiClipboard aria-hidden="true" className="h-5 w-5" />
-              {/* Mobile badge shares the pill; count stays aria-hidden here. */}
-              {count > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-0.5 -top-0.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white"
-                >
-                  {count > 99 ? '99+' : count}
-                </span>
-              ) : null}
-            </Link>
+            <div className="ml-auto flex items-center gap-1 lg:hidden">
+              {isAuthenticated ? <NotificationBell /> : null}
+              <Link
+                to="/cart"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-md text-ink active:scale-[.99] sm:ml-2"
+                aria-label={`Order list${count > 0 ? `, ${count} items` : ''}`}
+              >
+                <FiClipboard aria-hidden="true" className="h-5 w-5" />
+                {/* Mobile badge shares the pill; count stays aria-hidden here. */}
+                {count > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-0.5 -top-0.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                  >
+                    {count > 99 ? '99+' : count}
+                  </span>
+                ) : null}
+              </Link>
+            </div>
 
             <div className="hidden items-center gap-3 lg:flex">
               {isAuthenticated ? (
                 <>
+                  <NotificationBell />
                   <NavLink
                     to={userType === 'admin' ? '/admin/dashboard' : '/dashboard'}
                     icon={<FiGrid />}

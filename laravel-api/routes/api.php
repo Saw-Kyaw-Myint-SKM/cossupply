@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminEmailLogController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
 use App\Http\Controllers\Api\V1\AdminProductController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\V1\CustomerProfileController;
 use App\Http\Controllers\Api\V1\CustomerQuotationController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicSupplierController;
@@ -95,6 +97,22 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| Shared Authenticated Notification Routes (Customer and Admin)
+|--------------------------------------------------------------------------
+|
+| The recipient is resolved from the bearer token inside the controller, so
+| both account types use the same documented /notifications endpoints.
+|
+*/
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | Admin Authentication Routes (Public)
 |--------------------------------------------------------------------------
 */
@@ -149,6 +167,10 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/admin/orders/{order}/payment-confirmation', [AdminOrderController::class, 'paymentConfirmation']);
     Route::post('/admin/orders/{order}/customer-refused-payment', [AdminOrderController::class, 'customerRefusedPayment']);
     Route::get('/admin/orders/{order}/receipt/download', [AdminOrderController::class, 'downloadReceipt']);
+
+    // Email delivery log and resend actions
+    Route::get('/admin/email-logs', [AdminEmailLogController::class, 'index']);
+    Route::post('/admin/email-logs/{emailLog}/resend', [AdminEmailLogController::class, 'resend']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

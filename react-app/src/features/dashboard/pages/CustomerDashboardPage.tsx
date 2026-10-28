@@ -97,6 +97,9 @@ export default function CustomerDashboardPage() {
         <p className="text-gray-600 mb-4">
           This is your customer dashboard. From here you can manage your quotations and orders.
         </p>
+        <Link to="/notifications" className={linkClass}>
+          View notifications
+        </Link>
       </div>
 
       {/* Quick Stats */}

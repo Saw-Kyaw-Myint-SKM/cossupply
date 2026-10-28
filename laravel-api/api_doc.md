@@ -5096,3 +5096,383 @@ Same private receipt stream as the admin route, but the order must belong to the
 | `401` / `403` | Authentication/ability errors | Missing or non-customer token |
 | `404` | `{"success": false, "message": "Order not found."}` | Order belongs to another customer or does not exist |
 | `404` | `{"success": false, "message": "Receipt not found."}` | Cash has not been collected yet |
+
+---
+
+## GET /api/v1/notifications
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Database-backed in-app notifications (`notifications` table).
+- API returns only the authenticated recipient's notifications.
+- API supports unread count, paginated list and mark-as-read.
+
+### Method / Path
+
+`GET /api/v1/notifications`
+
+### Authentication
+
+Required. Customer or Admin token. The recipient is resolved from the bearer token; `recipient_type` / `recipient_id` are never accepted as input.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`50` |
+| `unread` | boolean | No | `1` / `true` returns unread rows only |
+
+### Behaviour
+
+Returns the recipient's notifications newest first, together with the unread count used by the React badge. Customer and Admin tokens share this endpoint; a Customer token never sees Admin rows and vice versa.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "notifications": [
+      {
+        "id": 12,
+        "type": "ORDER_OUT_FOR_DELIVERY",
+        "title": "Order out for delivery",
+        "message": "Order ORD-2026-000008 is on its way.",
+        "data": {
+          "order_id": 8,
+          "order_number": "ORD-2026-000008",
+          "quotation_request_id": 42
+        },
+        "quotation_id": null,
+        "order_id": 8,
+        "is_read": false,
+        "read_at": null,
+        "created_at": "2026-10-28T09:00:00+00:00"
+      }
+    ],
+    "unread_count": 1,
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+| `422` | Validation error | `per_page` out of `1`–`50` or invalid `unread` value |
+
+---
+
+## GET /api/v1/notifications/unread-count
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- React polls the notification endpoint every 60 seconds while authenticated.
+
+### Method / Path
+
+`GET /api/v1/notifications/unread-count`
+
+### Authentication
+
+Required. Customer or Admin token.
+
+### Behaviour
+
+Lightweight count-only endpoint for the 60-second polling provider. The React app pauses polling while the browser tab is hidden and stops it on logout.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "unread_count": 3
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+
+---
+
+## PATCH /api/v1/notifications/{notification}/read
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- API supports mark-as-read for the authenticated recipient.
+
+### Method / Path
+
+`PATCH /api/v1/notifications/{notification}/read`
+
+### Authentication
+
+Required. Customer or Admin token; the notification must belong to the token holder.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Marks one notification as read and stamps `read_at`. The call is idempotent: an already-read notification keeps its original `read_at`. A notification owned by another recipient answers `404` so ids cannot be probed.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "notification": {
+      "id": 12,
+      "type": "ORDER_OUT_FOR_DELIVERY",
+      "title": "Order out for delivery",
+      "message": "Order ORD-2026-000008 is on its way.",
+      "data": { "order_id": 8 },
+      "quotation_id": null,
+      "order_id": 8,
+      "is_read": true,
+      "read_at": "2026-10-28T09:05:00+00:00",
+      "created_at": "2026-10-28T09:00:00+00:00"
+    },
+    "unread_count": 2
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+| `404` | `{"success": false, "message": "Notification not found."}` | Notification belongs to another recipient or does not exist |
+
+---
+
+## POST /api/v1/notifications/read-all
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Notification center supports marking every unread notification read.
+
+### Method / Path
+
+`POST /api/v1/notifications/read-all`
+
+### Authentication
+
+Required. Customer or Admin token.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Marks every unread notification owned by the token holder as read. Other recipients' rows are untouched.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "marked": 3,
+    "unread_count": 0
+  },
+  "message": "Notifications marked as read."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+
+---
+
+## GET /api/v1/admin/email-logs
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Email delivery status and error recording in `email_logs`.
+- Admin email-log list with delivery errors and resend actions.
+
+### Method / Path
+
+`GET /api/v1/admin/email-logs`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`100` |
+| `status` | string | No | `SENT` or `FAILED` |
+| `email_type` | string | No | One of `QUOTATION_SENT`, `ORDER_CONFIRMED`, `ORDER_OUT_FOR_DELIVERY`, `PAYMENT_CONFIRMED`, `ORDER_CANCELLED` |
+| `search` | string | No | Case-insensitive match on recipient email or subject, max `100` characters |
+
+### Behaviour
+
+Lists every synchronous email attempt newest first with its stored status and error message. Email failure never rolls back the related quotation or order; the failed attempt simply appears here for resend.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "email_logs": [
+      {
+        "id": 5,
+        "recipient_email": "buyer@example.com",
+        "related_type": "App\\Models\\Order",
+        "related_id": 8,
+        "email_type": "ORDER_CONFIRMED",
+        "subject": "Order ORD-2026-000008 confirmed",
+        "status": "FAILED",
+        "sent_at": null,
+        "error_message": "Connection refused",
+        "resendable": true,
+        "created_at": "2026-10-28T09:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    },
+    "statuses": ["SENT", "FAILED"],
+    "email_types": [
+      "QUOTATION_SENT",
+      "ORDER_CONFIRMED",
+      "ORDER_OUT_FOR_DELIVERY",
+      "PAYMENT_CONFIRMED",
+      "ORDER_CANCELLED"
+    ]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `status` / `email_type` or `per_page` out of range |
+
+---
+
+## POST /api/v1/admin/email-logs/{emailLog}/resend
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Admin email-log list and resend actions.
+- Failure status is kept; resend is an explicit recovery action.
+
+### Method / Path
+
+`POST /api/v1/admin/email-logs/{emailLog}/resend`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Re-renders and sends the original transactional email synchronously. A new `email_logs` row is appended with the fresh result (`SENT` / `FAILED`); the original attempt row is never modified. Quotation emails attach the newest generated private PDF. Every resend writes an `email.resent` audit entry containing the new log id.
+
+Only types in `App\Enums\EmailType` are resendable (`resendable` in the list response). A quotation email is refused once the quotation no longer has `sent_at`; an order email is refused when the related order no longer exists.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "email": {
+      "id": 6,
+      "recipient_email": "buyer@example.com",
+      "related_type": "App\\Models\\Order",
+      "related_id": 8,
+      "email_type": "ORDER_CONFIRMED",
+      "subject": "Order ORD-2026-000008 confirmed",
+      "status": "SENT",
+      "sent_at": "2026-10-28T10:00:00+00:00",
+      "error_message": null,
+      "resendable": true,
+      "created_at": "2026-10-28T10:00:00+00:00"
+    }
+  },
+  "message": "Email resent."
+}
+```
+
+The response is still `200` when the resend attempt itself fails: the new log row carries `"status": "FAILED"` and the mail error in `error_message`.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown email log id |
+| `422` | `{"success": false, "message": "...", "errors": {"email_log": ["This email type cannot be resent."]}}` | Legacy/unsupported `email_type` or the related record can no longer be resent |

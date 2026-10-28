@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Quotation;
 use App\Models\QuotationAction;
 use App\Models\QuotationRequest;
+use App\Services\Notification\NotificationService;
 use App\Services\Order\OrderConversionService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class CustomerQuotationService
     public function __construct(
         private readonly StatusTransitionService $statuses,
         private readonly OrderConversionService $orders,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -139,7 +141,7 @@ class CustomerQuotationService
     ): array {
         $this->expireIfNeeded($quotation);
 
-        return DB::transaction(function () use ($customer, $quotation, $ip): array {
+        $result = DB::transaction(function () use ($customer, $quotation, $ip): array {
             [$version, $request] = $this->lockVersionAndRequest($quotation);
 
             $this->assertOwnedBy($customer, $request);
@@ -168,6 +170,10 @@ class CustomerQuotationService
                 'order' => $order,
             ];
         });
+
+        $this->notifications->quotationAccepted($result['quotation'], $customer, $result['order']);
+
+        return $result;
     }
 
     /**
@@ -183,7 +189,7 @@ class CustomerQuotationService
     ): array {
         $this->expireIfNeeded($quotation);
 
-        return DB::transaction(function () use ($customer, $quotation, $note, $ip): array {
+        $result = DB::transaction(function () use ($customer, $quotation, $note, $ip): array {
             [$version, $request] = $this->lockVersionAndRequest($quotation);
 
             $this->assertOwnedBy($customer, $request);
@@ -209,6 +215,10 @@ class CustomerQuotationService
                 'quotation_request' => $request->refresh(),
             ];
         });
+
+        $this->notifications->quotationRejected($result['quotation'], $customer);
+
+        return $result;
     }
 
     /**
@@ -225,7 +235,7 @@ class CustomerQuotationService
     ): array {
         $this->expireIfNeeded($quotation);
 
-        return DB::transaction(function () use ($customer, $quotation, $note, $ip): array {
+        $result = DB::transaction(function () use ($customer, $quotation, $note, $ip): array {
             [$version, $request] = $this->lockVersionAndRequest($quotation);
 
             $this->assertOwnedBy($customer, $request);
@@ -254,6 +264,10 @@ class CustomerQuotationService
                 'quotation_request' => $request->refresh(),
             ];
         });
+
+        $this->notifications->quotationChangeRequested($result['quotation'], $customer, trim($note));
+
+        return $result;
     }
 
     /**

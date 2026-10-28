@@ -16,6 +16,7 @@ const RegisterPage = lazy(() => import('../features/auth/pages/RegisterPage'));
 
 // Customer Pages
 const CustomerDashboardPage = lazy(() => import('../features/dashboard/pages/CustomerDashboardPage'));
+const NotificationsPage = lazy(() => import('../features/notifications/pages/NotificationsPage'));
 const QuotationRequestFormPage = lazy(() => import('../features/quotations/pages/QuotationRequestFormPage'));
 const QuotationListPage = lazy(() => import('../features/quotations/pages/QuotationListPage'));
 const QuotationDetailPage = lazy(() => import('../features/quotations/pages/QuotationDetailPage'));
@@ -45,6 +46,7 @@ const QuotationVersionFormPage = lazy(
 );
 const AdminOrderListPage = lazy(() => import('../features/admin/pages/OrderListPage'));
 const AdminOrderDetailPage = lazy(() => import('../features/admin/pages/OrderDetailPage'));
+const AdminEmailLogsPage = lazy(() => import('../features/admin/pages/EmailLogsPage'));
 
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
@@ -77,6 +79,17 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/admin/login" replace />;
   }
   
+  return <>{children}</>;
+}
+
+/** Customer or Admin: the notifications page is shared by both roles. */
+function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -219,6 +232,16 @@ export const router = createBrowserRouter([
               <OrderDetailPage />
             </Suspense>
           </CustomerProtectedRoute>
+        ),
+      },
+      {
+        path: 'notifications',
+        element: (
+          <AuthenticatedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <NotificationsPage />
+            </Suspense>
+          </AuthenticatedRoute>
         ),
       },
 
@@ -411,6 +434,16 @@ export const router = createBrowserRouter([
           <AdminProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <AdminOrderDetailPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/email-logs',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminEmailLogsPage />
             </Suspense>
           </AdminProtectedRoute>
         ),

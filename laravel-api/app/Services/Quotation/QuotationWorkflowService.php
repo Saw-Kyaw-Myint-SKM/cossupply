@@ -13,11 +13,12 @@ use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\SupplierCommunication;
 use App\Services\Audit\AuditLogService;
+use App\Services\Notification\EmailNotificationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Setting\SettingService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -35,7 +36,8 @@ class QuotationWorkflowService
         private readonly StatusTransitionService $statuses,
         private readonly QuotationTotalsCalculator $calculator,
         private readonly QuotationPdfService $pdfs,
-        private readonly QuotationEmailService $emails,
+        private readonly EmailNotificationService $emails,
+        private readonly NotificationService $notifications,
         private readonly AuditLogService $auditLogs,
     ) {}
 
@@ -413,7 +415,9 @@ class QuotationWorkflowService
             return $version->fresh(['items.supplier', 'pdfs', 'emailLogs']);
         });
 
-        $email = $this->emails->send($sent);
+        $this->notifications->quotationSent($sent);
+
+        $email = $this->emails->sendQuotation($sent);
 
         return [
             'quotation' => $sent->fresh(['items.supplier', 'pdfs', 'emailLogs']),
@@ -436,7 +440,7 @@ class QuotationWorkflowService
             $quotation->load('pdfs');
         }
 
-        $email = $this->emails->send($quotation, true);
+        $email = $this->emails->sendQuotation($quotation, true);
 
         $this->auditLogs->log(
             $admin,

@@ -11,6 +11,8 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Services\Audit\AuditLogService;
+use App\Services\Notification\EmailNotificationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +30,8 @@ class OrderDeliveryService
     public function __construct(
         private readonly StatusTransitionService $statuses,
         private readonly AuditLogService $auditLogs,
+        private readonly NotificationService $notifications,
+        private readonly EmailNotificationService $emails,
     ) {}
 
     /**
@@ -41,7 +45,8 @@ class OrderDeliveryService
         array $data,
         ?string $ip = null,
     ): Order {
-        return DB::transaction(function () use ($order, $admin, $data, $ip): Order {
+        /** @var array{order: Order, from: string} $result */
+        $result = DB::transaction(function () use ($order, $admin, $data, $ip): array {
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
             $delivery = Delivery::query()
                 ->where('order_id', $locked->id)
@@ -91,8 +96,27 @@ class OrderDeliveryService
                 $ip,
             );
 
-            return $this->freshDetail($locked);
+            return [
+                'order' => $this->freshDetail($locked),
+                'from' => $fromOrder,
+            ];
         });
+
+        $updated = $result['order'];
+        $currentStatus = $updated->order_status->value;
+
+        if ($currentStatus !== $result['from']) {
+            if ($currentStatus === OrderStatus::OUT_FOR_DELIVERY->value) {
+                $this->notifications->orderOutForDelivery($updated);
+                $this->emails->sendOrderOutForDelivery($updated);
+            }
+
+            if ($currentStatus === OrderStatus::DELIVERED->value) {
+                $this->notifications->orderDelivered($updated);
+            }
+        }
+
+        return $updated;
     }
 
     /**
