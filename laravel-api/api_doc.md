@@ -12,6 +12,7 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
 - Validation errors use Laravel's default 422 shape: `{"message": "...", "errors": {"field": ["..."]}}`.
+- Rate-limited requests use the standard error envelope with `429 Too Many Requests` and a `Retry-After` header. Limits: `POST /auth/register` 10/min per IP; `POST /auth/login` (email identifier) and `POST /admin/login` (email identifier) 5/min per identifier + IP; notification polling routes 120/min per user + IP.
 - All money values are integer Myanmar Kyat (MMK). All new-domain status values are UPPERCASE strings.
 
 ---
@@ -2490,7 +2491,7 @@ No body, no query parameters.
 Notes:
 
 - The password hash is never exposed.
-- `phone` is the login identifier and is read-only here.
+- `email` is the login identifier and must stay present and unique; `phone` is the contact identifier and is read-only here.
 
 ### Error responses
 
@@ -3022,18 +3023,13 @@ Query parameters (all optional):
       {
         "id": 31,
         "quotation_number": "QT-2026-0031",
-        "status": "CUSTOMER_REVIEWING",
+        "status": "NEW",
         "customer_name": "Aung Aung",
         "phone": "09123456789",
         "city": "Yangon",
         "township": "Hlaing",
         "item_count": 2,
-        "created_at": "2026-10-18T10:30:00+00:00",
-        "current_quotation_id": 71,
-        "current_version": 1,
-        "current_status": "VIEWED",
-        "valid_until": "2026-10-27",
-        "is_expired": false
+        "created_at": "2026-10-18T10:30:00+00:00"
       }
     ],
     "meta": {
@@ -3050,9 +3046,8 @@ Notes:
 
 - Ordered by `id` descending (newest first).
 - Only the authenticated customer's requests are returned.
-- `current_*`, `valid_until` and `is_expired` describe the current quotation version (`is_current = true`). They are `null`/`false` while no version is current.
-- `is_expired` is computed at request time from `valid_until` (date-only; the quotation is valid through the end of that day). Listing does not persist `EXPIRED`; the explicit view endpoint does.
-- The pagination envelope is unchanged.
+- `current_quotation` is `null` until Admin sends a version; otherwise it carries `id`, `version`, `status`, `is_current`, `total_amount`, `valid_until` and decision timestamps.
+- `current_quotation_id`, `current_version`, `current_status`, `valid_until` and `is_expired` are additive flattened copies of the current version, so list UIs can render version markers without unpacking `current_quotation`.
 
 ### Error responses
 
@@ -3188,6 +3183,74 @@ Notes:
 
 ---
 
+## Task 08 Customer Quotation View and Actions — shared shapes
+
+All endpoints below require an active Customer token (`auth:sanctum` + `customer` ability). Identity always comes from the bearer token; there is no customer id in any path or body, and no token/OTP/email-link quotation access.
+
+Quotation version statuses:
+
+`DRAFT`, `SENT`, `VIEWED`, `CHANGE_REQUESTED`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `SUPERSEDED`, `CANCELLED`.
+
+Customer decision rules (server-enforced):
+
+- The quotation must belong to the authenticated customer; a foreign id answers `404`, never `403`.
+- Only the current version (`is_current = true`) in `SENT` or `VIEWED` can be accepted, rejected or changed.
+- A version is expired when today's date is after `valid_until` (the validity date is inclusive). Expired versions are moved to `EXPIRED` and cannot be accepted.
+- The first open of a sent version moves it to `VIEWED`, moves the request to `CUSTOMER_REVIEWING`, and appends one `VIEWED` row to `quotation_actions`. Repeat opens are idempotent.
+- `CHANGE_REQUESTED` requires a customer note of 5–2000 characters.
+- Task 08 settles quotation/request statuses only. Order creation from an accepted version is Task 09.
+
+Customer decision envelope (`accept`, `reject`, `request-change`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "quotation": {
+      "id": 77,
+      "quotation_request_id": 31,
+      "quotation_number": "QT-2026-0031",
+      "version": 2,
+      "status": "ACCEPTED",
+      "is_current": true,
+      "subtotal": 25000,
+      "discount": 1000,
+      "delivery_fee": 500,
+      "service_fee_percentage": 5,
+      "service_fee": 1250,
+      "total_amount": 25750,
+      "payment_method": "CASH_ON_DELIVERY",
+      "payment_terms": "Full payment on delivery (COD).",
+      "valid_until": "2026-10-30",
+      "admin_note": "Supplier confirms delivery within five days.",
+      "sent_at": "2026-10-23T08:00:00+00:00",
+      "viewed_at": "2026-10-23T09:00:00+00:00",
+      "accepted_at": "2026-10-23T10:00:00+00:00",
+      "rejected_at": null,
+      "items": [
+        {
+          "id": 1,
+          "product_id": 15,
+          "product_name_snapshot": "Plastic Chair",
+          "sku_snapshot": "SKU-0001-AA",
+          "quantity": 5,
+          "unit_price": 5000,
+          "discount": 0,
+          "line_total": 25000,
+          "delivery_date": "2026-10-29",
+          "warranty_note": "One year",
+          "supplier": { "id": 3, "shop_name": "Yangon Office Supply" }
+        }
+      ]
+    },
+    "quotation_request": { "id": 31, "status": "ACCEPTED" }
+  },
+  "message": "Quotation accepted successfully."
+}
+```
+
+---
+
 ## GET /api/v1/customer/quotation-requests/{quotationRequest}
 
 ### Task
@@ -3197,8 +3260,8 @@ Task 08 — Customer Quotation View and Actions.
 ### Specification
 
 - `specification/LogicFlow.md` §8 (Customer Reviews Quotation)
-- `specification/StatusDefinitions.md` §4–§6 (quotation request/version statuses, quotation actions)
-- `specification/RolesPermissions.md` §3 (authenticated customer ownership)
+- `specification/StatusDefinitions.md` §4, §5, §6 (request, version and action statuses)
+- `specification/RolesPermissions.md` §2 (Customer owns their own quotation)
 
 ### Method
 
@@ -3208,17 +3271,17 @@ Task 08 — Customer Quotation View and Actions.
 
 `/api/v1/customer/quotation-requests/{quotationRequest}`
 
+`{quotationRequest}` is the quotation request id shown in `GET /customer/quotation-requests`.
+
 ### Authentication
 
 Required. `auth:sanctum` bearer token with the `customer` ability.
 
-### Roles
-
-Customer (own requests only). A request belonging to another customer answers `404` so its existence is not leaked.
-
 ### Request
 
-No body or query parameters.
+No body, no query parameters.
+
+This read is also the customer's `VIEWED` action. When the current version is `SENT` and not expired, the response already reflects `VIEWED` and `CUSTOMER_REVIEWING`, and `actions` includes the new `VIEWED` row.
 
 ### Success response
 
@@ -3231,22 +3294,21 @@ No body or query parameters.
     "quotation_request": {
       "id": 31,
       "quotation_number": "QT-2026-0031",
-      "status": "QUOTATION_SENT",
+      "status": "CUSTOMER_REVIEWING",
       "customer_name": "Aung Aung",
       "company_name": "Aung Trading Co., Ltd.",
       "phone": "09123456789",
       "email": "aung@example.com",
+      "delivery_address": "No. 123, Main Road, Hlaing Township",
       "city": "Yangon",
       "township": "Hlaing",
       "landmark": "Near Thingaha Hotel",
-      "delivery_address": "No. 123, Main Road, Hlaing Township",
       "required_delivery_date": "2026-10-28",
       "customer_note": "Please include bulk pricing where applicable.",
       "created_at": "2026-10-18T10:30:00+00:00",
       "items": [
         {
           "product_id": 15,
-          "supplier_id": 3,
           "product_name_snapshot": "Plastic Chair",
           "specification_snapshot": "Blue, 45 cm",
           "quantity": 3,
@@ -3254,73 +3316,59 @@ No body or query parameters.
           "stock_status": "IN_STOCK"
         }
       ],
-      "current_quotation_id": 71,
-      "order": null,
-      "is_expired": false,
-      "can_accept": true,
-      "can_reject": true,
-      "can_request_change": true,
-      "versions": [
+      "current_quotation": {
+        "id": 77,
+        "version": 2,
+        "status": "VIEWED",
+        "is_current": true,
+        "total_amount": 25750,
+        "valid_until": "2026-10-30",
+        "items": []
+      },
+      "quotation_history": [
         {
-          "id": 71,
+          "id": 77,
           "version": 2,
           "status": "VIEWED",
           "is_current": true,
-          "is_expired": false,
-          "valid_until": "2026-10-27",
-          "delivery_date": "2026-10-25",
-          "subtotal": 270000,
-          "discount_amount": 0,
-          "delivery_fee": 5000,
-          "service_fee_percentage": 5,
-          "service_fee": 13500,
-          "total_amount": 288500,
-          "cod_terms": "Full payment on delivery (COD).",
-          "admin_note": "Prices confirmed with supplier.",
-          "sent_at": "2026-10-20T11:01:00+00:00",
-          "items": [
-            {
-              "id": 201,
-              "product_id": 15,
-              "supplier_id": 3,
-              "product_name_snapshot": "Plastic Chair",
-              "sku_snapshot": "CHAIR-001",
-              "specification_snapshot": "Blue, 45 cm",
-              "quantity": 3,
-              "unit_price": 90000,
-              "discount": 0,
-              "line_total": 270000,
-              "delivery_date": "2026-10-25",
-              "warranty_note": "6 months",
-              "supplier_note": "Confirmed stock"
-            }
-          ],
-          "actions": [
-            {
-              "action": "VIEWED",
-              "customer_note": null,
-              "actor_type": "CUSTOMER",
-              "actor_id": 12,
-              "created_at": "2026-10-21T09:00:00+00:00"
-            }
-          ]
+          "total_amount": 25750,
+          "valid_until": "2026-10-30",
+          "sent_at": "2026-10-23T08:00:00+00:00"
+        },
+        {
+          "id": 70,
+          "version": 1,
+          "status": "SUPERSEDED",
+          "is_current": false,
+          "total_amount": 29000,
+          "valid_until": "2026-10-20",
+          "sent_at": "2026-10-15T08:00:00+00:00"
         }
-      ]
+      ],
+      "actions": [
+        {
+          "id": 9,
+          "action": "VIEWED",
+          "customer_note": null,
+          "created_at": "2026-10-23T09:00:00+00:00"
+        }
+      ],
+      "can_accept": true,
+      "can_reject": true,
+      "can_request_change": true,
+      "is_expired": false
     }
   }
 }
 ```
 
-Notes:
+`current_quotation` is `null` while Admin is still preparing the first version. `quotation_history` is newest version first. `actions` contains the customer's actions for the current version only.
 
-- `versions` is newest version first. Admin `DRAFT` versions are never exposed to the customer (`StatusDefinitions.md` §5); a version appears here only after it has been sent.
-- Request `items` are the immutable request-time snapshots.
-- Version-level `delivery_date` is derived from the item snapshots as the latest item delivery date.
-- `cod_terms` is the stored quotation `payment_terms` text.
-- `is_expired` and the `can_*` flags are computed at request time. This endpoint is side-effect free: it never writes `EXPIRED`, `VIEWED` or an action row.
-- `can_accept`, `can_reject` and `can_request_change` are true only for an owned current version in `SENT`/`VIEWED`, not expired, while the request is in `QUOTATION_SENT`/`CUSTOMER_REVIEWING`.
-- `order` is `null` until the customer accepts the current quotation. After acceptance it contains the created order summary (`id`, `order_number`, `order_status`, `payment_status`, `delivery_status`, `total_amount`, `created_at`) from `Quotation::order()`. Only the order belonging to the current quotation of the owned request is exposed; a request owned by another customer still answers `404`.
-- `actor_type` is `CUSTOMER` (append-only action trail, same convention as the admin workflow tables).
+Additional additive fields:
+
+- `current_quotation_id` — the current version id (or `null`).
+- `order` — the order created when the current version was accepted (`id`, `order_number`, `order_status`, `payment_status`, `delivery_status`, `total_amount`, `created_at`), or `null`.
+- `versions` — every version visible to the customer, newest first, with the customer version shape (`discount_amount`, `cod_terms`, `delivery_date`, item snapshots and per-version `actions`).
 
 ### Error responses
 
@@ -3328,7 +3376,7 @@ Notes:
 | --- | --- | --- |
 | `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
 | `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
-| `404` | `{"success": false, "message": "Quotation request not found."}` | Unknown id or the request belongs to another customer |
+| `404` | `{"success": false, "message": "Quotation request not found."}` | Unknown id, another customer's request, or a malformed id |
 
 ---
 
@@ -3337,12 +3385,6 @@ Notes:
 ### Task
 
 Task 08 — Customer Quotation View and Actions.
-
-### Specification
-
-- `specification/LogicFlow.md` §8 (Customer Reviews Quotation), §13 (expiry evaluated at API request time)
-- `specification/StatusDefinitions.md` §10 (Quotation Request and Quotation Version transition tables)
-- `specification/RolesPermissions.md` §3
 
 ### Method
 
@@ -3356,69 +3398,17 @@ Task 08 — Customer Quotation View and Actions.
 
 Required. `auth:sanctum` bearer token with the `customer` ability.
 
-### Roles
-
-Customer (own requests only). Foreign requests answer `404`.
-
 ### Request
 
-No body.
-
-Inside one transaction the current version is locked and:
-
-1. If the current version is `SENT` and not expired, it becomes `VIEWED` with `viewed_at=now()`.
-2. If the request is `QUOTATION_SENT`, it moves to `CUSTOMER_REVIEWING`. Newer request statuses are never regressed.
-3. Exactly one `VIEWED` action row is appended. Repeat calls add no duplicate.
-4. If the current version is expired (`valid_until` before today) and is `SENT`/`VIEWED`, the version and request are lazily persisted as `EXPIRED` through the transition table. No `VIEWED` action is written for expiry.
+No body. The endpoint is an explicit alias of the `GET` above: it records the idempotent `VIEWED` action (when applicable) and returns the identical `quotation_request` payload.
 
 ### Success response
 
-`200 OK`
-
-Returns exactly the same `data.quotation_request` payload as the detail endpoint, so the frontend can load the detail through this call.
-
-```json
-{
-  "success": true,
-  "data": {
-    "quotation_request": {
-      "id": 31,
-      "status": "CUSTOMER_REVIEWING",
-      "current_quotation_id": 71,
-      "order": null,
-      "is_expired": false,
-      "can_accept": true,
-      "can_reject": true,
-      "can_request_change": true,
-      "versions": [
-        {
-          "id": 71,
-          "version": 1,
-          "status": "VIEWED",
-          "actions": [
-            {
-              "action": "VIEWED",
-              "customer_note": null,
-              "actor_type": "CUSTOMER",
-              "actor_id": 12,
-              "created_at": "2026-10-21T09:00:00+00:00"
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
+`200 OK` — same body as `GET /api/v1/customer/quotation-requests/{quotationRequest}`.
 
 ### Error responses
 
-| Status | Body | Cause |
-| --- | --- | --- |
-| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
-| `404` | `{"success": false, "message": "Quotation request not found."}` | Unknown id or the request belongs to another customer |
-| `409` | `{"success": false, "message": "..."}` | A status transition would violate `StatusDefinitions.md` §10 (should not occur for valid stored state) |
+Same as `GET /api/v1/customer/quotation-requests/{quotationRequest}`.
 
 ---
 
@@ -3426,15 +3416,12 @@ Returns exactly the same `data.quotation_request` payload as the detail endpoint
 
 ### Task
 
-Task 08 — Customer Quotation View and Actions, extended by Task 09 — Transactional Order Conversion and Supplier Confirmation. Accepting a valid current quotation now converts it into exactly one order.
+Task 08 — Customer Quotation View and Actions.
 
 ### Specification
 
-- `specification/LogicFlow.md` §8 (Customer Reviews Quotation), §9 (Convert Accepted Quotation to Order), §16 (Transaction Boundaries)
-- `specification/StatusDefinitions.md` §5, §6, §7, §10
-- `specification/MoneyAndValidationRules.md` §7 (Order Conversion Validation)
-- `specification/DatabaseFlow.md` §3 (`orders`, `order_items`, `deliveries`, `cash_payments`, `order_status_histories`)
-- `specification/RolesPermissions.md` §2–§3 (own current quotation only)
+- `specification/LogicFlow.md` §8 (Customer Reviews Quotation), §9 (Convert Accepted Quotation to Order)
+- `specification/StatusDefinitions.md` §4, §5, §6
 
 ### Method
 
@@ -3444,89 +3431,51 @@ Task 08 — Customer Quotation View and Actions, extended by Task 09 — Transac
 
 `/api/v1/customer/quotations/{quotation}/accept`
 
+`{quotation}` is the quotation **version** id (`current_quotation.id` / `quotation_history[].id`).
+
 ### Authentication
 
-Required. `auth:sanctum` bearer token with the `customer` ability.
-
-### Roles
-
-Customer (own current quotation only). A foreign quotation answers `404`.
+Required. Customer token.
 
 ### Request
 
-| Field | Rules |
-| --- | --- |
-| `cod_terms_accepted` | required, boolean, must be accepted (`true`) |
-
-```json
-{
-  "cod_terms_accepted": true
-}
-```
-
-Inside one transaction the quotation row is locked and re-checked: `is_current = true`, status `SENT`/`VIEWED`, not expired, and request status `QUOTATION_SENT`/`CUSTOMER_REVIEWING`. On success the quotation becomes `ACCEPTED` (`accepted_at=now()`), the request becomes `ACCEPTED`, and exactly one `ACCEPTED` action row is appended with `actor_type: "CUSTOMER"`, the authenticated customer id and the request IP.
-
-The same transaction converts the accepted version into one order:
-
-- Order identity and customer snapshots come from the authenticated Customer and the quotation request (name, company, phone, email, delivery address, city, township, landmark, customer note).
-- Money values are copied from the accepted quotation version without recalculation: `subtotal`, `discount`, `delivery_fee`, `service_fee_percentage`, `service_fee`, `total_amount`.
-- The order starts at `order_status = SUPPLIER_CONFIRMATION_REQUIRED`, `payment_status = NOT_PAID`, `delivery_status = NOT_ASSIGNED`, `payment_method = CASH_ON_DELIVERY`.
-- `order_items` are copied only from `quotation_version_items` (never from `quotation_items`).
-- One delivery is created with `delivery_status = NOT_ASSIGNED`. Its `supplier_id` is set only when every order item shares one supplier; otherwise it is `null`.
-- One `cash_payments` row is created with `amount_due = total_amount`, `amount_collected = 0`, `amount_remaining = total_amount`, `status = NOT_PAID`, and a `RCP-YYYY-####` receipt document number.
-- One `order_status_histories` row is appended with `old_status = null`, `new_status = SUPPLIER_CONFIRMATION_REQUIRED`, `changed_by_type = "CUSTOMER"`, the authenticated customer id and the note `Order created from accepted quotation {quotation_number} v{version}.`
-
-`order_number` format is `ORD-YYYY-####` (prefix from the `order_number_prefix` setting); `receipt_number` format is `RCP-YYYY-####`. Both are derived from the persisted row id.
-
-A second concurrent/sequential accept sees `ACCEPTED`, or an existing order for the same quotation, and answers `409`; only one order and one action row exist. The unique `orders.quotation_id` index is the final concurrency guard. Any failure after partial writes rolls the whole transaction back: no order, order item, delivery, payment or history rows remain, and the quotation/request keep their prior statuses.
+No body is required. Any body fields are ignored.
 
 ### Success response
 
-`200 OK`
+`200 OK` with the shared customer decision envelope (`quotation.status = ACCEPTED`, request `ACCEPTED`, `accepted_at` set, one `ACCEPTED` action row).
+
+Task 09 extends this response with the order created in the same transaction:
 
 ```json
 {
   "success": true,
   "data": {
-    "quotation": {
-      "id": 71,
-      "version": 1,
-      "status": "ACCEPTED",
-      "total_amount": 288500,
-      "valid_until": "2026-10-27"
-    },
-    "request": {
-      "id": 31,
-      "quotation_number": "QT-2026-0031",
-      "status": "ACCEPTED"
-    },
+    "quotation": { "id": 77, "status": "ACCEPTED", "...": "..." },
+    "quotation_request": { "id": 42, "status": "ACCEPTED" },
     "order": {
-      "id": 14,
-      "order_number": "ORD-2026-0014",
+      "id": 8,
+      "order_number": "ORD-2026-000008",
       "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
+      "payment_method": "CASH_ON_DELIVERY",
       "payment_status": "NOT_PAID",
       "delivery_status": "NOT_ASSIGNED",
-      "total_amount": 288500,
-      "created_at": "2026-10-24T09:15:00+00:00"
+      "total_amount": 25750
     }
-  },
-  "message": "Quotation accepted."
+  }
 }
 ```
+
+The order, immutable items, delivery, COD payment and initial status history are written in the same database transaction as the quotation acceptance. If any step fails, the whole acceptance is rolled back and the response is `500`; no partial order/payment/delivery rows remain. A repeated accept is rejected with `422` and never creates a second order.
 
 ### Error responses
 
 | Status | Body | Cause |
 | --- | --- | --- |
-| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
-| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or the quotation belongs to another customer |
-| `422` | `{"message": "The cod terms accepted field must be accepted.", "errors": {"cod_terms_accepted": ["The cod terms accepted field must be accepted."]}}` | Missing or false COD acknowledgement |
-| `409` | `{"success": false, "message": "This quotation has expired."}` | `valid_until` is before today |
-| `409` | `{"success": false, "message": "This quotation version is no longer current."}` | `is_current = false` (superseded or historical version) |
-| `409` | `{"success": false, "message": "This quotation is no longer open for customer response."}` | Version is `ACCEPTED`, `REJECTED`, `CANCELLED`, `EXPIRED`, `CHANGE_REQUESTED` or `DRAFT` |
-| `409` | `{"success": false, "message": "The quotation request is not open for customer review."}` | Request is not in `QUOTATION_SENT`/`CUSTOMER_REVIEWING` |
-| `409` | `{"success": false, "message": "An order already exists for this quotation."}` | A second accept or a concurrent duplicate insert for the same quotation version |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
+| `422` | `{"message": "Only the current quotation version can be acted on.", "errors": {"quotation": ["Only the current quotation version can be acted on."]}}` | Superseded/non-current version, already accepted/rejected, change already requested, or expiry |
+| `422` | `{"message": "This quotation expired on 2026-10-20 and can no longer be accepted.", "errors": {"quotation": ["..."]}}` | `valid_until` has passed; the version and request are moved to `EXPIRED` |
 
 ---
 
@@ -3536,161 +3485,84 @@ A second concurrent/sequential accept sees `ACCEPTED`, or an existing order for 
 
 Task 08 — Customer Quotation View and Actions.
 
-### Specification
-
-- `specification/LogicFlow.md` §8
-- `specification/StatusDefinitions.md` §5, §6, §10
-- `specification/RolesPermissions.md` §2–§3
-
 ### Method
 
 `POST`
 
 ### Path
 
-`/api/v1/customer/quotations/{quotation}/reject`
+`/api/v1/customer/quotations/{quotation}/reject` (quotation version id)
 
 ### Authentication
 
-Required. `auth:sanctum` bearer token with the `customer` ability.
-
-### Roles
-
-Customer (own current quotation only). A foreign quotation answers `404`.
+Required. Customer token.
 
 ### Request
 
-| Field | Rules |
-| --- | --- |
-| `customer_note` | nullable, string, max 2000 |
-
 ```json
 {
-  "customer_note": "Price is too high for this quantity."
+  "customer_note": "The price is above our budget."
 }
 ```
 
-The same eligibility guards as accept apply (owned, `is_current`, not expired, version `SENT`/`VIEWED`, request `QUOTATION_SENT`/`CUSTOMER_REVIEWING`). The quotation becomes `REJECTED` (`rejected_at=now()`), the request becomes `REJECTED`, and one `REJECTED` action row is appended with the optional note.
+| Field | Rules |
+| --- | --- |
+| `customer_note` | optional string, max 2000 |
+
+The note is stored on the `REJECTED` action row and trimmed; an empty note is stored as `null`.
 
 ### Success response
 
-`200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "quotation": {
-      "id": 71,
-      "version": 1,
-      "status": "REJECTED",
-      "total_amount": 288500,
-      "valid_until": "2026-10-27"
-    },
-    "request": {
-      "id": 31,
-      "quotation_number": "QT-2026-0031",
-      "status": "REJECTED"
-    }
-  },
-  "message": "Quotation rejected."
-}
-```
+`200 OK` with the shared customer decision envelope (`quotation.status = REJECTED`, request `REJECTED`, `rejected_at` set).
 
 ### Error responses
 
-| Status | Body | Cause |
-| --- | --- | --- |
-| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
-| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
-| `422` | `{"message": "The customer note field must not be greater than 2000 characters.", "errors": {"customer_note": ["..."]}}` | Note too long |
-| `409` | `{"success": false, "message": "This quotation has expired."}` | Expired quotation |
-| `409` | `{"success": false, "message": "This quotation version is no longer current."}` | Superseded/historical version |
-| `409` | `{"success": false, "message": "This quotation is no longer open for customer response."}` | Already settled version |
-| `409` | `{"success": false, "message": "The quotation request is not open for customer review."}` | Request no longer reviewable |
+Same authorization/ownership rules and 422 state rules as `accept`.
 
 ---
 
-## POST /api/v1/customer/quotations/{quotation}/change-request
+## POST /api/v1/customer/quotations/{quotation}/request-change
 
 ### Task
 
 Task 08 — Customer Quotation View and Actions.
 
-### Specification
-
-- `specification/LogicFlow.md` §8 (customer note goes to Admin; request becomes `CHANGE_REQUESTED`)
-- `specification/StatusDefinitions.md` §5, §6, §10
-- `specification/RolesPermissions.md` §2–§3
-
 ### Method
 
 `POST`
 
 ### Path
 
-`/api/v1/customer/quotations/{quotation}/change-request`
+`/api/v1/customer/quotations/{quotation}/request-change` (quotation version id)
 
 ### Authentication
 
-Required. `auth:sanctum` bearer token with the `customer` ability.
-
-### Roles
-
-Customer (own current quotation only). A foreign quotation answers `404`.
+Required. Customer token.
 
 ### Request
 
-| Field | Rules |
-| --- | --- |
-| `customer_note` | required, string, max 2000 |
-
 ```json
 {
-  "customer_note": "Please reduce the quantity to one unit."
+  "customer_note": "Please reduce the delivery fee and confirm the warranty."
 }
 ```
 
-Guards match accept/reject, but an expired quotation cannot request a change (`409`). On success the quotation becomes `CHANGE_REQUESTED`, the request becomes `CHANGE_REQUESTED`, and one `REQUESTED_CHANGE` action row is appended with the note. Admin can then create a new draft version (existing Admin workflow is unchanged).
+| Field | Rules |
+| --- | --- |
+| `customer_note` | required string, 5–2000 characters |
 
 ### Success response
 
-`200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "quotation": {
-      "id": 71,
-      "version": 1,
-      "status": "CHANGE_REQUESTED",
-      "total_amount": 288500,
-      "valid_until": "2026-10-27"
-    },
-    "request": {
-      "id": 31,
-      "quotation_number": "QT-2026-0031",
-      "status": "CHANGE_REQUESTED"
-    }
-  },
-  "message": "Quotation change requested."
-}
-```
+`200 OK` with the shared customer decision envelope. The version and request move to `CHANGE_REQUESTED`; `customer_note` is stored on a `REQUESTED_CHANGE` action row. Admin can then return the request to `PREPARING_QUOTATION` and send a new version.
 
 ### Error responses
 
 | Status | Body | Cause |
 | --- | --- | --- |
-| `401` | `{"success": false, "message": "Unauthenticated."}` | Missing, invalid or expired bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Admin token or token without the `customer` ability |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
 | `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
-| `422` | `{"message": "The customer note field is required.", "errors": {"customer_note": ["The customer note field is required."]}}` | Missing note |
-| `409` | `{"success": false, "message": "This quotation has expired."}` | Expired quotation |
-| `409` | `{"success": false, "message": "This quotation version is no longer current."}` | Superseded/historical version |
-| `409` | `{"success": false, "message": "This quotation is no longer open for customer response."}` | Already settled version |
-| `409` | `{"success": false, "message": "The quotation request is not open for customer review."}` | Request no longer reviewable |
+| `422` | `{"message": "The customer note field is required.", "errors": {"customer_note": ["The customer note field is required."]}}` | Missing or shorter than 5 characters |
+| `422` | Shared state error | Non-current, superseded, expired, accepted or already-rejected quotation |
 
 ---
 
@@ -4553,335 +4425,6 @@ Downloads the newest PDF for the version. If no PDF exists (or the stored file i
 
 ---
 
-## GET /api/v1/admin/orders
-
-### Task
-
-Task 09 — Transactional Order Conversion and Supplier Confirmation (admin order queue).
-
-### Specification
-
-- `specification/LogicFlow.md` §9 (Convert Accepted Quotation to Order), §10 (Supplier Confirmation by Admin), §15 (Audit Logic)
-- `specification/StatusDefinitions.md` §7 (Order Status), §10 (Order transitions)
-- `specification/DatabaseFlow.md` §3 (`orders`), §5 (order list indexes)
-- `specification/MoneyAndValidationRules.md` §7 (Order Conversion Validation)
-
-### Method
-
-`GET`
-
-### Path
-
-`/api/v1/admin/orders`
-
-### Authentication
-
-Required. `auth:sanctum` bearer token with the `admin` ability.
-
-### Roles
-
-Admin (any active authenticated admin).
-
-### Request
-
-Optional query parameters:
-
-| Parameter | Rules | Description |
-| --- | --- | --- |
-| `order_status` | one of the `OrderStatus` values | Exact order status filter |
-| `search` | string, max 100 | Matches `order_number`, `customer_name` or `phone` |
-| `per_page` | integer, 1–100, default 15 | Page size |
-| `page` | integer | Page number |
-
-No body.
-
-### Success response
-
-`200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "orders": [
-      {
-        "id": 14,
-        "order_number": "ORD-2026-0014",
-        "quotation_number": "QT-2026-0031",
-        "customer_name": "Aung Aung",
-        "phone": "09123456789",
-        "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
-        "payment_status": "NOT_PAID",
-        "delivery_status": "NOT_ASSIGNED",
-        "total_amount": 288500,
-        "created_at": "2026-10-24T09:15:00+00:00"
-      }
-    ],
-    "meta": {
-      "current_page": 1,
-      "last_page": 1,
-      "per_page": 15,
-      "total": 1
-    }
-  }
-}
-```
-
-Notes:
-
-- Newest orders are returned first (`created_at` desc, then `id` desc).
-- The list does not load items, delivery, payment or status history; use the detail endpoint.
-
-### Error responses
-
-| Status | Body | Cause |
-| --- | --- | --- |
-| `401` | `{"message": "Unauthenticated."}` | Missing, invalid or revoked bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Customer token or token without the `admin` ability |
-| `422` | Laravel validation shape | Invalid `order_status`, `search` or `per_page` value |
-
----
-
-## GET /api/v1/admin/orders/{order}
-
-### Task
-
-Task 09 — Transactional Order Conversion and Supplier Confirmation (admin order detail and supplier-confirmation targets).
-
-### Specification
-
-- `specification/LogicFlow.md` §9, §10, §15
-- `specification/StatusDefinitions.md` §7 (Order Status), §8 (Payment Status), §9 (Delivery Status), §10 (Order transitions)
-- `specification/DatabaseFlow.md` §3 (`orders`, `order_items`, `deliveries`, `cash_payments`, `order_status_histories`)
-- `specification/MoneyAndValidationRules.md` §4 (COD full-payment rules)
-
-### Method
-
-`GET`
-
-### Path
-
-`/api/v1/admin/orders/{order}`
-
-### Authentication
-
-Required. `auth:sanctum` bearer token with the `admin` ability.
-
-### Roles
-
-Admin (any active authenticated admin). Unknown order ids answer `404`.
-
-### Request
-
-No body.
-
-### Success response
-
-`200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "order": {
-      "id": 14,
-      "order_number": "ORD-2026-0014",
-      "quotation_id": 71,
-      "quotation_number": "QT-2026-0031",
-      "quotation_request_id": 31,
-      "customer_id": 12,
-      "customer_name": "Aung Aung",
-      "company_name": "Aung Trading Co., Ltd.",
-      "phone": "09123456789",
-      "email": "aung@example.com",
-      "delivery_address": "No. 25, Bo Gyoke Road, Pabedan, Yangon",
-      "city": "Yangon",
-      "township": "Pabedan",
-      "landmark": "Near Bogyoke Market",
-      "subtotal": 275000,
-      "discount": 5000,
-      "delivery_fee": 3000,
-      "service_fee_percentage": 5,
-      "service_fee": 13500,
-      "total_amount": 286500,
-      "payment_method": "CASH_ON_DELIVERY",
-      "payment_status": "NOT_PAID",
-      "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
-      "delivery_status": "NOT_ASSIGNED",
-      "customer_note": "Please call before delivery.",
-      "created_at": "2026-10-24T09:15:00+00:00",
-      "updated_at": "2026-10-24T09:15:00+00:00",
-      "items": [
-        {
-          "id": 41,
-          "product_id": 8,
-          "supplier_id": 3,
-          "product_name_snapshot": "USB-C Fast Charger 30W",
-          "sku_snapshot": "SKU-0008",
-          "specification_snapshot": "30W, GaN, white",
-          "quantity": 5,
-          "unit_price": 25000,
-          "discount": 0,
-          "line_total": 125000,
-          "supplier": {
-            "id": 3,
-            "shop_name": "Thiri Office Supply",
-            "contact_person": "U Ko Ko Naing",
-            "phone": "09310000003"
-          }
-        }
-      ],
-      "delivery": {
-        "id": 9,
-        "supplier_id": 3,
-        "delivery_contact_name": "Aung Aung",
-        "delivery_phone": "09123456789",
-        "delivery_address": "No. 25, Bo Gyoke Road, Pabedan, Yangon",
-        "city": "Yangon",
-        "township": "Pabedan",
-        "landmark": "Near Bogyoke Market",
-        "delivery_fee": 3000,
-        "delivery_partner": null,
-        "tracking_number": null,
-        "estimated_delivery_date": null,
-        "shipped_at": null,
-        "delivered_at": null,
-        "received_by": null,
-        "customer_note": "Please call before delivery.",
-        "delivery_status": "NOT_ASSIGNED"
-      },
-      "cash_payment": {
-        "id": 9,
-        "receipt_number": "RCP-2026-0009",
-        "amount_due": 286500,
-        "amount_collected": 0,
-        "amount_remaining": 286500,
-        "status": "NOT_PAID",
-        "collected_at": null
-      },
-      "status_histories": [
-        {
-          "old_status": null,
-          "new_status": "SUPPLIER_CONFIRMATION_REQUIRED",
-          "changed_by_type": "CUSTOMER",
-          "changed_by_id": 12,
-          "note": "Order created from accepted quotation QT-2026-0031 v1.",
-          "created_at": "2026-10-24T09:15:00+00:00"
-        }
-      ],
-      "quotation_request": {
-        "id": 31,
-        "quotation_number": "QT-2026-0031",
-        "status": "ACCEPTED"
-      },
-      "available_statuses": ["ORDER_CONFIRMED", "SUPPLIER_UNAVAILABLE", "CANCELLED"]
-    }
-  }
-}
-```
-
-Notes:
-
-- `delivery` is the single MVP delivery record, or `null` if none exists.
-- `cash_payment` is the COD payment document, or `null` if none exists.
-- `status_histories` are returned oldest first.
-- `available_statuses` contains only Task 09 supplier-confirmation targets that are valid from the current `order_status` via `StatusTransitionService`: `ORDER_CONFIRMED`, `PREPARING`, `SUPPLIER_UNAVAILABLE`, `CANCELLED`. Delivery and payment stages are never listed here.
-
-### Error responses
-
-| Status | Body | Cause |
-| --- | --- | --- |
-| `401` | `{"message": "Unauthenticated."}` | Missing, invalid or revoked bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Customer token or token without the `admin` ability |
-| `404` | `{"message": "No query results for model [App\\Models\\Order] {id}"}` | Unknown order id |
-
----
-
-## PATCH /api/v1/admin/orders/{order}/status
-
-### Task
-
-Task 09 — Transactional Order Conversion and Supplier Confirmation (admin supplier-confirmation transitions).
-
-### Specification
-
-- `specification/LogicFlow.md` §10 (Supplier Confirmation by Admin), §13 (Cancellation Logic), §15 (Audit Logic)
-- `specification/StatusDefinitions.md` §7 (Order Status), §10 (Order transitions)
-- `specification/DatabaseFlow.md` §3 (`orders`, `order_status_histories`, `audit_logs`)
-
-### Method
-
-`PATCH`
-
-### Path
-
-`/api/v1/admin/orders/{order}/status`
-
-### Authentication
-
-Required. `auth:sanctum` bearer token with the `admin` ability.
-
-### Roles
-
-Admin (any active authenticated admin). Unknown order ids answer `404`.
-
-### Request
-
-| Field | Rules |
-| --- | --- |
-| `status` | required, one of `ORDER_CONFIRMED`, `PREPARING`, `SUPPLIER_UNAVAILABLE`, `CANCELLED` |
-| `note` | nullable string, max 2000; required when `status` is `SUPPLIER_UNAVAILABLE` or `CANCELLED` |
-
-```json
-{
-  "status": "SUPPLIER_UNAVAILABLE",
-  "note": "Supplier confirmed the item is out of stock."
-}
-```
-
-Inside one transaction the order row is locked and the current status re-read. The target must be one of the Task 09 supplier-confirmation values and must be a valid transition from the current status. Delivery and payment stages (`READY_TO_SHIP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `COMPLETED`, `RETURNED`, payment statuses) are rejected with `422` even where a later Task 10 workflow would allow them. On success:
-
-- `orders.order_status` is updated.
-- One `order_status_histories` row is appended with the old/new status, `changed_by_type = "ADMIN"`, the authenticated admin id and the note.
-- One `audit_logs` row is written with `action = "order.status_updated"`, `entity_type = "order"`, the order id, old status and new status + note.
-
-### Success response
-
-`200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "order": {
-      "id": 14,
-      "order_number": "ORD-2026-0014",
-      "quotation_number": "QT-2026-0031",
-      "customer_name": "Aung Aung",
-      "phone": "09123456789",
-      "order_status": "SUPPLIER_UNAVAILABLE",
-      "payment_status": "NOT_PAID",
-      "delivery_status": "NOT_ASSIGNED",
-      "total_amount": 286500,
-      "created_at": "2026-10-24T09:15:00+00:00"
-    }
-  },
-  "message": "Order status updated."
-}
-```
-
-### Error responses
-
-| Status | Body | Cause |
-| --- | --- | --- |
-| `401` | `{"message": "Unauthenticated."}` | Missing, invalid or revoked bearer token |
-| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Customer token or token without the `admin` ability |
-| `404` | `{"message": "No query results for model [App\\Models\\Order] {id}"}` | Unknown order id |
-| `422` | Laravel validation shape | Missing/invalid `status`, a delivery/payment target, note over 2000 chars, or missing note for `SUPPLIER_UNAVAILABLE`/`CANCELLED` |
-| `409` | `{"success": false, "message": "Invalid status transition for [order]: [PREPARING] -> [ORDER_CONFIRMED]."}` | Target is not reachable from the current order status |
-
----
-
 ## GET /api/v1/admin/files/{path}
 
 ### Task
@@ -4906,3 +4449,1247 @@ Required. Admin token.
 | --- | --- | --- |
 | `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
 | `404` | `{"success": false, "message": "File not found."}` | Missing or unsafe path |
+
+---
+
+# Task 09 — Transactional Order Conversion and Supplier Confirmation
+
+An order exists only after a customer accepts the current valid quotation version. Its header, item lines, delivery and COD payment records are frozen snapshots; later catalog or quotation changes never alter them. `GET /customer/orders*` is customer-scoped, while `/admin/orders*` requires an admin token and drives the supplier-confirmation workflow.
+
+## Shared order shape
+
+`order` summary objects (list rows and the nested accept response) contain:
+
+```json
+{
+  "id": 8,
+  "order_number": "ORD-2026-000008",
+  "quotation_id": 77,
+  "quotation_request_id": 42,
+  "customer_id": 3,
+  "customer_name": "Daw Hla",
+  "company_name": "Hla Trading",
+  "phone": "09-770-100-200",
+  "email": "daw.hla@example.com",
+  "delivery_address": "No. 12, Merchant St",
+  "city": "Yangon",
+  "township": "Bahan",
+  "landmark": "Near Bogyoke Market",
+  "subtotal": 25000,
+  "discount": 1000,
+  "delivery_fee": 500,
+  "service_fee_percentage": 5,
+  "service_fee": 1250,
+  "total_amount": 25750,
+  "payment_method": "CASH_ON_DELIVERY",
+  "payment_status": "NOT_PAID",
+  "order_status": "SUPPLIER_CONFIRMATION_REQUIRED",
+  "delivery_status": "NOT_ASSIGNED",
+  "customer_note": null,
+  "item_count": 1,
+  "created_at": "2026-10-23T09:00:00+00:00",
+  "updated_at": "2026-10-23T09:00:00+00:00"
+}
+```
+
+A detail response adds:
+
+- `items[]` — immutable lines copied from `quotation_version_items` (`product_name_snapshot`, `sku_snapshot`, `specification_snapshot`, `quantity`, `unit_price`, `discount`, `line_total`, optional `supplier { id, shop_name }`).
+- `delivery` — the single full-delivery record (`delivery_status`, address/contact snapshot, `delivery_fee`, `estimated_delivery_date`, tracking fields).
+- `cash_payment` — the COD record (`receipt_number`, `amount_due`, `amount_collected`, `amount_remaining`, `status`, `receipt_available`). `receipt_available` is `true` once the receipt PDF can be downloaded; private file paths are never returned.
+- `status_histories[]` — append-only `old_status → new_status` rows with `changed_by_type` (`SYSTEM`/`ADMIN`), `changed_by_id`, `note`, `created_at`.
+- `quotation` — source version (`quotation_number`, `version`, `status`, `accepted_at`, `valid_until`).
+- `suppliers[]` — **admin only**: supplier lines grouped for Viber confirmation, each with `supplier` contact fields (`shop_name`, `contact_person`, `phone`, `viber_phone`, `email`, `delivery_time`, `warranty_policy`) and the `items` they cover. Always `[]` for customer responses.
+
+Money values are integer MMK and are never recalculated from current prices.
+
+---
+
+## GET /api/v1/customer/orders
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/customer/orders`
+
+### Authentication
+
+Required. Customer token.
+
+### Request query
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | no | Default `1` |
+| `per_page` | integer | no | 1–100, default `15` |
+| `status` | enum | no | One of the order statuses below |
+
+Order statuses: `SUPPLIER_CONFIRMATION_REQUIRED`, `ORDER_CONFIRMED`, `PREPARING`, `READY_TO_SHIP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `COMPLETED`, `SUPPLIER_UNAVAILABLE`, `DELIVERY_FAILED`, `RETURNED`, `CANCELLED`.
+
+### Success response
+
+`200 OK`, newest first, scoped to the authenticated customer:
+
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [ { "...": "order summary" } ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 1, "last_page": 1 },
+    "statuses": ["SUPPLIER_CONFIRMATION_REQUIRED", "ORDER_CONFIRMED", "..."]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Customer access required."}` | Non-customer token |
+| `422` | Validation errors keyed `status` | Unknown status value |
+
+---
+
+## GET /api/v1/customer/orders/{order}
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/customer/orders/{order}`
+
+### Authentication
+
+Required. Customer token.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": { "order": { "...": "order summary + detail fields", "suppliers": [] } }
+}
+```
+
+`{order}` must belong to the authenticated customer. Supplier contact groups are never included on this endpoint.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Order not found."}` | Unknown id or another customer's order |
+
+---
+
+## GET /api/v1/admin/orders
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/admin/orders`
+
+### Authentication
+
+Required. Admin token.
+
+### Request query
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | no | Default `1` |
+| `per_page` | integer | no | 1–100, default `15` |
+| `status` | enum | no | Order status |
+| `payment_status` | enum | no | `NOT_PAID`, `CASH_COLLECTION_PENDING`, `CASH_COLLECTED`, `PAYMENT_CONFIRMED`, `PAYMENT_FAILED`, `CUSTOMER_REFUSED_TO_PAY` |
+| `search` | string | no | Max 100 chars; matches order number, customer name, company, phone or email |
+
+### Success response
+
+`200 OK`, newest first:
+
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [ { "...": "order summary" } ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 1, "last_page": 1 },
+    "statuses": ["SUPPLIER_CONFIRMATION_REQUIRED", "ORDER_CONFIRMED", "..."],
+    "payment_statuses": ["NOT_PAID", "CASH_COLLECTION_PENDING", "..."]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation errors keyed `status` / `payment_status` | Unknown enum value |
+
+---
+
+## GET /api/v1/admin/orders/{order}
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Method / Path
+
+`GET /api/v1/admin/orders/{order}`
+
+### Authentication
+
+Required. Admin token.
+
+### Success response
+
+`200 OK` with the full detail fields above, including the admin-only `suppliers[]` groups used to contact suppliers over Viber.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+
+---
+
+## POST /api/v1/admin/orders/{order}/supplier-confirmation
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Specification
+
+- `specification/LogicFlow.md` §10 (Supplier Confirmation by Admin)
+- `specification/StatusDefinitions.md` §10 (Order status transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/supplier-confirmation`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "result": "CONFIRMED",
+  "note": "Supplier confirmed stock and delivery date over Viber."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `result` | enum | yes | `CONFIRMED` or `UNAVAILABLE` |
+| `note` | string | conditional | 3–2000 chars; required when `result = UNAVAILABLE`, optional for `CONFIRMED` |
+
+### Behaviour
+
+- `CONFIRMED` moves the order `SUPPLIER_CONFIRMATION_REQUIRED → ORDER_CONFIRMED → PREPARING` in one transaction and writes **two** `ADMIN` history rows.
+- `UNAVAILABLE` moves `SUPPLIER_CONFIRMATION_REQUIRED → SUPPLIER_UNAVAILABLE` (terminal) and writes one `ADMIN` history row.
+- Every action writes an `audit_logs` row (`ORDER_SUPPLIER_CONFIRMED` / `ORDER_SUPPLIER_UNAVAILABLE`) with the admin id and IP.
+- Only an order currently in `SUPPLIER_CONFIRMATION_REQUIRED` can be confirmed or marked unavailable. Repeated calls return `422`.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Supplier confirmation recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `result` / `note` | Unknown result or missing unavailable reason |
+| `422` | `{"message": "Only an order waiting for supplier confirmation can be confirmed.", "errors": {"order": ["..."]}}` | Order is already confirmed, unavailable, or otherwise past supplier confirmation |
+
+---
+
+## POST /api/v1/admin/orders/{order}/cancel
+
+### Task
+
+Task 09 — Transactional Order Conversion and Supplier Confirmation.
+
+### Specification
+
+- `specification/StatusDefinitions.md` §10 (Order status transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/cancel`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{ "note": "Customer requested cancellation before dispatch." }
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `note` | string | yes | 3–2000 chars; stored on the status history row and shown to the customer |
+
+### Behaviour
+
+Cancellation is allowed only from `SUPPLIER_CONFIRMATION_REQUIRED`, `ORDER_CONFIRMED`, `PREPARING`, `READY_TO_SHIP` or `DELIVERY_FAILED`. Terminal, delivered and in-transit orders are rejected. The action writes one `ADMIN` history row and an `ORDER_CANCELLED` audit row.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Order cancelled.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `note` | Missing or too-short reason |
+| `422` | `{"message": "An order in DELIVERED cannot be cancelled.", "errors": {"order": ["..."]}}` | Current status does not allow cancellation |
+
+---
+
+# Task 10 — Delivery, Full COD Collection and Receipts
+
+Task 10 adds the full-delivery workflow, full COD collection, payment verification and private receipt downloads. Partial delivery and partial payment are rejected throughout. Money values are integer MMK.
+
+### Delivery and payment status flow
+
+```text
+Order:    PREPARING → READY_TO_SHIP → OUT_FOR_DELIVERY → DELIVERED → COMPLETED
+Delivery: PREPARING → OUT_FOR_DELIVERY → DELIVERED
+Payment:  NOT_PAID → CASH_COLLECTION_PENDING → CASH_COLLECTED → PAYMENT_CONFIRMED
+```
+
+- Dispatching an order (`OUT_FOR_DELIVERY`) also moves the COD record from `NOT_PAID` to `CASH_COLLECTION_PENDING`.
+- A failed delivery keeps the payment `CASH_COLLECTION_PENDING` so re-delivery can collect it.
+- Returning an order turns an uncollected (`NOT_PAID` / `CASH_COLLECTION_PENDING`) payment into `PAYMENT_FAILED`.
+- A customer refusal records `CUSTOMER_REFUSED_TO_PAY` plus a delivery outcome (`DELIVERY_FAILED` or `RETURNED`).
+- Payment confirmation requires order and delivery `DELIVERED`, full collection (`amount_collected = amount_due`, `amount_remaining = 0`) and a receipt number, then moves the payment to `PAYMENT_CONFIRMED` and the order to `COMPLETED`.
+
+Every order status change writes an append-only `order_status_histories` row and an `audit_logs` row. Delivery and payment status changes are included in the audit entry.
+
+---
+
+## POST /api/v1/admin/orders/{order}/delivery-status
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §11 (Delivery flow)
+- `specification/StatusDefinitions.md` §10 (Order and delivery transitions)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/delivery-status`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "status": "OUT_FOR_DELIVERY",
+  "note": "Handed to Royal Express for full delivery.",
+  "delivery_partner": "Royal Express",
+  "tracking_number": "TRK-9012",
+  "estimated_delivery_date": "2026-10-30"
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `status` | string | yes | One of `PREPARING`, `READY_TO_SHIP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED`, `RETURNED` |
+| `note` | string | for failure/return | 3–2000 chars; required when status is `DELIVERY_FAILED` or `RETURNED` |
+| `delivery_partner` | string | no | Max 255 chars; stored on the delivery record |
+| `tracking_number` | string | no | Max 100 chars |
+| `estimated_delivery_date` | date | no | `YYYY-MM-DD` |
+| `received_by` | string | for delivery | Required when status is `DELIVERED`; max 255 chars |
+
+### Behaviour
+
+- `PREPARING` starts delivery preparation when the order is `ORDER_CONFIRMED` or already `PREPARING`.
+- `READY_TO_SHIP` accepts `PREPARING` and `DELIVERY_FAILED` (re-delivery) orders and keeps the delivery at `PREPARING`.
+- `OUT_FOR_DELIVERY` requires `READY_TO_SHIP`, sets `shipped_at` when empty, and moves the payment to `CASH_COLLECTION_PENDING`.
+- `DELIVERED` requires both order and delivery `OUT_FOR_DELIVERY`, sets `delivered_at` and `received_by`, and keeps the cash pending.
+- `DELIVERY_FAILED` requires an in-transit order and keeps the payment pending for a retry.
+- `RETURNED` accepts `OUT_FOR_DELIVERY`, `DELIVERY_FAILED` or `DELIVERED`; any uncollected payment becomes `PAYMENT_FAILED`.
+- The delivery record and `orders.delivery_status` always mirror each other.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Delivery status updated.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `status` / `note` / `received_by` | Unsupported target or missing required note/receiver |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Current order or delivery status does not allow the step |
+
+---
+
+## POST /api/v1/admin/orders/{order}/cash-collection
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §12 (Cash collection flow)
+- `specification/MoneyAndValidationRules.md` §4 (COD full-payment rules)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/cash-collection`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "amount_collected": 25750,
+  "received_by": "Daw Mya",
+  "receipt_number": "RCP-2026-000008",
+  "note": "Cash counted twice at the door."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `amount_collected` | integer | yes | Must equal `amount_due`; partial payment is rejected |
+| `received_by` | string | yes | Admin or receiver who counted the cash; 2–255 chars |
+| `receipt_number` | string | no | Max 100 chars, unique across payments; defaults to the pre-generated receipt number |
+| `collected_at` | date-time | no | Defaults to now |
+| `note` | string | no | Max 2000 chars |
+
+### Behaviour
+
+- Cash can only be collected when the order **and** delivery are `DELIVERED`.
+- The payment must be in `NOT_PAID` or `CASH_COLLECTION_PENDING`; previously collected/confirmed/refused payments are rejected.
+- `amount_collected` must exactly equal `amount_due`; `amount_remaining` becomes `0` and the status becomes `CASH_COLLECTED`.
+- A non-empty receipt number is required. The pre-generated `RCP-YYYY-######` number is used when no replacement is supplied.
+- The private receipt PDF is generated immediately under `receipts/...` on the local disk and its path is stored in `cash_payments.receipt_file_path`. The path is never exposed in API responses.
+- The action writes a `CASH_COLLECTED` audit row with the amount, receipt number and receiver.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Cash collection recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `amount_collected` / `received_by` / `receipt_number` | Missing/invalid fields, duplicate receipt number or partial amount |
+| `422` | `{"message": "Cash can only be collected after the full order is delivered.", "errors": {"order": ["..."]}}` | Order/delivery not delivered |
+| `422` | `{"message": "The cash for this order has already been collected.", "errors": {"payment": ["..."]}}` | Payment already collected or confirmed |
+
+---
+
+## POST /api/v1/admin/orders/{order}/payment-confirmation
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/LogicFlow.md` §12
+- `specification/MoneyAndValidationRules.md` §4
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/payment-confirmation`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{ "note": "Cash counted and verified against the receipt." }
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `note` | string | no | 3–2000 chars; stored on the `DELIVERED → COMPLETED` history row |
+
+### Behaviour
+
+Requires order and delivery `DELIVERED`, payment `CASH_COLLECTED`, `amount_collected = amount_due`, `amount_remaining = 0` and a receipt number. The payment becomes `PAYMENT_CONFIRMED`, the order becomes `COMPLETED`, and one `ADMIN` history row plus a `CASH_PAYMENT_CONFIRMED` audit row are written. The receipt is regenerated if the private file is missing.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Payment confirmed and order completed.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | `{"message": "...", "errors": {"payment": ["..."]}}` | Payment not collected, partial, or missing a receipt number |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Order is not delivered in full |
+
+---
+
+## POST /api/v1/admin/orders/{order}/customer-refused-payment
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- `specification/MoneyAndValidationRules.md` §4 (refusal must record payment status, delivery outcome, responsible admin/receiver and note)
+
+### Method / Path
+
+`POST /api/v1/admin/orders/{order}/customer-refused-payment`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+```json
+{
+  "delivery_outcome": "DELIVERY_FAILED",
+  "responsible_person": "Ko Aung",
+  "note": "Customer refused to pay the full COD amount at the door."
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `delivery_outcome` | string | yes | `DELIVERY_FAILED` or `RETURNED` |
+| `responsible_person` | string | yes | Admin or receiver who handled the refusal; 2–255 chars |
+| `note` | string | yes | 3–2000 chars; also appended to the payment note |
+
+### Behaviour
+
+Only allowed while the order and delivery are `OUT_FOR_DELIVERY` and the payment is `NOT_PAID` / `CASH_COLLECTION_PENDING`. The payment becomes `CUSTOMER_REFUSED_TO_PAY`; the delivery and order move to the chosen outcome. The order history note records the outcome, responsible person and reason. A `CUSTOMER_REFUSED_PAYMENT` audit row is written.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Customer payment refusal recorded.",
+  "data": { "order": { "...": "full order detail" } }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown order id |
+| `422` | Validation errors keyed `delivery_outcome` / `responsible_person` / `note` | Missing or invalid fields |
+| `422` | `{"message": "...", "errors": {"order": ["..."]}}` | Order is not out for delivery |
+| `422` | `{"message": "...", "errors": {"payment": ["..."]}}` | Cash already collected or payment not pending |
+
+---
+
+## GET /api/v1/admin/orders/{order}/receipt/download
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- Receipt/proof files are private and authorization-protected.
+
+### Method / Path
+
+`GET /api/v1/admin/orders/{order}/receipt/download`
+
+### Authentication
+
+Required. Admin token.
+
+### Behaviour
+
+Streams the private receipt PDF as `application/pdf` with an attachment filename of `RCP-YYYY-######.pdf`. A receipt exists only after cash has been collected (`CASH_COLLECTED` or `PAYMENT_CONFIRMED`); earlier requests answer `404`. The file is regenerated if the stored private file is missing. No private path appears in any JSON response.
+
+### Success response
+
+`200 OK` — binary PDF stream.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | `{"success": false, "message": "Receipt not found."}` | Unknown order or cash not collected yet |
+
+---
+
+## GET /api/v1/customer/orders/{order}/receipt/download
+
+### Task
+
+Task 10 — Delivery, Full COD Collection and Receipts.
+
+### Specification
+
+- Customer can only view their own delivery/receipt records.
+
+### Method / Path
+
+`GET /api/v1/customer/orders/{order}/receipt/download`
+
+### Authentication
+
+Required. Customer token.
+
+### Behaviour
+
+Same private receipt stream as the admin route, but the order must belong to the authenticated customer. A foreign order id answers `404` so ids cannot be probed. The receipt must already be available (`CASH_COLLECTED` / `PAYMENT_CONFIRMED`).
+
+### Success response
+
+`200 OK` — binary PDF stream.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing or non-customer token |
+| `404` | `{"success": false, "message": "Order not found."}` | Order belongs to another customer or does not exist |
+| `404` | `{"success": false, "message": "Receipt not found."}` | Cash has not been collected yet |
+
+---
+
+## GET /api/v1/notifications
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Database-backed in-app notifications (`notifications` table).
+- API returns only the authenticated recipient's notifications.
+- API supports unread count, paginated list and mark-as-read.
+
+### Method / Path
+
+`GET /api/v1/notifications`
+
+### Authentication
+
+Required. Customer or Admin token. The recipient is resolved from the bearer token; `recipient_type` / `recipient_id` are never accepted as input.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`50` |
+| `unread` | boolean | No | `1` / `true` returns unread rows only |
+
+### Behaviour
+
+Returns the recipient's notifications newest first, together with the unread count used by the React badge. Customer and Admin tokens share this endpoint; a Customer token never sees Admin rows and vice versa.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "notifications": [
+      {
+        "id": 12,
+        "type": "ORDER_OUT_FOR_DELIVERY",
+        "title": "Order out for delivery",
+        "message": "Order ORD-2026-000008 is on its way.",
+        "data": {
+          "order_id": 8,
+          "order_number": "ORD-2026-000008",
+          "quotation_request_id": 42
+        },
+        "quotation_id": null,
+        "order_id": 8,
+        "is_read": false,
+        "read_at": null,
+        "created_at": "2026-10-28T09:00:00+00:00"
+      }
+    ],
+    "unread_count": 1,
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    }
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+| `422` | Validation error | `per_page` out of `1`–`50` or invalid `unread` value |
+
+---
+
+## GET /api/v1/notifications/unread-count
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- React polls the notification endpoint every 60 seconds while authenticated.
+
+### Method / Path
+
+`GET /api/v1/notifications/unread-count`
+
+### Authentication
+
+Required. Customer or Admin token.
+
+### Behaviour
+
+Lightweight count-only endpoint for the 60-second polling provider. The React app pauses polling while the browser tab is hidden and stops it on logout.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "unread_count": 3
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+
+---
+
+## PATCH /api/v1/notifications/{notification}/read
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- API supports mark-as-read for the authenticated recipient.
+
+### Method / Path
+
+`PATCH /api/v1/notifications/{notification}/read`
+
+### Authentication
+
+Required. Customer or Admin token; the notification must belong to the token holder.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Marks one notification as read and stamps `read_at`. The call is idempotent: an already-read notification keeps its original `read_at`. A notification owned by another recipient answers `404` so ids cannot be probed.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "notification": {
+      "id": 12,
+      "type": "ORDER_OUT_FOR_DELIVERY",
+      "title": "Order out for delivery",
+      "message": "Order ORD-2026-000008 is on its way.",
+      "data": { "order_id": 8 },
+      "quotation_id": null,
+      "order_id": 8,
+      "is_read": true,
+      "read_at": "2026-10-28T09:05:00+00:00",
+      "created_at": "2026-10-28T09:00:00+00:00"
+    },
+    "unread_count": 2
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+| `404` | `{"success": false, "message": "Notification not found."}` | Notification belongs to another recipient or does not exist |
+
+---
+
+## POST /api/v1/notifications/read-all
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Notification center supports marking every unread notification read.
+
+### Method / Path
+
+`POST /api/v1/notifications/read-all`
+
+### Authentication
+
+Required. Customer or Admin token.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Marks every unread notification owned by the token holder as read. Other recipients' rows are untouched.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "marked": 3,
+    "unread_count": 0
+  },
+  "message": "Notifications marked as read."
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | Authentication error | Missing or invalid token |
+
+---
+
+## GET /api/v1/admin/email-logs
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Email delivery status and error recording in `email_logs`.
+- Admin email-log list with delivery errors and resend actions.
+
+### Method / Path
+
+`GET /api/v1/admin/email-logs`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`100` |
+| `status` | string | No | `SENT` or `FAILED` |
+| `email_type` | string | No | One of `QUOTATION_SENT`, `ORDER_CONFIRMED`, `ORDER_OUT_FOR_DELIVERY`, `PAYMENT_CONFIRMED`, `ORDER_CANCELLED` |
+| `search` | string | No | Case-insensitive match on recipient email or subject, max `100` characters |
+
+### Behaviour
+
+Lists every synchronous email attempt newest first with its stored status and error message. Email failure never rolls back the related quotation or order; the failed attempt simply appears here for resend.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "email_logs": [
+      {
+        "id": 5,
+        "recipient_email": "buyer@example.com",
+        "related_type": "App\\Models\\Order",
+        "related_id": 8,
+        "email_type": "ORDER_CONFIRMED",
+        "subject": "Order ORD-2026-000008 confirmed",
+        "status": "FAILED",
+        "sent_at": null,
+        "error_message": "Connection refused",
+        "resendable": true,
+        "created_at": "2026-10-28T09:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    },
+    "statuses": ["SENT", "FAILED"],
+    "email_types": [
+      "QUOTATION_SENT",
+      "ORDER_CONFIRMED",
+      "ORDER_OUT_FOR_DELIVERY",
+      "PAYMENT_CONFIRMED",
+      "ORDER_CANCELLED"
+    ]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `status` / `email_type` or `per_page` out of range |
+
+---
+
+## POST /api/v1/admin/email-logs/{emailLog}/resend
+
+### Task
+
+Task 11 — Email and In-App Notifications.
+
+### Specification
+
+- Admin email-log list and resend actions.
+- Failure status is kept; resend is an explicit recovery action.
+
+### Method / Path
+
+`POST /api/v1/admin/email-logs/{emailLog}/resend`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+No body.
+
+### Behaviour
+
+Re-renders and sends the original transactional email synchronously. A new `email_logs` row is appended with the fresh result (`SENT` / `FAILED`); the original attempt row is never modified. Quotation emails attach the newest generated private PDF. Every resend writes an `email.resent` audit entry containing the new log id.
+
+Only types in `App\Enums\EmailType` are resendable (`resendable` in the list response). A quotation email is refused once the quotation no longer has `sent_at`; an order email is refused when the related order no longer exists.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "email": {
+      "id": 6,
+      "recipient_email": "buyer@example.com",
+      "related_type": "App\\Models\\Order",
+      "related_id": 8,
+      "email_type": "ORDER_CONFIRMED",
+      "subject": "Order ORD-2026-000008 confirmed",
+      "status": "SENT",
+      "sent_at": "2026-10-28T10:00:00+00:00",
+      "error_message": null,
+      "resendable": true,
+      "created_at": "2026-10-28T10:00:00+00:00"
+    }
+  },
+  "message": "Email resent."
+}
+```
+
+The response is still `200` when the resend attempt itself fails: the new log row carries `"status": "FAILED"` and the mail error in `error_message`.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown email log id |
+| `422` | `{"success": false, "message": "...", "errors": {"email_log": ["This email type cannot be resent."]}}` | Legacy/unsupported `email_type` or the related record can no longer be resent |
+
+---
+
+## GET /api/v1/admin/audit-logs
+
+### Task
+
+Task 12 — Audit, Security, and Validation Hardening.
+
+### Specification
+
+- `specification/LogicFlow.md` §15 (Audit Logic)
+- `specification/DatabaseFlow.md` `audit_logs`
+- `specification/RolesPermissions.md` §2 (Admin: view audit logs)
+
+### Method / Path
+
+`GET /api/v1/admin/audit-logs`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `25`, `1`–`100` |
+| `action` | string | No | Exact action key, e.g. `setting.updated`, max `100` characters |
+| `entity_type` | string | No | Exact entity type, e.g. `product`, `order`, `setting` |
+| `admin_id` | integer | No | Must exist in `admins` |
+| `search` | string | No | Case-insensitive match on `action`, `entity_id` or `ip_address`, max `100` characters |
+| `from` | date | No | Inclusive lower bound on `created_at` |
+| `to` | date | No | Inclusive upper bound; must be on or after `from` |
+
+### Behaviour
+
+Lists the append-only audit trail newest first. Rows are never created, updated or deleted through this endpoint. Each row holds the acting Admin, the action key, the entity type/id, the request IP, and the `old_data` / `new_data` snapshots written by the service that performed the change. `admin` is `null` if the admin account was removed (the audit row is kept).
+
+The response also returns the distinct `actions`, `entity_types` and `admins` currently present so the Admin screen can build filters without extra requests.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "audit_logs": [
+      {
+        "id": 42,
+        "action": "setting.updated",
+        "entity_type": "setting",
+        "entity_id": "7",
+        "old_data": {
+          "key": "quotation_validity_days",
+          "value": 7
+        },
+        "new_data": {
+          "key": "quotation_validity_days",
+          "value": 14
+        },
+        "ip_address": "127.0.0.1",
+        "created_at": "2026-10-28T09:00:00+00:00",
+        "admin": {
+          "id": 1,
+          "name": "CoSupply Admin",
+          "email": "admin@example.com"
+        }
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 25,
+      "total": 1,
+      "last_page": 1
+    },
+    "actions": ["setting.updated"],
+    "entity_types": ["setting"],
+    "admins": [
+      {
+        "id": 1,
+        "name": "CoSupply Admin",
+        "email": "admin@example.com"
+      }
+    ]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `admin_id`, invalid date range, or `per_page` out of range |
+
+---
+
+## GET /api/v1/admin/customers
+
+### Task
+
+Task 12 — Audit, Security, and Validation Hardening.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1–2 (Customer/Admin permissions)
+- `specification/ImplementationNotes.md` §3 (Admin screens: Customers)
+- `specification/DatabaseFlow.md` `customers`
+
+### Method / Path
+
+`GET /api/v1/admin/customers`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`100` |
+| `status` | string | No | `active`, `inactive` or `suspended` |
+| `customer_type` | string | No | `individual` or `business` |
+| `search` | string | No | Case-insensitive match on name, phone, email or company name, max `100` characters |
+
+### Behaviour
+
+Read-only customer directory, newest first. Each row exposes the profile fields an Admin needs (name, phone, email, company, account type, status) plus the number of quotation requests and orders owned by that customer. Password hashes and remember tokens are never serialized.
+
+There is intentionally no Admin create/update/delete route for customers: registration and profile edits remain customer-owned. The response also returns the allowed `statuses` and `customer_types` for the filter controls.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [
+      {
+        "id": 4,
+        "name": "Daw Hla",
+        "phone": "09123456789",
+        "email": "hla@example.com",
+        "company_name": "Hla Trading",
+        "customer_type": "business",
+        "status": "active",
+        "quotation_requests_count": 2,
+        "orders_count": 1,
+        "created_at": "2026-10-20T08:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    },
+    "statuses": ["active", "inactive", "suspended"],
+    "customer_types": ["individual", "business"]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `status` / `customer_type` or `per_page` out of range |

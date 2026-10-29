@@ -13,11 +13,12 @@ use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\SupplierCommunication;
 use App\Services\Audit\AuditLogService;
+use App\Services\Notification\EmailNotificationService;
+use App\Services\Notification\NotificationService;
 use App\Services\Setting\SettingService;
 use App\Services\Status\StatusTransitionService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -35,7 +36,8 @@ class QuotationWorkflowService
         private readonly StatusTransitionService $statuses,
         private readonly QuotationTotalsCalculator $calculator,
         private readonly QuotationPdfService $pdfs,
-        private readonly QuotationEmailService $emails,
+        private readonly EmailNotificationService $emails,
+        private readonly NotificationService $notifications,
         private readonly AuditLogService $auditLogs,
     ) {}
 
@@ -219,8 +221,27 @@ class QuotationWorkflowService
                 [
                     'quotation_request_id' => $request->id,
                     'version' => $version,
+                    'subtotal' => $quotation->subtotal,
+                    'discount' => $quotation->discount,
+                    'delivery_fee' => $quotation->delivery_fee,
+                    'service_fee_percentage' => $quotation->service_fee_percentage,
+                    'service_fee' => $quotation->service_fee,
                     'total_amount' => $quotation->total_amount,
+                    'payment_method' => $quotation->payment_method,
+                    'payment_terms' => $quotation->payment_terms,
+                    'valid_until' => $prepared['valid_until'],
+                    'admin_note' => $quotation->admin_note,
                 ],
+                $ip,
+            );
+
+            $this->logServiceFeeOverride(
+                $admin,
+                $quotation,
+                $prepared['default_service_fee_percentage'],
+                $quotation->service_fee_percentage,
+                null,
+                $quotation->service_fee,
                 $ip,
             );
 
@@ -258,7 +279,14 @@ class QuotationWorkflowService
                 'service_fee_percentage' => $version->service_fee_percentage,
                 'service_fee' => $version->service_fee,
                 'total_amount' => $version->total_amount,
+                'payment_method' => $version->payment_method,
+                'payment_terms' => $version->payment_terms,
+                'valid_until' => $version->valid_until?->toDateString(),
+                'admin_note' => $version->admin_note,
             ];
+
+            $previousServiceFeePercentage = $version->service_fee_percentage;
+            $previousServiceFee = $version->service_fee;
 
             $version->update([
                 'subtotal' => $prepared['subtotal'],
@@ -296,7 +324,21 @@ class QuotationWorkflowService
                     'service_fee_percentage' => $version->service_fee_percentage,
                     'service_fee' => $version->service_fee,
                     'total_amount' => $version->total_amount,
+                    'payment_method' => $version->payment_method,
+                    'payment_terms' => $version->payment_terms,
+                    'valid_until' => $version->valid_until?->toDateString(),
+                    'admin_note' => $version->admin_note,
                 ],
+                $ip,
+            );
+
+            $this->logServiceFeeOverride(
+                $admin,
+                $version,
+                $previousServiceFeePercentage,
+                $version->service_fee_percentage,
+                $previousServiceFee,
+                $version->service_fee,
                 $ip,
             );
 
@@ -413,7 +455,9 @@ class QuotationWorkflowService
             return $version->fresh(['items.supplier', 'pdfs', 'emailLogs']);
         });
 
-        $email = $this->emails->send($sent);
+        $this->notifications->quotationSent($sent);
+
+        $email = $this->emails->sendQuotation($sent);
 
         return [
             'quotation' => $sent->fresh(['items.supplier', 'pdfs', 'emailLogs']),
@@ -436,7 +480,7 @@ class QuotationWorkflowService
             $quotation->load('pdfs');
         }
 
-        $email = $this->emails->send($quotation, true);
+        $email = $this->emails->sendQuotation($quotation, true);
 
         $this->auditLogs->log(
             $admin,
@@ -482,6 +526,7 @@ class QuotationWorkflowService
      *     discount: int,
      *     delivery_fee: int,
      *     service_fee_percentage: int,
+     *     default_service_fee_percentage: int,
      *     service_fee: int,
      *     total_amount: int,
      *     payment_terms: string,
@@ -560,11 +605,47 @@ class QuotationWorkflowService
             'discount' => $discount,
             'delivery_fee' => $deliveryFee,
             'service_fee_percentage' => $percentage,
+            'default_service_fee_percentage' => $defaultPercentage,
             'service_fee' => $totals['service_fee'],
             'total_amount' => $totals['total_amount'],
             'payment_terms' => (string) ($data['payment_terms'] ?? 'Full payment on delivery (COD).'),
             'valid_until' => (string) ($data['valid_until'] ?? now()->addDays($validityDays)->toDateString()),
         ];
+    }
+
+    /**
+     * Record a per-version service-fee override with its prior and new
+     * values (MoneyAndValidationRules §3). Unchanged percentages are skipped.
+     */
+    private function logServiceFeeOverride(
+        Admin $admin,
+        Quotation $quotation,
+        int $previousPercentage,
+        int $newPercentage,
+        ?int $previousFee,
+        int $newFee,
+        ?string $ip,
+    ): void {
+        if ($previousPercentage === $newPercentage) {
+            return;
+        }
+
+        $this->auditLogs->log(
+            $admin,
+            'quotation.service_fee_overridden',
+            'quotation',
+            (string) $quotation->id,
+            [
+                'service_fee_percentage' => $previousPercentage,
+                'service_fee' => $previousFee,
+            ],
+            [
+                'service_fee_percentage' => $newPercentage,
+                'service_fee' => $newFee,
+                'version' => $quotation->version,
+            ],
+            $ip,
+        );
     }
 
     /**

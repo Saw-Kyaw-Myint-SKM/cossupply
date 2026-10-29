@@ -23,7 +23,7 @@ import {
   type EmailLog,
   type QuotationVersion,
 } from '../api/quotationAdminApi';
-import { saveDownloadedFile } from '../lib/downloadFile';
+import { saveDownloadedFile } from '../../../lib/downloadFile';
 
 function formatDate(value: string | null): string {
   if (!value) return '—';

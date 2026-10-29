@@ -4,14 +4,10 @@ namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Reject the current quotation with an optional customer note.
- */
 class RejectQuotationRequest extends FormRequest
 {
     /**
-     * Route access is enforced by auth:sanctum + customer middleware and
-     * ownership is re-checked in the action service.
+     * Route access is enforced by auth:sanctum + customer middleware.
      */
     public function authorize(): bool
     {

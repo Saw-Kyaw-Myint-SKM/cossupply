@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\QuotationRequestStatus;
@@ -147,6 +148,30 @@ class StatusTransitionServiceTest extends TestCase
             ],
         ]);
 
+        $add(StatusTransitionService::DOMAIN_DELIVERY, [
+            DeliveryStatus::NOT_ASSIGNED->value => [
+                DeliveryStatus::PREPARING->value,
+            ],
+            DeliveryStatus::PREPARING->value => [
+                DeliveryStatus::OUT_FOR_DELIVERY->value,
+                DeliveryStatus::DELIVERY_FAILED->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::OUT_FOR_DELIVERY->value => [
+                DeliveryStatus::DELIVERED->value,
+                DeliveryStatus::DELIVERY_FAILED->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::DELIVERY_FAILED->value => [
+                DeliveryStatus::PREPARING->value,
+                DeliveryStatus::OUT_FOR_DELIVERY->value,
+                DeliveryStatus::RETURNED->value,
+            ],
+            DeliveryStatus::DELIVERED->value => [
+                DeliveryStatus::RETURNED->value,
+            ],
+        ]);
+
         $add(StatusTransitionService::DOMAIN_CASH_PAYMENT, [
             PaymentStatus::NOT_PAID->value => [
                 PaymentStatus::CASH_COLLECTION_PENDING->value,
@@ -252,8 +277,23 @@ class StatusTransitionServiceTest extends TestCase
                 PaymentStatus::PAYMENT_CONFIRMED->value,
                 PaymentStatus::NOT_PAID->value,
             ],
+            'delivery NOT_ASSIGNED -> DELIVERED skips preparation' => [
+                StatusTransitionService::DOMAIN_DELIVERY,
+                DeliveryStatus::NOT_ASSIGNED->value,
+                DeliveryStatus::DELIVERED->value,
+            ],
+            'delivery PREPARING -> DELIVERED skips dispatch' => [
+                StatusTransitionService::DOMAIN_DELIVERY,
+                DeliveryStatus::PREPARING->value,
+                DeliveryStatus::DELIVERED->value,
+            ],
+            'delivery RETURNED is terminal' => [
+                StatusTransitionService::DOMAIN_DELIVERY,
+                DeliveryStatus::RETURNED->value,
+                DeliveryStatus::PREPARING->value,
+            ],
             'unknown domain' => [
-                'delivery',
+                'not_a_domain',
                 'NOT_ASSIGNED',
                 'PREPARING',
             ],

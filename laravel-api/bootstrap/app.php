@@ -6,6 +6,7 @@ use App\Http\Middleware\CheckCustomerAbility;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -32,6 +33,19 @@ return Application::configure(basePath: dirname(__DIR__))
                     'success' => false,
                     'message' => $exception->getMessage(),
                 ], 409);
+            }
+
+            return null;
+        });
+
+        // Task 12: keep the API error envelope for rate-limited requests and
+        // expose only the retry hint, never internals.
+        $exceptions->render(function (ThrottleRequestsException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many attempts. Please wait and try again.',
+                ], 429, ['Retry-After' => $exception->getHeaders()['Retry-After'] ?? '60']);
             }
 
             return null;

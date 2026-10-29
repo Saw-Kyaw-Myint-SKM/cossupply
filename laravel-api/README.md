@@ -93,6 +93,14 @@ php artisan test
 vendor/bin/pint --test
 ```
 
+## Deployment
+
+Production (cPanel) setup, environment/secret handling, HTTPS/CORS, storage
+permissions, migrations and backups: [`../docs/deployment.md`](../docs/deployment.md).
+
+No scheduler or long-running queue worker is required. `QUEUE_CONNECTION=sync`
+keeps email delivery synchronous, and in-app notifications are polled by the SPA.
+
 ## About Laravel
 
 Laravel is accessible, powerful, and provides tools required for large, robust

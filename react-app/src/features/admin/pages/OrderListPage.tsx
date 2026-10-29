@@ -1,9 +1,9 @@
 /**
  * Admin order queue (Task 09).
  *
- * The first operational screen after a customer accepts a quotation. Status and
- * search filters run server-side; every row opens the supplier-confirmation
- * detail. No delivery or payment actions live here — those arrive in Task 10.
+ * Entry point to the supplier-confirmation workflow. Status, payment status
+ * and text filters all run server-side. The list shows the frozen order
+ * snapshot only; actions live on the detail page.
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,52 +13,50 @@ import {
   LoadingPanel,
   PageHeader,
   Pagination,
+  StatusBadge,
   describeLoadError,
+  formatStatusLabel,
   inputClass,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
-import { formatMMK } from '../../../lib/money';
 import type { PaginationMeta } from '../../../api/query';
-import {
-  listAdminOrders,
-  type AdminOrderSummary,
-} from '../api/ordersApi';
-import OrderStatusBadge from '../components/OrderStatusBadge';
-import {
-  ORDER_STATUSES,
-  formatOrderDate,
-  orderStatusLabel,
-} from '../lib/orderStatus';
+import { formatMMK } from '../../../lib/money';
+import { listAdminOrders } from '../api/orderAdminApi';
+import { ORDER_STATUSES, PAYMENT_STATUSES } from '../../orders/api/ordersApi';
+import type { OrderStatus, OrderSummary, PaymentStatus } from '../../orders/api/ordersApi';
+import { formatOrderDate } from '../../orders/lib/orderDisplay';
 
 const PER_PAGE = 15;
 
 export default function OrderListPage() {
-  const [orders, setOrders] = useState<AdminOrderSummary[] | null>(null);
+  const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentStatus | ''>('');
+  const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+
+  const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadErrorState | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      setLoading(true);
+      setIsLoading(true);
       setLoadError(null);
 
       const response = await listAdminOrders({
         page,
         per_page: PER_PAGE,
-        order_status: status || undefined,
-        search: search || undefined,
+        status: statusFilter,
+        payment_status: paymentFilter,
+        search: appliedSearch,
       });
 
       if (cancelled) return;
@@ -66,19 +64,11 @@ export default function OrderListPage() {
       if (response.success && response.data) {
         setOrders(response.data.orders);
         setMeta(response.data.meta);
-
-        if (
-          response.data.orders.length === 0 &&
-          page > 1 &&
-          response.data.meta.last_page < page
-        ) {
-          setPage(Math.max(response.data.meta.last_page, 1));
-        }
       } else {
-        setLoadError(describeLoadError(response, 'the order queue'));
+        setLoadError(describeLoadError(response, 'orders'));
       }
 
-      setLoading(false);
+      setIsLoading(false);
     };
 
     void load();
@@ -86,215 +76,246 @@ export default function OrderListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, status, search, reloadToken]);
+  }, [page, statusFilter, paymentFilter, appliedSearch, reloadToken]);
 
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSearch(searchInput.trim());
-    setPage(1);
-  };
-
-  const clearFilters = () => {
-    setSearchInput('');
+  const resetFilters = () => {
+    setStatusFilter('');
+    setPaymentFilter('');
     setSearch('');
-    setStatus('');
+    setAppliedSearch('');
     setPage(1);
   };
 
-  const hasFilters = search !== '' || status !== '';
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    setAppliedSearch(search.trim());
+    setPage(1);
+  };
+
+  const hasFilters = statusFilter !== '' || paymentFilter !== '' || appliedSearch !== '';
+
+  const header = (
+    <PageHeader
+      title="Orders"
+      description="Orders created from accepted quotations. Confirm supplier availability before preparation starts."
+    />
+  );
+
+  if (loadError && (loadError.needsLogin || orders === null)) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <Alert tone="error">
+          <div>
+            <p className="font-semibold">Orders are unavailable</p>
+            <p className="mt-1">{loadError.message}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setReloadToken((token) => token + 1)}
+                className={primaryButtonClass}
+              >
+                Try again
+              </button>
+              {loadError.needsLogin ? (
+                <Link to="/admin/login" className={linkClass}>
+                  Go to admin login
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isLoading && orders === null) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LoadingPanel label="Loading orders…" />
+      </div>
+    );
+  }
+
+  const rows = orders ?? [];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Orders"
-        description="Accepted quotations become orders here. Confirm supplier availability, then move confirmed orders into preparation."
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Link to="/admin/quotations" className={secondaryButtonClass}>
-              Quotation queue
-            </Link>
-            <Link to="/admin/dashboard" className={secondaryButtonClass}>
-              Admin dashboard
-            </Link>
-          </div>
-        }
-      />
+      {header}
 
-      <section
-        className="rounded-lg border border-rule bg-plate p-4"
-        aria-label="Filter orders"
+      <form
+        onSubmit={submitSearch}
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-rule bg-plate p-4"
       >
-        <form
-          onSubmit={submitSearch}
-          className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px_auto]"
-        >
-          <div>
-            <label htmlFor="order-search" className="block text-sm font-medium text-gray-900">
-              Search
-            </label>
-            <input
-              id="order-search"
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Order number, quotation number, customer, phone"
-              maxLength={100}
-              className={`${inputClass(false)} mt-1`}
-            />
-          </div>
+        <div className="min-w-0 flex-1 sm:max-w-xs">
+          <label htmlFor="order-search" className="block text-sm font-medium text-ink">
+            Search
+          </label>
+          <input
+            id="order-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            maxLength={100}
+            placeholder="Order number, customer, phone…"
+            className={`${inputClass(false)} mt-1`}
+          />
+        </div>
 
-          <div>
-            <label htmlFor="order-status" className="block text-sm font-medium text-gray-900">
-              Order status
-            </label>
-            <select
-              id="order-status"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className={`${inputClass(false)} mt-1`}
-            >
-              <option value="">All statuses</option>
-              {ORDER_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {orderStatusLabel(value)}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label htmlFor="order-status" className="block text-sm font-medium text-ink">
+            Order status
+          </label>
+          <select
+            id="order-status"
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+            className={`${inputClass(false)} mt-1 w-full sm:w-56`}
+          >
+            <option value="">All statuses</option>
+            {ORDER_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {formatStatusLabel(status)}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div className="flex items-end gap-2">
-            <button type="submit" className={primaryButtonClass}>
-              Filter
+        <div>
+          <label htmlFor="order-payment-status" className="block text-sm font-medium text-ink">
+            Payment status
+          </label>
+          <select
+            id="order-payment-status"
+            value={paymentFilter}
+            onChange={(event) => {
+              setPaymentFilter(event.target.value);
+              setPage(1);
+            }}
+            className={`${inputClass(false)} mt-1 w-full sm:w-52`}
+          >
+            <option value="">All payments</option>
+            {PAYMENT_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {formatStatusLabel(status)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="submit" className={primaryButtonClass}>
+            Search
+          </button>
+          {hasFilters ? (
+            <button type="button" onClick={resetFilters} className={secondaryButtonClass}>
+              Clear
             </button>
-            {hasFilters ? (
-              <button type="button" onClick={clearFilters} className={secondaryButtonClass}>
-                Clear
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
+          ) : null}
+        </div>
+      </form>
+
+      {isLoading ? (
+        <p className="px-1 text-xs text-gray-500" aria-live="polite">
+          Refreshing orders…
+        </p>
+      ) : null}
 
       {loadError ? (
-        <Alert tone="error">
-          <p>{loadError.message}</p>
-          {loadError.needsLogin ? (
-            <Link to="/admin/login" className={`${linkClass} mt-2`}>
-              Sign in again
-            </Link>
-          ) : (
+        <Alert tone="warning">
+          <div>
+            <p>{loadError.message}</p>
             <button
               type="button"
               onClick={() => setReloadToken((token) => token + 1)}
-              className={`${secondaryButtonClass} mt-3`}
+              className={`${secondaryButtonClass} mt-2`}
             >
-              Try again
+              Reload orders
             </button>
-          )}
+          </div>
         </Alert>
       ) : null}
 
-      {loading ? (
-        <LoadingPanel label="Loading orders" />
-      ) : orders && orders.length === 0 ? (
+      {!loadError && rows.length === 0 ? (
         <EmptyState
           title={hasFilters ? 'No orders match these filters' : 'No orders yet'}
           hint={
             hasFilters
-              ? 'Try a different status or search term.'
-              : 'Orders appear here automatically after a customer accepts a quotation.'
+              ? 'Clear the filters or search for a different order number.'
+              : 'An order appears here as soon as a customer accepts a quotation.'
           }
         />
-      ) : orders ? (
-        <section className="overflow-hidden rounded-lg border border-rule bg-plate">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-3">
-            <h2 className="text-base font-semibold text-ink">Order queue</h2>
-            <p className="text-sm text-gray-600" aria-live="polite">
-              {meta
-                ? `${meta.total.toLocaleString('en-US')} ${
-                    meta.total === 1 ? 'order' : 'orders'
-                  }`
-                : `${orders.length} shown`}
-            </p>
-          </div>
+      ) : null}
 
+      {rows.length > 0 ? (
+        <section
+          className="overflow-hidden rounded-lg border border-rule bg-plate"
+          aria-busy={isLoading}
+          aria-label="Order queue"
+        >
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-rule text-sm">
-              <caption className="sr-only">Orders matching the current filters</caption>
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <thead className="bg-paper text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-3">
+                  <th scope="col" className="px-4 py-3 font-medium">
                     Order
                   </th>
-                  <th scope="col" className="px-4 py-3">
+                  <th scope="col" className="px-4 py-3 font-medium">
                     Customer
                   </th>
-                  <th scope="col" className="px-4 py-3">
-                    Order status
+                  <th scope="col" className="px-4 py-3 font-medium">
+                    Status
                   </th>
-                  <th scope="col" className="px-4 py-3">
-                    Payment
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Delivery
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
                     Total
                   </th>
-                  <th scope="col" className="px-4 py-3">
-                    Created
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right">
-                    Open
+                  <th scope="col" className="px-4 py-3 font-medium">
+                    Placed
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
-                {orders.map((order) => (
-                  <tr key={order.id} className="align-top hover:bg-gray-50/70">
-                    <td className="whitespace-nowrap px-4 py-3">
+                {rows.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
                       <Link
                         to={`/admin/orders/${order.id}`}
-                        className="font-medium text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+                        className="font-mono font-semibold tabular-nums text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
                       >
                         {order.order_number}
                       </Link>
-                      <p className="mt-0.5 text-xs text-gray-500">{order.quotation_number}</p>
+                      <p className="text-xs text-gray-500">
+                        {typeof order.item_count === 'number'
+                          ? `${order.item_count} ${order.item_count === 1 ? 'line' : 'lines'}`
+                          : 'Order'}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-ink">{order.customer_name}</p>
+                      <p className="text-ink">{order.customer_name}</p>
                       <p className="text-xs text-gray-500">{order.phone}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <OrderStatusBadge status={order.order_status} />
+                      <div className="flex flex-wrap gap-1.5">
+                        <StatusBadge status={order.order_status} />
+                        <StatusBadge status={order.payment_status} />
+                        <StatusBadge status={order.delivery_status} />
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <OrderStatusBadge kind="payment" status={order.payment_status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <OrderStatusBadge kind="delivery" status={order.delivery_status} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums font-medium text-ink">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink">
                       {formatMMK(order.total_amount)} MMK
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                      <time dateTime={order.created_at}>{formatOrderDate(order.created_at)}</time>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link to={`/admin/orders/${order.id}`} className={linkClass}>
-                        Open
-                      </Link>
-                    </td>
+                    <td className="px-4 py-3 text-gray-600">{formatOrderDate(order.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {meta ? <Pagination meta={meta} onPage={setPage} disabled={loading} /> : null}
+          {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
         </section>
       ) : null}
     </div>

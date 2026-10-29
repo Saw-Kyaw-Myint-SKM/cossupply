@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * One append-only customer action row for a quotation version.
+ * One customer action in the quotation trail.
  *
  * @mixin QuotationAction
  */
@@ -19,10 +19,9 @@ class QuotationActionResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'id' => $this->id,
             'action' => $this->action->value,
             'customer_note' => $this->customer_note,
-            'actor_type' => $this->actor_type,
-            'actor_id' => $this->actor_id,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

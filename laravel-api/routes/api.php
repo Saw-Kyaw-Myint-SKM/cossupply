@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminCustomerController;
+use App\Http\Controllers\Api\V1\AdminEmailLogController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
 use App\Http\Controllers\Api\V1\AdminProductController;
@@ -11,10 +14,12 @@ use App\Http\Controllers\Api\V1\AdminSettingController;
 use App\Http\Controllers\Api\V1\AdminSupplierController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerAuthController;
+use App\Http\Controllers\Api\V1\CustomerOrderController;
 use App\Http\Controllers\Api\V1\CustomerProfileController;
-use App\Http\Controllers\Api\V1\CustomerQuotationActionController;
+use App\Http\Controllers\Api\V1\CustomerQuotationController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicSupplierController;
@@ -53,8 +58,10 @@ Route::get('/suppliers', [PublicSupplierController::class, 'index']);
 | Customer Authentication Routes (Public)
 |--------------------------------------------------------------------------
 */
-Route::post('/auth/register', [CustomerAuthController::class, 'register']);
-Route::post('/auth/login', [CustomerAuthController::class, 'login']);
+Route::post('/auth/register', [CustomerAuthController::class, 'register'])
+    ->middleware('throttle:register');
+Route::post('/auth/login', [CustomerAuthController::class, 'login'])
+    ->middleware('throttle:customer-login');
 
 /*
 |--------------------------------------------------------------------------
@@ -79,13 +86,35 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
     // Quotation requests (submitted from the cart, customer-owned reads)
     Route::get('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'index']);
     Route::post('/customer/quotation-requests', [CustomerQuotationRequestController::class, 'store']);
-    Route::get('/customer/quotation-requests/{quotationRequest}', [CustomerQuotationRequestController::class, 'show']);
-    Route::post('/customer/quotation-requests/{quotationRequest}/view', [CustomerQuotationRequestController::class, 'view']);
+    Route::get('/customer/quotation-requests/{quotationRequest}', [CustomerQuotationController::class, 'show']);
+    // Idempotent first-view marker; same payload as the GET above.
+    Route::post('/customer/quotation-requests/{quotationRequest}/view', [CustomerQuotationController::class, 'show']);
 
-    // Customer responses to the current quotation version
-    Route::post('/customer/quotations/{quotation}/accept', [CustomerQuotationActionController::class, 'accept']);
-    Route::post('/customer/quotations/{quotation}/reject', [CustomerQuotationActionController::class, 'reject']);
-    Route::post('/customer/quotations/{quotation}/change-request', [CustomerQuotationActionController::class, 'requestChange']);
+    // Customer quotation review and decisions (current valid version only)
+    Route::post('/customer/quotations/{quotation}/accept', [CustomerQuotationController::class, 'accept']);
+    Route::post('/customer/quotations/{quotation}/reject', [CustomerQuotationController::class, 'reject']);
+    Route::post('/customer/quotations/{quotation}/request-change', [CustomerQuotationController::class, 'requestChange']);
+
+    // Customer orders (created only from an accepted quotation)
+    Route::get('/customer/orders', [CustomerOrderController::class, 'index']);
+    Route::get('/customer/orders/{order}', [CustomerOrderController::class, 'show']);
+    Route::get('/customer/orders/{order}/receipt/download', [CustomerOrderController::class, 'downloadReceipt']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Shared Authenticated Notification Routes (Customer and Admin)
+|--------------------------------------------------------------------------
+|
+| The recipient is resolved from the bearer token inside the controller, so
+| both account types use the same documented /notifications endpoints.
+|
+*/
+Route::middleware(['auth:sanctum', 'throttle:notifications'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
 });
 
 /*
@@ -93,7 +122,8 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
 | Admin Authentication Routes (Public)
 |--------------------------------------------------------------------------
 */
-Route::post('/admin/login', [AdminAuthController::class, 'login']);
+Route::post('/admin/login', [AdminAuthController::class, 'login'])
+    ->middleware('throttle:admin-login');
 
 /*
 |--------------------------------------------------------------------------
@@ -132,10 +162,26 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/admin/quotations/{quotation}/pdf', [AdminQuotationController::class, 'generatePdf']);
     Route::get('/admin/quotations/{quotation}/pdf/download', [AdminQuotationController::class, 'downloadPdf']);
 
-    // Order queue and supplier-confirmation workflow (Task 09)
+    // Order queue and supplier-confirmation workflow
     Route::get('/admin/orders', [AdminOrderController::class, 'index']);
     Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show']);
-    Route::patch('/admin/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
+    Route::post('/admin/orders/{order}/supplier-confirmation', [AdminOrderController::class, 'supplierConfirmation']);
+    Route::post('/admin/orders/{order}/cancel', [AdminOrderController::class, 'cancel']);
+
+    // Delivery workflow, full COD collection, verification and receipts
+    Route::post('/admin/orders/{order}/delivery-status', [AdminOrderController::class, 'deliveryStatus']);
+    Route::post('/admin/orders/{order}/cash-collection', [AdminOrderController::class, 'cashCollection']);
+    Route::post('/admin/orders/{order}/payment-confirmation', [AdminOrderController::class, 'paymentConfirmation']);
+    Route::post('/admin/orders/{order}/customer-refused-payment', [AdminOrderController::class, 'customerRefusedPayment']);
+    Route::get('/admin/orders/{order}/receipt/download', [AdminOrderController::class, 'downloadReceipt']);
+
+    // Email delivery log and resend actions
+    Route::get('/admin/email-logs', [AdminEmailLogController::class, 'index']);
+    Route::post('/admin/email-logs/{emailLog}/resend', [AdminEmailLogController::class, 'resend']);
+
+    // Read-only customer directory and append-only audit trail
+    Route::get('/admin/customers', [AdminCustomerController::class, 'index']);
+    Route::get('/admin/audit-logs', [AdminAuditLogController::class, 'index']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

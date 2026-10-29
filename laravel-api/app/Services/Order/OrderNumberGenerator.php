@@ -6,12 +6,10 @@ use App\Models\Order;
 use App\Services\Setting\SettingService;
 
 /**
- * Builds the customer-facing order number from the persisted orders row.
+ * Builds the customer-facing order and receipt numbers.
  *
- * Format: `{prefix}-YYYY-####` (LogicFlow §9). The sequence part is the
- * order's own id padded to at least four digits, so the number is unique
- * by construction and never needs a shared counter: `id` 42 becomes
- * `ORD-2026-0042`, `id` 12345 becomes `ORD-2026-12345`. The prefix comes
+ * Both numbers are derived from the persisted order id, so they are unique
+ * by construction and never need a shared counter. The order prefix comes
  * from the `order_number_prefix` master setting (default `ORD`).
  */
 class OrderNumberGenerator
@@ -23,9 +21,9 @@ class OrderNumberGenerator
     ) {}
 
     /**
-     * Build the order number for a persisted (or about-to-persist) order.
+     * Build the order number for a persisted order row.
      */
-    public function generate(Order $order): string
+    public function orderNumber(Order $order): string
     {
         $prefix = (string) ($this->settings->get('order_number_prefix', self::DEFAULT_PREFIX));
 
@@ -33,7 +31,22 @@ class OrderNumberGenerator
             '%s-%s-%s',
             $prefix !== '' ? $prefix : self::DEFAULT_PREFIX,
             now()->year,
-            str_pad((string) $order->id, 4, '0', STR_PAD_LEFT),
+            str_pad((string) $order->id, 6, '0', STR_PAD_LEFT),
+        );
+    }
+
+    /**
+     * Build the COD receipt number for a persisted order row.
+     *
+     * MVP creates exactly one cash payment per order, so the order id is a
+     * safe receipt sequence.
+     */
+    public function receiptNumber(Order $order): string
+    {
+        return sprintf(
+            'RCP-%s-%s',
+            now()->year,
+            str_pad((string) $order->id, 6, '0', STR_PAD_LEFT),
         );
     }
 }

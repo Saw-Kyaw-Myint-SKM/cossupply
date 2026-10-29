@@ -22,7 +22,7 @@ import {
   type SupplierContactMethod,
   type SupplierGroup,
 } from '../api/quotationAdminApi';
-import { saveDownloadedFile } from '../lib/downloadFile';
+import { saveDownloadedFile } from '../../../lib/downloadFile';
 
 const CONTACT_METHODS: Array<{ value: SupplierContactMethod; label: string }> = [
   { value: 'VIBER', label: 'Viber' },

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCustomerAddressRequest extends FormRequest
@@ -23,7 +24,7 @@ class StoreCustomerAddressRequest extends FormRequest
     {
         return [
             'contact_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:50', new PhoneNumber],
             'city' => ['required', 'string', 'max:100'],
             'township' => ['required', 'string', 'max:100'],
             'ward' => ['nullable', 'string', 'max:100'],

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   
   const [formData, setFormData] = useState({
-    phone: '',
+    email: '',
     password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +23,7 @@ export default function LoginPage() {
     setError(null);
     setFieldErrors({});
 
-    const response = await login(formData.phone, formData.password);
+    const response = await login(formData.email, formData.password);
 
     setIsLoading(false);
 
@@ -52,20 +52,23 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-ink mb-1">
-              Phone Number
+            <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">
+              Email
             </label>
             <input
-              type="text"
-              id="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
-              placeholder="09xxxxxxxxx"
+              placeholder="you@example.com"
+              autoComplete="username"
+              inputMode="email"
               required
             />
-            {fieldErrors.phone && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.phone[0]}</p>
+            {fieldErrors.email && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.email[0]}</p>
             )}
           </div>
 

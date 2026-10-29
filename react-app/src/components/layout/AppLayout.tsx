@@ -17,6 +17,7 @@ import { AccountMenu } from './AccountMenu';
 import { AreaSwitch } from './AreaSwitch';
 import { useAuth } from '../../lib/auth-context';
 import { useCart } from '../../lib/cart-context';
+import { NotificationBell } from '../../features/notifications/components/NotificationBell';
 
 /** The order-list badge: the one accent-inked spot, rolling on every unit. */
 function OrderListCount({ count, tone = 'solid' }: { count: number; tone?: 'solid' | 'soft' }) {
@@ -155,7 +156,6 @@ export function AppLayout() {
                   description="Go to your dashboard"
                 />
               ) : null}
-
               {/* Order list - the hero accent moment */}
               <Link
                 to="/cart"
@@ -194,6 +194,7 @@ export function AppLayout() {
                   and log out from the drawer. */}
               {isAuthenticated ? (
                 <>
+                  <NotificationBell />
                   <AccountMenu
                     name={accountName ?? 'Account'}
                     detail={accountDetail}

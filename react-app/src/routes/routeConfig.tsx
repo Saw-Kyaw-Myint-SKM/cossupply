@@ -16,6 +16,7 @@ const RegisterPage = lazy(() => import('../features/auth/pages/RegisterPage'));
 
 // Customer Pages
 const CustomerDashboardPage = lazy(() => import('../features/dashboard/pages/CustomerDashboardPage'));
+const NotificationsPage = lazy(() => import('../features/notifications/pages/NotificationsPage'));
 const QuotationRequestFormPage = lazy(() => import('../features/quotations/pages/QuotationRequestFormPage'));
 const QuotationListPage = lazy(() => import('../features/quotations/pages/QuotationListPage'));
 const QuotationDetailPage = lazy(() => import('../features/quotations/pages/QuotationDetailPage'));
@@ -45,14 +46,22 @@ const QuotationVersionFormPage = lazy(
 );
 const AdminOrderListPage = lazy(() => import('../features/admin/pages/OrderListPage'));
 const AdminOrderDetailPage = lazy(() => import('../features/admin/pages/OrderDetailPage'));
+const AdminEmailLogsPage = lazy(() => import('../features/admin/pages/EmailLogsPage'));
+const AdminAuditLogsPage = lazy(() => import('../features/admin/pages/AuditLogsPage'));
+const AdminCustomersPage = lazy(() => import('../features/admin/pages/CustomersPage'));
 
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { CustomerLayout } from '../components/layout/CustomerLayout';
 
-// Auth context
-import { useAuth } from '../lib/auth-context';
+// Route guards
+import {
+  AdminProtectedRoute,
+  AuthenticatedRoute,
+  CustomerProtectedRoute,
+  GuestRoute,
+} from './guards';
 
 // Loading fallback
 const PageLoader = () => (
@@ -60,57 +69,6 @@ const PageLoader = () => (
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ink"></div>
   </div>
 );
-
-// Wrapper component for protected routes
-function CustomerProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, userType } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // An admin must never be sent to the customer login page: GuestRoute would
-  // immediately send them back here, bouncing forever. Point them at their
-  // own dashboard instead.
-  if (userType === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, userType } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  // Mirror of the customer guard: customers go back to their own area.
-  if (userType === 'customer') {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-// Wrapper for auth pages (redirect if already logged in). The destination
-// follows the signed-in role so a guest guard can never fight a protected
-// guard over the same user.
-function GuestRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, userType } = useAuth();
-
-  if (isAuthenticated) {
-    return (
-      <Navigate
-        to={userType === 'admin' ? '/admin/dashboard' : '/dashboard'}
-        replace
-      />
-    );
-  }
-
-  return <>{children}</>;
-}
 
 export const router = createBrowserRouter([
   // Admin routes with AdminLayout
@@ -263,10 +221,34 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'orders/:id',
+        path: 'orders/:orderId',
         element: (
           <Suspense fallback={<PageLoader />}>
             <AdminOrderDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'email-logs',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminEmailLogsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'audit-logs',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminAuditLogsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'customers',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminCustomersPage />
           </Suspense>
         ),
       },
@@ -324,7 +306,7 @@ export const router = createBrowserRouter([
       {
         path: 'login',
         element: (
-          <GuestRoute>
+          <GuestRoute redirectPath="/dashboard">
             <Suspense fallback={<PageLoader />}>
               <LoginPage />
             </Suspense>
@@ -334,11 +316,21 @@ export const router = createBrowserRouter([
       {
         path: 'register',
         element: (
-          <GuestRoute>
+          <GuestRoute redirectPath="/dashboard">
             <Suspense fallback={<PageLoader />}>
               <RegisterPage />
             </Suspense>
           </GuestRoute>
+        ),
+      },
+      {
+        path: 'notifications',
+        element: (
+          <AuthenticatedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <NotificationsPage />
+            </Suspense>
+          </AuthenticatedRoute>
         ),
       },
 
@@ -346,7 +338,7 @@ export const router = createBrowserRouter([
       {
         path: 'admin/login',
         element: (
-          <GuestRoute>
+          <GuestRoute redirectPath="/admin/dashboard">
             <Suspense fallback={<PageLoader />}>
               <AdminLoginPage />
             </Suspense>

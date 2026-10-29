@@ -44,7 +44,7 @@ interface AuthContextType extends AuthState {
 interface RegisterData {
   name: string;
   phone: string;
-  email?: string;
+  email: string;
   company_name?: string;
   password: string;
   password_confirmation: string;
@@ -159,10 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const login = async (phone: string, password: string) => {
+  const login = async (email: string, password: string) => {
     const response = await apiRequest<{ user: User; token: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ email, password }),
     });
 
     if (response.success && response.data) {

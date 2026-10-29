@@ -135,6 +135,33 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   LOW_STOCK: 'bg-warning-soft text-warning ring-warning/20',
   PRE_ORDER: 'bg-primary-light text-primary ring-primary/20',
   SUPPLIER_CONFIRMATION_REQUIRED: 'bg-purple-50 text-purple-700 ring-purple-500/20',
+  SENT: 'bg-primary-light text-primary ring-primary/20',
+  FAILED: 'bg-error-soft text-error ring-error/20',
+  VIEWED: 'bg-primary-light text-primary ring-primary/20',
+  CHANGE_REQUESTED: 'bg-warning-soft text-warning ring-warning/20',
+  ACCEPTED: 'bg-success-soft text-success ring-success/20',
+  REJECTED: 'bg-error-soft text-error ring-error/20',
+  EXPIRED: 'bg-paper text-muted ring-line/20',
+  SUPERSEDED: 'bg-paper text-muted ring-line/20',
+  CANCELLED: 'bg-paper text-muted ring-line/20',
+  QUOTATION_SENT: 'bg-primary-light text-primary ring-primary/20',
+  CUSTOMER_REVIEWING: 'bg-warning-soft text-warning ring-warning/20',
+  ORDER_CONFIRMED: 'bg-primary-light text-primary ring-primary/20',
+  PREPARING: 'bg-warning-soft text-warning ring-warning/20',
+  READY_TO_SHIP: 'bg-primary-light text-primary ring-primary/20',
+  OUT_FOR_DELIVERY: 'bg-warning-soft text-warning ring-warning/20',
+  DELIVERED: 'bg-success-soft text-success ring-success/20',
+  COMPLETED: 'bg-success-soft text-success ring-success/20',
+  SUPPLIER_UNAVAILABLE: 'bg-error-soft text-error ring-error/20',
+  DELIVERY_FAILED: 'bg-error-soft text-error ring-error/20',
+  RETURNED: 'bg-paper text-muted ring-line/20',
+  NOT_ASSIGNED: 'bg-paper text-muted ring-line/20',
+  NOT_PAID: 'bg-warning-soft text-warning ring-warning/20',
+  CASH_COLLECTION_PENDING: 'bg-warning-soft text-warning ring-warning/20',
+  CASH_COLLECTED: 'bg-primary-light text-primary ring-primary/20',
+  PAYMENT_CONFIRMED: 'bg-success-soft text-success ring-success/20',
+  CUSTOMER_REFUSED_TO_PAY: 'bg-error-soft text-error ring-error/20',
+  PAYMENT_FAILED: 'bg-error-soft text-error ring-error/20',
 };
 
 export function StatusBadge({ status }: { status: string }) {
@@ -199,6 +226,9 @@ export const inputErrorClass = 'border-error bg-white focus:border-error focus:r
 export function inputClass(hasError: boolean): string {
   return `${inputBaseClass} ${hasError ? inputErrorClass : inputNormalClass}`;
 }
+
+/** Multiline variant of the shared input treatment. */
+export const textareaClass = `${inputBaseClass} ${inputNormalClass} resize-y`;
 
 /**
  * Join optional id fragments for `aria-describedby`, returning undefined when

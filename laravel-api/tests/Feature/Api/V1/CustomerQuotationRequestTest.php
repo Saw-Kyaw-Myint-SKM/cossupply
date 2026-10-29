@@ -338,6 +338,21 @@ class CustomerQuotationRequestTest extends TestCase
         $this->assertDatabaseCount('quotation_requests', 0);
     }
 
+    public function test_phone_must_look_like_a_phone_number(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([['product_id' => $product->id, 'quantity' => 1]], [
+                'phone' => 'not-a-phone',
+            ]),
+        )->assertUnprocessable()->assertJsonValidationErrors(['phone']);
+
+        $this->assertDatabaseCount('quotation_requests', 0);
+    }
+
     public function test_item_snapshots_stay_immutable_after_source_product_changes(): void
     {
         [$customer, $token] = $this->authenticate();
@@ -433,12 +448,13 @@ class CustomerQuotationRequestTest extends TestCase
                 'city',
                 'township',
                 'item_count',
-                'created_at',
+                'current_quotation',
                 'current_quotation_id',
                 'current_version',
                 'current_status',
                 'valid_until',
                 'is_expired',
+                'created_at',
             ],
             array_keys($row),
         );

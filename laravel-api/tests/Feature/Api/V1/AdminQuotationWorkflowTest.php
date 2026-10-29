@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\Admin;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
@@ -307,7 +308,7 @@ class AdminQuotationWorkflowTest extends TestCase
         $this->assertNotSame($firstPdfRow->file_path, $secondPdfRow->file_path);
         Storage::disk('local')->assertExists($firstPdfRow->file_path);
         Storage::disk('local')->assertExists($secondPdfRow->file_path);
-        $this->assertStringContainsString("v1", $firstPdf);
+        $this->assertStringContainsString('v1', $firstPdf);
 
         $download = $this->get("/api/v1/admin/quotations/{$firstId}/pdf/download")
             ->assertOk();
@@ -384,6 +385,179 @@ class AdminQuotationWorkflowTest extends TestCase
             ]],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['quotation_request']);
+    }
+
+    public function test_zero_unit_price_is_accepted_and_does_not_break_totals(): void
+    {
+        $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 2,
+                'unit_price' => 0,
+            ]],
+            'delivery_fee' => 1500,
+        ])->assertCreated()
+            ->assertJsonPath('data.quotation.subtotal', 0)
+            ->assertJsonPath('data.quotation.service_fee', 0)
+            ->assertJsonPath('data.quotation.total_amount', 1500)
+            ->assertJsonPath('data.quotation.items.0.line_total', 0);
+    }
+
+    public function test_negative_unit_price_is_rejected(): void
+    {
+        $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => -1,
+            ]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.unit_price']);
+    }
+
+    public function test_create_audit_records_validity_and_payment_terms(): void
+    {
+        $admin = $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+        $validUntil = now()->addDays(4)->toDateString();
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+            'valid_until' => $validUntil,
+            'payment_terms' => 'Full payment on delivery.',
+        ])->assertCreated();
+
+        $log = AuditLog::query()
+            ->where('action', 'quotation.created')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame($admin->id, $log->admin_id);
+        $this->assertSame($validUntil, $log->new_data['valid_until']);
+        $this->assertSame('Full payment on delivery.', $log->new_data['payment_terms']);
+        $this->assertSame('CASH_ON_DELIVERY', $log->new_data['payment_method']);
+        $this->assertSame(5, $log->new_data['service_fee_percentage']);
+        $this->assertSame(500, $log->new_data['service_fee']);
+    }
+
+    public function test_update_audits_validity_payment_terms_and_service_fee_override(): void
+    {
+        $admin = $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+        $originalValidUntil = now()->addDays(5)->toDateString();
+        $newValidUntil = now()->addDays(9)->toDateString();
+
+        $create = $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+            'service_fee_percentage' => 12,
+            'valid_until' => $originalValidUntil,
+            'payment_terms' => 'Payment within 7 days.',
+        ])->assertCreated();
+
+        $quotationId = $create->json('data.quotation.id');
+
+        $this->putJson("/api/v1/admin/quotations/{$quotationId}", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+            'service_fee_percentage' => 20,
+            'valid_until' => $newValidUntil,
+            'payment_terms' => 'Full payment on delivery.',
+        ])->assertOk();
+
+        $updated = AuditLog::query()
+            ->where('action', 'quotation.updated')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame($originalValidUntil, $updated->old_data['valid_until']);
+        $this->assertSame($newValidUntil, $updated->new_data['valid_until']);
+        $this->assertSame('Payment within 7 days.', $updated->old_data['payment_terms']);
+        $this->assertSame('Full payment on delivery.', $updated->new_data['payment_terms']);
+        $this->assertSame(12, $updated->old_data['service_fee_percentage']);
+        $this->assertSame(20, $updated->new_data['service_fee_percentage']);
+
+        $override = AuditLog::query()
+            ->where('action', 'quotation.service_fee_overridden')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame($admin->id, $override->admin_id);
+        $this->assertSame(12, $override->old_data['service_fee_percentage']);
+        $this->assertSame(20, $override->new_data['service_fee_percentage']);
+        $this->assertSame(2000, $override->new_data['service_fee']);
+    }
+
+    public function test_create_override_audits_the_master_default_as_prior_value(): void
+    {
+        $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+            'service_fee_percentage' => 12,
+        ])->assertCreated();
+
+        $override = AuditLog::query()
+            ->where('action', 'quotation.service_fee_overridden')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(5, $override->old_data['service_fee_percentage']);
+        $this->assertSame(12, $override->new_data['service_fee_percentage']);
+        $this->assertSame(1200, $override->new_data['service_fee']);
+    }
+
+    public function test_generated_pdf_includes_its_generation_time(): void
+    {
+        $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+
+        $create = $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+        ])->assertCreated();
+
+        $quotationId = $create->json('data.quotation.id');
+        $this->postJson("/api/v1/admin/quotations/{$quotationId}/send")->assertOk();
+
+        $content = $this->get("/api/v1/admin/quotations/{$quotationId}/pdf/download")
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertMatchesRegularExpression(
+            '/Generated by .+ from CoSupply on \d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}\./',
+            $content,
+        );
     }
 
     private function actingAsAdmin(): Admin

@@ -89,7 +89,7 @@ class QuotationRequest extends Model
     }
 
     /**
-     * The version currently sent to the customer (at most one row).
+     * The single current Final Quotation version, when one has been sent.
      */
     public function currentQuotation(): HasOne
     {

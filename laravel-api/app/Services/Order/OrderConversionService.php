@@ -5,7 +5,7 @@ namespace App\Services\Order;
 use App\Enums\DeliveryStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
-use App\Exceptions\ResourceConflictException;
+use App\Enums\QuotationVersionStatus;
 use App\Models\CashPayment;
 use App\Models\Customer;
 use App\Models\Delivery;
@@ -14,69 +14,102 @@ use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
 use App\Models\Quotation;
 use App\Models\QuotationRequest;
-use App\Models\QuotationVersionItem;
-use Illuminate\Database\QueryException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Converts an accepted quotation version into exactly one order
  * (LogicFlow §9).
  *
- * The caller owns the database transaction and holds the quotation row
- * lock. This service only writes rows: order, immutable order item
- * snapshots (copied from `quotation_version_items`), one full delivery,
- * one COD cash payment and the opening status history row.
- *
- * `orders.quotation_id` is unique in the database; that index is the final
- * guard against two concurrent accepts both passing the pre-check.
+ * The caller owns the database transaction and the quotation row lock:
+ * `CustomerQuotationService::accept()` locks the version, moves it to
+ * `ACCEPTED`, then calls this service. Every row — order, immutable items,
+ * delivery, COD payment and the initial status history — is written inside
+ * that single transaction, so any failure rolls all of it back.
  */
 class OrderConversionService
 {
     public function __construct(
-        private readonly OrderNumberGenerator $orderNumbers,
-        private readonly ReceiptNumberGenerator $receiptNumbers,
+        private readonly OrderNumberGenerator $numbers,
     ) {}
 
     /**
-     * Guard against converting the same quotation version twice.
+     * Create the order snapshot for an accepted quotation version.
      *
-     * @throws ResourceConflictException
+     * Order values come from the accepted quotation version and the
+     * original request's contact/delivery snapshots. Items are copied only
+     * from `quotation_version_items`, never from the request items.
      */
-    public function assertQuotationHasNoOrder(Quotation $quotation): void
-    {
-        $exists = Order::query()
-            ->where('quotation_id', $quotation->id)
-            ->exists();
-
-        if ($exists) {
-            throw new ResourceConflictException('An order already exists for this quotation.');
-        }
-    }
-
-    /**
-     * Create the order and its dependent snapshots.
-     *
-     * Must be called inside the accept transaction, after ownership and
-     * quotation eligibility have been checked.
-     *
-     * @throws ResourceConflictException
-     */
-    public function createFromQuotation(
+    public function convert(
         Customer $customer,
         Quotation $quotation,
         QuotationRequest $request,
     ): Order {
-        $this->assertQuotationHasNoOrder($quotation);
+        if ($quotation->status !== QuotationVersionStatus::ACCEPTED) {
+            throw ValidationException::withMessages([
+                'quotation' => ['Only an accepted quotation version can be converted to an order.'],
+            ]);
+        }
 
-        $versionItems = QuotationVersionItem::query()
-            ->where('quotation_id', $quotation->id)
-            ->orderBy('id')
-            ->get();
+        if ($quotation->quotation_request_id !== $request->id) {
+            throw ValidationException::withMessages([
+                'quotation' => ['The quotation does not belong to this request.'],
+            ]);
+        }
 
-        $order = $this->createOrder($customer, $quotation, $request);
+        if ($request->customer_id !== $customer->id) {
+            throw ValidationException::withMessages([
+                'quotation' => ['Quotation not found.'],
+            ]);
+        }
 
-        foreach ($versionItems as $item) {
+        if (Order::query()->where('quotation_id', $quotation->id)->exists()) {
+            throw ValidationException::withMessages([
+                'quotation' => ['An order already exists for this quotation version.'],
+            ]);
+        }
+
+        $items = $quotation->items()->orderBy('id')->get();
+
+        if ($items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'quotation' => ['The accepted quotation has no items to order.'],
+            ]);
+        }
+
+        // order_number is NOT NULL, so the row is first persisted with a
+        // unique placeholder and immediately re-keyed to its id-derived
+        // number inside the same transaction (same pattern as quotation
+        // requests).
+        $order = Order::create([
+            'order_number' => Str::uuid()->toString(),
+            'quotation_id' => $quotation->id,
+            'quotation_request_id' => $request->id,
+            'customer_id' => $customer->id,
+            'customer_name' => $request->customer_name,
+            'company_name' => $request->company_name,
+            'phone' => $request->phone,
+            'email' => $request->email,
+            'delivery_address' => $request->delivery_address,
+            'city' => $request->city,
+            'township' => $request->township,
+            'landmark' => $request->landmark,
+            'subtotal' => $quotation->subtotal,
+            'discount' => $quotation->discount,
+            'delivery_fee' => $quotation->delivery_fee,
+            'service_fee_percentage' => $quotation->service_fee_percentage,
+            'service_fee' => $quotation->service_fee,
+            'total_amount' => $quotation->total_amount,
+            'payment_method' => 'CASH_ON_DELIVERY',
+            'payment_status' => PaymentStatus::NOT_PAID->value,
+            'order_status' => OrderStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
+            'delivery_status' => DeliveryStatus::NOT_ASSIGNED->value,
+            'customer_note' => $request->customer_note,
+        ]);
+
+        $order->update(['order_number' => $this->numbers->orderNumber($order)]);
+
+        foreach ($items as $item) {
             OrderItem::create([
                 'order_id' => $order->id,
                 'product_id' => $item->product_id,
@@ -91,9 +124,14 @@ class OrderConversionService
             ]);
         }
 
+        // MVP has one full delivery only. A single supplier can be attached
+        // when every accepted line belongs to the same supplier; otherwise
+        // delivery assignment is left to the delivery workflow (Task 10).
+        $supplierIds = $items->pluck('supplier_id')->filter()->unique();
+
         $delivery = Delivery::create([
             'order_id' => $order->id,
-            'supplier_id' => $this->deliverySupplierId($versionItems),
+            'supplier_id' => $supplierIds->count() === 1 ? $supplierIds->first() : null,
             'delivery_contact_name' => $request->customer_name,
             'delivery_phone' => $request->phone,
             'delivery_address' => $request->delivery_address,
@@ -101,127 +139,45 @@ class OrderConversionService
             'township' => $request->township,
             'landmark' => $request->landmark,
             'delivery_fee' => $quotation->delivery_fee,
+            'estimated_delivery_date' => $items
+                ->pluck('delivery_date')
+                ->filter()
+                ->sort()
+                ->first(),
             'customer_note' => $request->customer_note,
             'delivery_status' => DeliveryStatus::NOT_ASSIGNED->value,
         ]);
 
-        $payment = CashPayment::create([
-            // receipt_number is NOT NULL, so the row is first persisted
-            // with a unique placeholder and immediately re-keyed to the
-            // id-derived number inside the same transaction.
-            'receipt_number' => Str::uuid()->toString(),
+        CashPayment::create([
             'order_id' => $order->id,
             'delivery_id' => $delivery->id,
-            'amount_due' => $order->total_amount,
+            'receipt_number' => $this->numbers->receiptNumber($order),
+            'amount_due' => $quotation->total_amount,
             'amount_collected' => 0,
-            'amount_remaining' => $order->total_amount,
+            'amount_remaining' => $quotation->total_amount,
             'customer_name' => $request->customer_name,
             'status' => PaymentStatus::NOT_PAID->value,
-        ]);
-
-        $payment->update([
-            'receipt_number' => $this->receiptNumbers->generate($payment),
         ]);
 
         OrderStatusHistory::create([
             'order_id' => $order->id,
             'old_status' => null,
             'new_status' => OrderStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
-            'changed_by_type' => 'CUSTOMER',
-            'changed_by_id' => $customer->id,
+            'changed_by_type' => 'SYSTEM',
+            'changed_by_id' => null,
             'note' => sprintf(
-                'Order created from accepted quotation %s v%d.',
-                $request->quotation_number,
+                'Order created from accepted quotation %s version %d.',
+                $quotation->quotation_number,
                 $quotation->version,
             ),
         ]);
 
-        return $order->refresh();
-    }
-
-    /**
-     * Persist the order header and re-key its id-derived number.
-     *
-     * @throws ResourceConflictException
-     */
-    private function createOrder(
-        Customer $customer,
-        Quotation $quotation,
-        QuotationRequest $request,
-    ): Order {
-        try {
-            $order = Order::create([
-                // order_number is NOT NULL, so the row is first persisted
-                // with a unique placeholder and immediately re-keyed.
-                'order_number' => Str::uuid()->toString(),
-                'quotation_id' => $quotation->id,
-                'quotation_request_id' => $request->id,
-                'customer_id' => $customer->id,
-                'customer_name' => $request->customer_name,
-                'company_name' => $request->company_name,
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'delivery_address' => $request->delivery_address,
-                'city' => $request->city,
-                'township' => $request->township,
-                'landmark' => $request->landmark,
-                'subtotal' => $quotation->subtotal,
-                'discount' => $quotation->discount,
-                'delivery_fee' => $quotation->delivery_fee,
-                'service_fee_percentage' => $quotation->service_fee_percentage,
-                'service_fee' => $quotation->service_fee,
-                'total_amount' => $quotation->total_amount,
-                'payment_method' => 'CASH_ON_DELIVERY',
-                'payment_status' => PaymentStatus::NOT_PAID->value,
-                'order_status' => OrderStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
-                'delivery_status' => DeliveryStatus::NOT_ASSIGNED->value,
-                'customer_note' => $request->customer_note,
-            ]);
-        } catch (QueryException $exception) {
-            if ($this->isDuplicateKey($exception)) {
-                throw new ResourceConflictException('An order already exists for this quotation.');
-            }
-
-            throw $exception;
-        }
-
-        $order->update([
-            'order_number' => $this->orderNumbers->generate($order),
+        return $order->refresh()->load([
+            'quotation',
+            'items.supplier',
+            'deliveries',
+            'cashPayment',
+            'statusHistories',
         ]);
-
-        return $order;
-    }
-
-    /**
-     * Use the single shared supplier when every version item has the same
-     * supplier; otherwise leave the delivery supplier unassigned.
-     *
-     * @param  Collection<int, QuotationVersionItem>  $items
-     */
-    private function deliverySupplierId(Collection $items): ?int
-    {
-        $supplierIds = $items->pluck('supplier_id')->unique();
-
-        if ($supplierIds->count() !== 1) {
-            return null;
-        }
-
-        $supplierId = $supplierIds->first();
-
-        return $supplierId !== null ? (int) $supplierId : null;
-    }
-
-    /**
-     * Whether the exception is a uniqueness violation (MySQL/SQLite).
-     */
-    private function isDuplicateKey(QueryException $exception): bool
-    {
-        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
-        $message = strtolower($exception->getMessage());
-
-        return $driverCode === 1062
-            || str_contains($message, 'duplicate entry')
-            || str_contains($message, 'duplicate key')
-            || str_contains($message, 'unique constraint');
     }
 }

@@ -38,13 +38,48 @@ class CustomerAuthTest extends TestCase
         $this->assertTrue(Hash::check('password123', $customer->password));
     }
 
+    public function test_registration_accepts_common_phone_formatting(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Formatted Phone',
+            'phone' => '09-770-100-200',
+            'email' => 'formatted@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'International Phone',
+            'phone' => '+95 9 770 100 200',
+            'email' => 'international@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('customers', ['phone' => '09-770-100-200']);
+        $this->assertDatabaseHas('customers', ['phone' => '+95 9 770 100 200']);
+    }
+
+    public function test_registration_rejects_malformed_phone_numbers(): void
+    {
+        foreach (['not-a-phone', '12345', '1234567890123456'] as $index => $phone) {
+            $this->postJson('/api/v1/auth/register', [
+                'name' => 'Bad Phone',
+                'phone' => $phone,
+                'email' => "bad{$index}@example.com",
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+            ])->assertUnprocessable()->assertJsonValidationErrors(['phone']);
+        }
+    }
+
     public function test_registration_requires_valid_and_unique_fields(): void
     {
         Customer::factory()->create(['phone' => '09999999999']);
 
         $this->postJson('/api/v1/auth/register', [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'phone', 'password']);
+            ->assertJsonValidationErrors(['name', 'phone', 'email', 'password']);
 
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Duplicate Phone',
@@ -59,10 +94,13 @@ class CustomerAuthTest extends TestCase
 
     public function test_customer_can_log_in_with_valid_credentials(): void
     {
-        $customer = Customer::factory()->create(['phone' => '09123456789']);
+        $customer = Customer::factory()->create([
+            'phone' => '09123456789',
+            'email' => 'buyer@example.com',
+        ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'phone' => '09123456789',
+            'email' => 'buyer@example.com',
             'password' => 'password',
         ]);
 
@@ -72,31 +110,54 @@ class CustomerAuthTest extends TestCase
             ->assertJsonStructure(['data' => ['user', 'token']]);
     }
 
-    public function test_customer_login_fails_with_invalid_credentials(): void
+    public function test_customer_login_email_is_case_insensitive(): void
     {
-        Customer::factory()->create(['phone' => '09123456789']);
+        $customer = Customer::factory()->create(['email' => 'buyer@example.com']);
 
         $this->postJson('/api/v1/auth/login', [
-            'phone' => '09123456789',
+            'email' => 'BUYER@Example.com',
+            'password' => 'password',
+        ])->assertOk()
+            ->assertJsonPath('data.user.id', $customer->id);
+    }
+
+    public function test_customer_login_fails_with_invalid_credentials(): void
+    {
+        Customer::factory()->create(['email' => 'buyer@example.com']);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'buyer@example.com',
             'password' => 'wrong-password',
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['phone']);
+            ->assertJsonValidationErrors(['email']);
 
         $this->postJson('/api/v1/auth/login', [
-            'phone' => '09900000000',
+            'email' => 'nobody@example.com',
             'password' => 'password',
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['phone']);
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_phone_is_no_longer_a_login_identifier(): void
+    {
+        Customer::factory()->create(['phone' => '09123456789', 'email' => null]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => '09123456789',
+            'password' => 'password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     }
 
     public function test_suspended_customer_cannot_log_in(): void
     {
-        Customer::factory()->suspended()->create(['phone' => '09123456789']);
+        Customer::factory()->suspended()->create(['email' => 'buyer@example.com']);
 
         $this->postJson('/api/v1/auth/login', [
-            'phone' => '09123456789',
+            'email' => 'buyer@example.com',
             'password' => 'password',
         ])->assertForbidden();
     }
@@ -147,6 +208,7 @@ class CustomerAuthTest extends TestCase
         $register = $this->postJson('/api/v1/auth/register', [
             'name' => 'Aung Aung',
             'phone' => '09123456789',
+            'email' => 'aung@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ]);
@@ -154,7 +216,7 @@ class CustomerAuthTest extends TestCase
         $register->assertCreated()->assertJsonMissingPath('data.user.password');
 
         $login = $this->postJson('/api/v1/auth/login', [
-            'phone' => '09123456789',
+            'email' => 'aung@example.com',
             'password' => 'password123',
         ]);
 

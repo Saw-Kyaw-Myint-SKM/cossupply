@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\UpdateCustomerProfileRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * Authenticated customer self-service profile API.
  *
  * `phone`, `status` and `customer_type` are server-managed: phone is the
- * login identifier and is silently ignored in update payloads.
+ * contact identifier and is silently ignored in update payloads. Email is
+ * the login identifier, so it always stays present.
  */
 class CustomerProfileController extends Controller
 {
@@ -31,7 +33,10 @@ class CustomerProfileController extends Controller
     {
         $customer = $request->user();
 
-        $customer->update($request->validated());
+        $data = $request->validated();
+        $data['email'] = Str::lower(trim($data['email']));
+
+        $customer->update($data);
 
         return $this->successResponse(
             ['customer' => $this->profile($customer)],

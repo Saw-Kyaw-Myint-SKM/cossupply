@@ -34,7 +34,7 @@ class SaveQuotationVersionRequest extends FormRequest
                 Rule::exists('products', 'id'),
             ],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'items.*.unit_price' => ['required', 'integer', 'min:1'],
+            'items.*.unit_price' => ['required', 'integer', 'min:0'],
             'items.*.discount' => ['nullable', 'integer', 'min:0'],
             'items.*.delivery_date' => ['nullable', 'date', 'after_or_equal:today'],
             'items.*.warranty_note' => ['nullable', 'string', 'max:1000'],

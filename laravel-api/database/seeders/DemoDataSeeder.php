@@ -11,9 +11,6 @@ use App\Enums\QuotationRequestStatus;
 use App\Enums\QuotationVersionStatus;
 use App\Enums\StockStatus;
 use App\Enums\SupplierStatus;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\CashPayment;
@@ -38,11 +35,13 @@ use App\Models\QuotationVersionItem;
 use App\Models\Supplier;
 use App\Models\SupplierCommunication;
 use App\Services\Order\OrderNumberGenerator;
-use App\Services\Order\ReceiptNumberGenerator;
 use App\Services\Quotation\QuotationNumberGenerator;
 use Illuminate\Database\Seeder;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -73,8 +72,6 @@ class DemoDataSeeder extends Seeder
 
     private ?OrderNumberGenerator $orderNumbers = null;
 
-    private ?ReceiptNumberGenerator $receiptNumbers = null;
-
     private function quotationNumbers(): QuotationNumberGenerator
     {
         return $this->quotationNumbers ??= app(QuotationNumberGenerator::class);
@@ -83,11 +80,6 @@ class DemoDataSeeder extends Seeder
     private function orderNumbers(): OrderNumberGenerator
     {
         return $this->orderNumbers ??= app(OrderNumberGenerator::class);
-    }
-
-    private function receiptNumbers(): ReceiptNumberGenerator
-    {
-        return $this->receiptNumbers ??= app(ReceiptNumberGenerator::class);
     }
 
     /**
@@ -481,7 +473,7 @@ class DemoDataSeeder extends Seeder
             }
 
             return $bytes;
-        } catch (ConnectionException | RequestException) {
+        } catch (ConnectionException|RequestException) {
             $this->command?->warn('Demo product photo download failed; using the embedded placeholder instead.');
 
             return $fallback;
@@ -1208,7 +1200,7 @@ class DemoDataSeeder extends Seeder
                 'customer_note' => $request->customer_note,
             ]);
 
-            $order->update(['order_number' => $this->orderNumbers()->generate($order)]);
+            $order->update(['order_number' => $this->orderNumbers()->orderNumber($order)]);
 
             $orders[] = $order;
         }
@@ -1364,7 +1356,7 @@ class DemoDataSeeder extends Seeder
                 'status' => PaymentStatus::PAYMENT_CONFIRMED->value,
             ]);
 
-            $payment->update(['receipt_number' => $this->receiptNumbers()->generate($payment)]);
+            $payment->update(['receipt_number' => $this->orderNumbers()->receiptNumber($order)]);
         }
     }
 

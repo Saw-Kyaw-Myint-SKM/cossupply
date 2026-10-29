@@ -44,7 +44,7 @@ export default function RegisterPage() {
     const response = await register({
       name: formData.name,
       phone: formData.phone,
-      email: formData.email || undefined,
+      email: formData.email,
       company_name: formData.company_name || undefined,
       password: formData.password,
       password_confirmation: formData.password_confirmation,
@@ -106,6 +106,8 @@ export default function RegisterPage() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               placeholder="09xxxxxxxxx"
+              inputMode="tel"
+              autoComplete="tel"
               required
             />
             {fieldErrors.phone && (
@@ -115,7 +117,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">
-              Email (Optional)
+              Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
@@ -124,6 +126,9 @@ export default function RegisterPage() {
               value={formData.email}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              autoComplete="email"
+              inputMode="email"
+              required
             />
             {fieldErrors.email && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.email[0]}</p>

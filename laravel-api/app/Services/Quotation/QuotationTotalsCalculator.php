@@ -47,8 +47,16 @@ class QuotationTotalsCalculator
             $unitPrice = (int) $item['unit_price'];
             $lineDiscount = (int) ($item['discount'] ?? 0);
 
-            if ($quantity < 1 || $unitPrice < 1 || $lineDiscount < 0) {
-                throw new InvalidArgumentException('Quotation item quantities and prices must be positive.');
+            if ($quantity < 1) {
+                throw new InvalidArgumentException('Quotation item quantities must be at least 1.');
+            }
+
+            if ($unitPrice < 0) {
+                throw new InvalidArgumentException('Quotation item unit prices must not be negative.');
+            }
+
+            if ($lineDiscount < 0) {
+                throw new InvalidArgumentException('Quotation item discounts must not be negative.');
             }
 
             $gross = $quantity * $unitPrice;

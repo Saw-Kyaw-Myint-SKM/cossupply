@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\AdminLoginRequest;
 use App\Models\Admin;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class AdminAuthController extends Controller
 {
+    public function __construct(
+        private readonly AuditLogService $auditLogs,
+    ) {}
+
     /**
      * Admin login.
      */
@@ -35,6 +40,16 @@ class AdminAuthController extends Controller
         // Create token with admin ability
         $token = $admin->createToken('admin-token', ['admin'])->plainTextToken;
 
+        $this->auditLogs->log(
+            $admin,
+            'admin.login',
+            'admin',
+            (string) $admin->id,
+            [],
+            ['last_login_at' => $admin->last_login_at?->toIso8601String()],
+            $request->ip(),
+        );
+
         return $this->successResponse([
             'admin' => [
                 'id' => $admin->id,
@@ -54,6 +69,19 @@ class AdminAuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
+        /** @var Admin $admin */
+        $admin = $request->user();
+
+        $this->auditLogs->log(
+            $admin,
+            'admin.logout',
+            'admin',
+            (string) $admin->id,
+            [],
+            [],
+            $request->ip(),
+        );
+
         // Revoke the current access token
         $request->user()->currentAccessToken()->delete();
 

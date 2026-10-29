@@ -9,9 +9,12 @@ import {
   FiUsers,
   FiSettings,
   FiGrid,
+  FiMail,
+  FiActivity,
+  FiBell,
   FiRefreshCw,
 } from 'react-icons/fi';
-import { listAdminOrders } from '../api/ordersApi';
+import { listAdminOrders } from '../api/orderAdminApi';
 import { listAdminQuotationRequests, type QuotationRequestStatus } from '../api/quotationAdminApi';
 import { listProducts, type ProductStatus } from '../api/productsApi';
 import { listSuppliers, type SupplierStatus } from '../api/suppliersApi';
@@ -173,7 +176,7 @@ export default function AdminDashboardPage() {
       const actionableRes = await listAdminOrders({
         page: 1,
         per_page: 1,
-        order_status: 'SUPPLIER_CONFIRMATION_REQUIRED',
+        status: 'SUPPLIER_CONFIRMATION_REQUIRED',
       });
       if (cancelled) return;
 
@@ -422,12 +425,35 @@ export default function AdminDashboardPage() {
             description="Organize product categories"
           />
           <QuickLink
+            to="/admin/customers"
+            icon={<FiUsers aria-hidden="true" />}
+            label="Customers"
+            description="Read-only customer directory"
+          />
+          <QuickLink
+            to="/admin/email-logs"
+            icon={<FiMail aria-hidden="true" />}
+            label="Email Logs"
+            description="Delivery errors and resend"
+          />
+          <QuickLink
+            to="/admin/audit-logs"
+            icon={<FiActivity aria-hidden="true" />}
+            label="Audit Trail"
+            description="Admin action history"
+          />
+          <QuickLink
+            to="/notifications"
+            icon={<FiBell aria-hidden="true" />}
+            label="Notifications"
+            description="Your notification center"
+          />
+          <QuickLink
             to="/admin/settings"
             icon={<FiSettings aria-hidden="true" />}
             label="Settings"
             description="Configure master settings"
-          />
-        </div>
+          />        </div>
       </section>
     </div>
   );

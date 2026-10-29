@@ -1,143 +1,201 @@
 /**
- * Admin order detail and supplier confirmation (Task 09).
+ * Admin order workspace (Task 09).
  *
- * The server owns the transition table. Buttons come only from
- * `available_statuses`; every successful PATCH reloads the detail so the next
- * allowed actions, statuses, and history are canonical. Delivery and cash
- * collection are read-only here — Task 10 owns those actions.
+ * The admin confirms supplier availability over Viber, then the server moves
+ * the order through `ORDER_CONFIRMED → PREPARING`. An unavailable supplier is
+ * recorded with a mandatory note, and any order in a cancellable status can
+ * be cancelled with a reason. Every mutation returns the refreshed order so
+ * the snapshot, status trail and actions stay canonical.
  */
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import {
+  FiAlertTriangle,
+  FiArrowLeft,
+  FiCheck,
+  FiClock,
+  FiCreditCard,
+  FiFileText,
+  FiMail,
+  FiMessageCircle,
+  FiPhone,
+  FiTruck,
+  FiXCircle,
+} from 'react-icons/fi';
 import {
   Alert,
-  Field,
   LoadingPanel,
   PageHeader,
+  StatusBadge,
   describeLoadError,
   describeRequestError,
   formatStatusLabel,
-  inputClass,
-  joinIds,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
+  textareaClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { formatMMK } from '../../../lib/money';
 import {
+  cancelOrder,
+  confirmSupplier,
   getAdminOrder,
-  updateAdminOrderStatus,
-  type AdminOrderDetail,
-} from '../api/ordersApi';
-import OrderStatusBadge from '../components/OrderStatusBadge';
+} from '../api/orderAdminApi';
+import OrderFulfilmentPanel from '../components/OrderFulfilmentPanel';
+import type {
+  OrderDetail,
+  OrderItem,
+  OrderSupplierGroup,
+} from '../../orders/api/ordersApi';
 import {
-  ORDER_NOTE_MAX_LENGTH,
-  buildOrderStatusPayload,
+  canCancelOrder,
   formatOrderDate,
   formatOrderDateTime,
-  orderActionButtons,
-  orderActionIsDestructive,
-  orderActionReasonLabel,
-  orderActionRequiresNote,
-  orderHistoryActorLabel,
-  orderStatusLabel,
-  orderStatusTransitionLabel,
-  type OrderStatusAction,
-} from '../lib/orderStatus';
+  orderStatusHint,
+  paymentMethodLabel,
+} from '../../orders/lib/orderDisplay';
 
-const dangerButtonClass =
-  'inline-flex items-center justify-center rounded-md border border-transparent bg-red-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-800 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
+type Panel = 'confirm' | 'unavailable' | 'cancel' | null;
 
-function actionGuidance(status: string): string {
-  switch (status) {
-    case 'ORDER_CONFIRMED':
-      return 'Record this after the supplier confirms the products, quantities, and delivery date. The order can then move into preparation.';
-    case 'PREPARING':
-      return 'Use this only after the order is confirmed. Delivery and cash status stay unchanged in this step.';
-    case 'SUPPLIER_UNAVAILABLE':
-      return 'This ends supplier confirmation for the order. Contact the customer about a revised quotation or cancellation.';
-    case 'CANCELLED':
-      return 'Cancelling is final in this workflow. The order cannot be reopened from this screen; a new order needs a new accepted quotation.';
-    default:
-      return 'This records the next step in the order workflow.';
-  }
+function ItemRow({ item }: { item: OrderItem }) {
+  return (
+    <li className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-ink">{item.product_name_snapshot}</p>
+        <p className="text-xs text-gray-500">
+          {item.sku_snapshot ? `${item.sku_snapshot} · ` : ''}
+          {item.quantity} × {formatMMK(item.unit_price)} MMK
+        </p>
+        {item.specification_snapshot ? (
+          <p className="mt-0.5 text-xs text-gray-600">{item.specification_snapshot}</p>
+        ) : null}
+      </div>
+      <p className="flex-none font-mono text-sm tabular-nums text-ink">
+        {formatMMK(item.line_total)} MMK
+      </p>
+    </li>
+  );
 }
 
-function deliverySummary(order: AdminOrderDetail): string {
-  return [
-    order.delivery_address,
-    order.city,
-    order.township,
-    order.landmark ? `Near ${order.landmark}` : null,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(', ');
+function ContactLink({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className="inline-flex items-center gap-1.5 rounded text-sm font-medium text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+    >
+      <span aria-hidden="true" className="text-gray-400">
+        {icon}
+      </span>
+      {children}
+    </a>
+  );
+}
+
+function SupplierCard({ group }: { group: OrderSupplierGroup }) {
+  const { supplier } = group;
+  const phone = supplier.viber_phone ?? supplier.phone;
+
+  return (
+    <li className="px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink">{supplier.shop_name ?? 'Supplier'}</p>
+          {supplier.contact_person ? (
+            <p className="text-xs text-gray-600">{supplier.contact_person}</p>
+          ) : null}
+        </div>
+        {supplier.delivery_time ? (
+          <p className="text-xs text-gray-500">Lead time: {supplier.delivery_time}</p>
+        ) : null}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+        {supplier.viber_phone ? (
+          <ContactLink href={`viber://chat?number=${encodeURIComponent(supplier.viber_phone)}`} icon={<FiMessageCircle />}>
+            Viber {supplier.viber_phone}
+          </ContactLink>
+        ) : null}
+        {phone ? (
+          <ContactLink href={`tel:${phone}`} icon={<FiPhone />}>
+            {phone}
+          </ContactLink>
+        ) : null}
+        {supplier.email ? (
+          <ContactLink href={`mailto:${supplier.email}`} icon={<FiMail />}>
+            {supplier.email}
+          </ContactLink>
+        ) : null}
+      </div>
+
+      {supplier.warranty_policy ? (
+        <p className="mt-2 text-xs text-gray-600">Warranty: {supplier.warranty_policy}</p>
+      ) : null}
+
+      <ul className="mt-3 space-y-1 text-sm text-gray-700">
+        {group.items.map((item) => (
+          <li key={item.id} className="flex justify-between gap-4">
+            <span className="min-w-0">
+              {item.product_name_snapshot}
+              {item.specification_snapshot ? (
+                <span className="text-xs text-gray-500"> · {item.specification_snapshot}</span>
+              ) : null}
+            </span>
+            <span className="flex-none tabular-nums text-gray-500">× {item.quantity}</span>
+          </li>
+        ))}
+      </ul>
+    </li>
+  );
 }
 
 export default function OrderDetailPage() {
-  const { id: idParam } = useParams<{ id: string }>();
-  const id = Number(idParam);
-  const navigate = useNavigate();
+  const { orderId } = useParams<{ orderId: string }>();
+  const id = Number(orderId);
 
-  const [order, setOrder] = useState<AdminOrderDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadErrorState | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
-  const [panel, setPanel] = useState<OrderStatusAction | null>(null);
+  const [panel, setPanel] = useState<Panel>(null);
   const [note, setNote] = useState('');
-  const [actionBusy, setActionBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionFieldErrors, setActionFieldErrors] = useState<Record<string, string[]>>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<string | null>(null);
-
-  const loadedIdRef = useRef<number | null>(null);
-  const panelRef = useRef<HTMLFormElement>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     if (!Number.isInteger(id) || id <= 0) {
-      setLoading(false);
-      setLoadError({ message: 'That order number is not valid.', needsLogin: false });
+      setLoadError({ message: 'This order link is not valid.', needsLogin: false });
+      setIsLoading(false);
       return;
     }
 
     const load = async () => {
-      if (loadedIdRef.current === id) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-        setOrder(null);
-        setPanel(null);
-        setNotice(null);
-        setConflict(null);
-        setActionError(null);
-        setActionFieldErrors({});
-        setNote('');
-      }
-
+      setIsLoading(true);
       setLoadError(null);
+
       const response = await getAdminOrder(id);
 
       if (cancelled) return;
 
       if (response.success && response.data) {
-        loadedIdRef.current = id;
         setOrder(response.data.order);
-      } else if (response.status === 401) {
-        navigate('/admin/login', { replace: true });
-        return;
       } else {
-        setOrder(null);
         setLoadError(describeLoadError(response, 'this order'));
       }
 
-      setLoading(false);
-      setRefreshing(false);
+      setIsLoading(false);
     };
 
     void load();
@@ -145,572 +203,560 @@ export default function OrderDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, reloadToken, navigate]);
+  }, [id, reloadToken]);
 
-  // Focus moves into the confirmation panel on open; closing returns to the
-  // button that opened it so keyboard users keep their place.
-  useEffect(() => {
-    if (!panel) return;
-    panelRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-  }, [panel]);
-
-  const refresh = () => setReloadToken((token) => token + 1);
-
-  const openPanel = (action: OrderStatusAction, trigger: HTMLButtonElement) => {
-    triggerRef.current = trigger;
-    setPanel(action);
+  const openPanel = (next: Exclude<Panel, null>) => {
+    setPanel(next);
     setNote('');
     setActionError(null);
-    setActionFieldErrors({});
     setNotice(null);
-    setConflict(null);
   };
 
   const closePanel = () => {
     setPanel(null);
     setNote('');
     setActionError(null);
-    setActionFieldErrors({});
-    triggerRef.current?.focus();
   };
 
-  const submitAction = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!order || !panel || actionBusy) return;
+  const runAction = async () => {
+    if (!order) return;
 
+    const trimmed = note.trim();
+
+    if (panel === 'unavailable' && trimmed.length < 3) {
+      setActionError('Add a short note explaining why the supplier cannot fulfil this order.');
+      return;
+    }
+
+    if (panel === 'cancel' && trimmed.length < 3) {
+      setActionError('Add a reason for cancelling this order.');
+      return;
+    }
+
+    setBusy(true);
     setActionError(null);
-    setActionFieldErrors({});
-    const built = buildOrderStatusPayload(panel.status, note);
-    if (!built.ok || !built.payload) {
-      setActionFieldErrors(built.fieldErrors);
-      return;
+    setNotice(null);
+
+    const response =
+      panel === 'confirm'
+        ? await confirmSupplier(order.id, 'CONFIRMED', trimmed)
+        : panel === 'unavailable'
+          ? await confirmSupplier(order.id, 'UNAVAILABLE', trimmed)
+          : await cancelOrder(order.id, trimmed);
+
+    if (response.success && response.data) {
+      setOrder(response.data.order);
+      setNotice(
+        panel === 'confirm'
+          ? 'Supplier confirmed. The order moved to PREPARING.'
+          : panel === 'unavailable'
+            ? 'Supplier marked unavailable. The order is closed for confirmation.'
+            : 'Order cancelled.',
+      );
+      setPanel(null);
+      setNote('');
+    } else {
+      setActionError(
+        describeRequestError(
+          response,
+          panel === 'confirm'
+            ? 'Could not record the supplier confirmation.'
+            : panel === 'unavailable'
+              ? 'Could not mark the supplier unavailable.'
+              : 'Could not cancel this order.',
+        ),
+      );
     }
 
-    setActionBusy(true);
-    const response = await updateAdminOrderStatus(order.id, {
-      status: panel.status,
-      note: built.payload.note,
-    });
-    setActionBusy(false);
-
-    if (!response.success) {
-      if (response.status === 401) {
-        navigate('/admin/login', { replace: true });
-        return;
-      }
-
-      if (response.status === 409) {
-        setPanel(null);
-        setActionFieldErrors({});
-        setActionError(null);
-        setConflict(
-          response.message ??
-            'This order changed while you were working on it. The latest state has been loaded.',
-        );
-        refresh();
-        return;
-      }
-
-      if (response.status === 422) {
-        setActionFieldErrors(response.errors ?? {});
-        setActionError(response.message ?? 'Check the reason and try again.');
-        return;
-      }
-
-      setActionError(describeRequestError(response, 'The order status could not be updated.'));
-      return;
-    }
-
-    setNotice(`${panel.label} recorded. Order moved to ${orderStatusLabel(panel.status)}.`);
-    setPanel(null);
-    setNote('');
-    refresh();
+    setBusy(false);
   };
 
-  if (loading && !order) {
+  if (isLoading && order === null) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Order" />
-        <LoadingPanel label="Loading order" />
+        <PageHeader title="Order detail" />
+        <LoadingPanel label="Loading order…" />
       </div>
     );
   }
 
-  if (!order) {
+  if (loadError && order === null) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Order"
-          action={
-            <Link to="/admin/orders" className={secondaryButtonClass}>
-              Back to orders
-            </Link>
-          }
-        />
+        <PageHeader title="Order detail" />
         <Alert tone="error">
-          <p>{loadError?.message ?? 'The order could not be loaded.'}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {loadError?.needsLogin ? (
-              <Link to="/admin/login" className={linkClass}>
-                Sign in again
-              </Link>
-            ) : (
-              <button type="button" onClick={refresh} className={secondaryButtonClass}>
+          <div>
+            <p className="font-semibold">This order is unavailable</p>
+            <p className="mt-1">{loadError.message}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setReloadToken((token) => token + 1)}
+                className={primaryButtonClass}
+              >
                 Try again
               </button>
-            )}
-            <Link to="/admin/orders" className={secondaryButtonClass}>
-              Back to orders
-            </Link>
+              {loadError.needsLogin ? (
+                <Link to="/admin/login" className={linkClass}>
+                  Go to admin login
+                </Link>
+              ) : null}
+              <Link to="/admin/orders" className={linkClass}>
+                Back to orders
+              </Link>
+            </div>
           </div>
         </Alert>
       </div>
     );
   }
 
-  const actions = orderActionButtons(order.available_statuses);
-  const requiresNote = panel ? orderActionRequiresNote(panel.status) : false;
-  const noteError = actionFieldErrors.note?.[0] ?? null;
-  const statusError = actionFieldErrors.status?.[0] ?? null;
-  const deliverTo = deliverySummary(order);
-  const isClosed =
-    order.order_status === 'SUPPLIER_UNAVAILABLE' || order.order_status === 'CANCELLED';
+  if (order === null) return null;
+
+  const awaitingSupplier = order.order_status === 'SUPPLIER_CONFIRMATION_REQUIRED';
+  const cancellable = canCancelOrder(order.order_status);
+  const payment = order.cash_payment;
+  const delivery = order.delivery;
 
   return (
-    <div className="space-y-6" aria-busy={refreshing || actionBusy || undefined}>
+    <div className="space-y-6">
+      <Link to="/admin/orders" className={linkClass}>
+        <FiArrowLeft aria-hidden="true" className="h-4 w-4" />
+        Orders
+      </Link>
+
       <PageHeader
-        title={order.order_number}
-        description={`Created ${formatOrderDateTime(order.created_at)} · Quotation ${order.quotation_number}`}
-        action={
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            <div className="flex flex-wrap items-center gap-2">
-              <OrderStatusBadge status={order.order_status} />
-              <OrderStatusBadge kind="payment" status={order.payment_status} />
-              <OrderStatusBadge kind="delivery" status={order.delivery_status} />
-            </div>
-            <Link to="/admin/orders" className={linkClass}>
-              Back to orders
-            </Link>
-          </div>
-        }
+        title={`Order ${order.order_number}`}
+        description={`Placed ${formatOrderDateTime(order.created_at)} · ${formatMMK(order.total_amount)} MMK`}
+        action={<StatusBadge status={order.order_status} />}
       />
 
-      {refreshing ? (
-        <p className="text-xs text-gray-500" aria-live="polite">
+      {isLoading ? (
+        <p className="px-1 text-xs text-gray-500" role="status" aria-live="polite">
           Refreshing order…
         </p>
       ) : null}
 
-      {conflict ? <Alert tone="warning">{conflict}</Alert> : null}
-      {notice ? <Alert tone="success">{notice}</Alert> : null}
-      {actionError ? <Alert tone="error">{actionError}</Alert> : null}
+      {notice ? (
+        <Alert tone="success">
+          <p>{notice}</p>
+        </Alert>
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section
-          className="rounded-lg border border-rule bg-plate p-4 sm:p-6 lg:col-span-2"
-          aria-label="Customer and delivery snapshot"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Customer &amp; delivery</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Snapshot copied from the accepted quotation; later profile edits do not change it.
-              </p>
-            </div>
-            <p className="text-xs text-gray-500">
-              {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-            </p>
+      {actionError ? (
+        <Alert tone="error">
+          <p>{actionError}</p>
+        </Alert>
+      ) : null}
+
+      {loadError ? (
+        <Alert tone="warning">
+          <div>
+            <p>{loadError.message}</p>
+            <button
+              type="button"
+              onClick={() => setReloadToken((token) => token + 1)}
+              className={`${secondaryButtonClass} mt-2`}
+            >
+              Reload order
+            </button>
           </div>
+        </Alert>
+      ) : null}
 
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Customer
-              </dt>
-              <dd className="mt-1 font-medium text-ink">{order.customer_name}</dd>
-              {order.company_name ? (
-                <dd className="text-gray-600">{order.company_name}</dd>
-              ) : null}
-              <dd className="mt-1 text-gray-700">{order.phone}</dd>
-              <dd className="break-all text-gray-600">{order.email ?? '—'}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Deliver to
-              </dt>
-              <dd className="mt-1 whitespace-pre-line text-gray-800">{deliverTo || '—'}</dd>
-            </div>
-            {order.customer_note ? (
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Customer note
-                </dt>
-                <dd className="mt-1 whitespace-pre-line rounded bg-gray-50 px-3 py-2 text-gray-700">
-                  {order.customer_note}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </section>
-
-        <div className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           <section
-            className="rounded-lg border border-rule bg-plate p-4 lg:sticky lg:top-24"
-            aria-label="Supplier confirmation"
+            className="overflow-hidden rounded-lg border border-rule bg-plate"
+            aria-label="Supplier contacts"
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="text-base font-semibold text-ink">Supplier confirmation</h2>
-                <p className="mt-1 text-xs text-gray-600">
-                  Actions are limited to what the server currently allows.
-                </p>
-              </div>
-              <OrderStatusBadge status={order.order_status} />
-            </div>
+            <header className="border-b border-rule px-4 py-3">
+              <h2 className="text-sm font-semibold text-ink">Supplier confirmation</h2>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Contact each supplier over Viber, confirm product, quantity and delivery date,
+                then record the result.
+              </p>
+            </header>
 
-            {actions.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {actions.map((action) => (
-                  <button
-                    key={action.status}
-                    type="button"
-                    disabled={actionBusy}
-                    onClick={(event) => openPanel(action, event.currentTarget)}
-                    className={
-                      action.destructive
-                        ? dangerButtonClass
-                        : action.status === 'ORDER_CONFIRMED'
-                          ? primaryButtonClass
-                          : secondaryButtonClass
-                    }
-                  >
-                    {action.label}
-                  </button>
+            {order.suppliers.length > 0 ? (
+              <ul className="divide-y divide-rule">
+                {order.suppliers.map((group) => (
+                  <SupplierCard key={group.supplier.id} group={group} />
                 ))}
-              </div>
+              </ul>
             ) : (
-              <p className="mt-4 rounded border border-dashed border-rule px-3 py-2 text-sm text-gray-600">
-                {isClosed
-                  ? `This order is closed as ${orderStatusLabel(order.order_status)}. No further supplier-confirmation action is available here.`
-                  : `No supplier-confirmation action is available at ${orderStatusLabel(
-                      order.order_status,
-                    )}.`}
+              <p className="px-4 py-3 text-sm text-gray-600">
+                No supplier is attached to these order lines.
               </p>
             )}
+          </section>
 
-            {panel ? (
-              <form
-                ref={panelRef}
-                onSubmit={submitAction}
-                className="mt-4 rounded-lg border border-rule bg-gray-50/70 p-4"
-                aria-labelledby="order-action-panel-title"
-              >
-                <h3 id="order-action-panel-title" className="text-base font-semibold text-ink">
-                  {panel.label}
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">{actionGuidance(panel.status)}</p>
+          <section
+            className="overflow-hidden rounded-lg border border-rule bg-plate"
+            aria-label="Order items"
+          >
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-3">
+              <h2 className="text-sm font-semibold text-ink">Order items</h2>
+              <p className="text-xs text-gray-500">
+                Quotation {order.quotation?.quotation_number ?? '—'} · version{' '}
+                {order.quotation?.version ?? '—'}
+              </p>
+            </header>
 
-                {orderActionIsDestructive(panel.status) ? (
-                  <Alert tone="warning" className="mt-3">
-                    {panel.status === 'CANCELLED'
-                      ? 'This is final for this order. The customer will see the cancellation and the reason in the order history.'
-                      : 'This ends supplier confirmation. The customer still needs a revised quotation or an agreed cancellation.'}
-                  </Alert>
-                ) : null}
+            <ul className="divide-y divide-rule px-4">
+              {order.items.map((item) => (
+                <ItemRow key={item.id} item={item} />
+              ))}
+            </ul>
 
-                {statusError ? (
-                  <p role="alert" className="mt-3 text-sm text-red-600">
-                    {statusError}
-                  </p>
-                ) : null}
-
-                <div className="mt-3">
-                  <Field
-                    label={orderActionReasonLabel(panel.status)}
-                    htmlFor="order-action-note"
-                    required={requiresNote}
-                    error={noteError ? [noteError] : null}
-                    hint={`${requiresNote ? 'Required · ' : 'Optional · '}${note.length.toLocaleString(
-                      'en-US',
-                    )} / ${ORDER_NOTE_MAX_LENGTH.toLocaleString('en-US')} characters`}
-                    hintId="order-action-note-hint"
-                  >
-                    <textarea
-                      id="order-action-note"
-                      data-autofocus
-                      rows={4}
-                      maxLength={ORDER_NOTE_MAX_LENGTH}
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      disabled={actionBusy}
-                      aria-invalid={Boolean(noteError) || undefined}
-                      aria-describedby={joinIds(
-                        'order-action-note-hint',
-                        noteError ? 'order-action-note-error' : null,
-                      )}
-                      className={inputClass(Boolean(noteError))}
-                    />
-                  </Field>
+            <div className="border-t border-rule bg-paper px-4 py-3">
+              <dl className="ml-auto max-w-sm space-y-1 text-sm">
+                <div className="flex justify-between gap-6">
+                  <dt className="text-gray-600">Subtotal</dt>
+                  <dd className="font-mono tabular-nums text-ink">
+                    {formatMMK(order.subtotal)} MMK
+                  </dd>
                 </div>
+                {order.discount > 0 ? (
+                  <div className="flex justify-between gap-6">
+                    <dt className="text-gray-600">Discount</dt>
+                    <dd className="font-mono tabular-nums text-green-700">
+                      −{formatMMK(order.discount)} MMK
+                    </dd>
+                  </div>
+                ) : null}
+                <div className="flex justify-between gap-6">
+                  <dt className="text-gray-600">Delivery fee</dt>
+                  <dd className="font-mono tabular-nums text-ink">
+                    {formatMMK(order.delivery_fee)} MMK
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-6">
+                  <dt className="text-gray-600">
+                    Service fee ({order.service_fee_percentage}%)
+                  </dt>
+                  <dd className="font-mono tabular-nums text-ink">
+                    {formatMMK(order.service_fee)} MMK
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-6 border-t border-rule pt-1.5">
+                  <dt className="font-semibold text-ink">Total</dt>
+                  <dd className="font-mono font-semibold tabular-nums text-ink">
+                    {formatMMK(order.total_amount)} MMK
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </section>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+          <section className="rounded-lg border border-rule bg-plate p-4" aria-label="Delivery">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <FiTruck aria-hidden="true" className="h-4 w-4 text-gray-400" />
+              Delivery
+            </h2>
+
+            {delivery ? (
+              <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-gray-500">Contact</p>
+                  <p className="mt-0.5 text-ink">{delivery.delivery_contact_name}</p>
+                  <p className="text-gray-600">{delivery.delivery_phone}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Address</p>
+                  <p className="mt-0.5 text-ink">{delivery.delivery_address}</p>
+                  <p className="text-gray-600">
+                    {delivery.city}
+                    {delivery.township ? `, ${delivery.township}` : ''}
+                    {delivery.landmark ? ` · ${delivery.landmark}` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Status</p>
+                  <div className="mt-1">
+                    <StatusBadge status={delivery.delivery_status} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-500">Estimated delivery</p>
+                  <p className="mt-0.5 text-ink">
+                    {delivery.estimated_delivery_date
+                      ? formatOrderDate(delivery.estimated_delivery_date)
+                      : 'Not set'}
+                  </p>
+                  {delivery.tracking_number ? (
+                    <p className="text-gray-600">
+                      {delivery.delivery_partner ?? 'Delivery partner'} ·{' '}
+                      <span className="font-mono">{delivery.tracking_number}</span>
+                    </p>
+                  ) : null}
+                </div>
+                {delivery.customer_note ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-gray-500">Delivery note</p>
+                    <p className="mt-0.5 whitespace-pre-line text-ink">{delivery.customer_note}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-gray-600">No delivery record for this order.</p>
+            )}
+          </section>
+
+          <section
+            className="rounded-lg border border-rule bg-plate p-4"
+            aria-label="Cash payment"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <FiCreditCard aria-hidden="true" className="h-4 w-4 text-gray-400" />
+                Cash payment
+              </h2>
+              {payment ? <StatusBadge status={payment.status} /> : null}
+            </div>
+
+            {payment ? (
+              <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-gray-500">Method</p>
+                  <p className="mt-0.5 text-ink">{paymentMethodLabel(order.payment_method)}</p>
+                  <p className="text-xs text-gray-500">
+                    Receipt <span className="font-mono">{payment.receipt_number}</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Amounts</p>
+                  <p className="mt-0.5 font-mono tabular-nums text-ink">
+                    Due {formatMMK(payment.amount_due)} MMK
+                  </p>
+                  <p className="font-mono tabular-nums text-gray-600">
+                    Collected {formatMMK(payment.amount_collected)} MMK · remaining{' '}
+                    {formatMMK(payment.amount_remaining)} MMK
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-gray-600">No cash payment record for this order.</p>
+            )}
+          </section>
+
+          <section
+            className="overflow-hidden rounded-lg border border-rule bg-plate"
+            aria-label="Order status history"
+          >
+            <header className="border-b border-rule px-4 py-3">
+              <h2 className="text-sm font-semibold text-ink">Status history</h2>
+            </header>
+            <ol className="divide-y divide-rule">
+              {order.status_histories.map((entry) => (
+                <li key={entry.id} className="flex gap-3 px-4 py-3">
+                  <FiClock aria-hidden="true" className="mt-0.5 h-4 w-4 flex-none text-gray-400" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink">
+                      {entry.old_status ? (
+                        <>
+                          {formatStatusLabel(entry.old_status)} →{' '}
+                          <span className="font-semibold">
+                            {formatStatusLabel(entry.new_status)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-semibold">
+                          {formatStatusLabel(entry.new_status)}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatOrderDateTime(entry.created_at)} ·{' '}
+                      {formatStatusLabel(entry.changed_by_type)}
+                      {entry.changed_by_id ? ` #${entry.changed_by_id}` : ''}
+                    </p>
+                    {entry.note ? (
+                      <p className="mt-1 whitespace-pre-line text-xs text-gray-600">{entry.note}</p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <section className="rounded-lg border border-rule bg-plate p-4" aria-label="Order actions">
+            <h2 className="text-sm font-semibold text-ink">Actions</h2>
+            <p className="mt-1 text-xs text-gray-600">{orderStatusHint(order.order_status)}</p>
+
+            {panel === null ? (
+              <div className="mt-3 space-y-2">
+                {awaitingSupplier ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openPanel('confirm')}
+                      className={`${primaryButtonClass} w-full`}
+                    >
+                      <FiCheck aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                      Supplier confirmed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPanel('unavailable')}
+                      className={`${secondaryButtonClass} w-full`}
+                    >
+                      <FiAlertTriangle aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                      Supplier unavailable
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    No supplier action is pending for this order.
+                  </p>
+                )}
+
+                {cancellable ? (
                   <button
-                    type="submit"
-                    disabled={actionBusy}
-                    className={
-                      orderActionIsDestructive(panel.status)
-                        ? dangerButtonClass
-                        : primaryButtonClass
-                    }
+                    type="button"
+                    onClick={() => openPanel('cancel')}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-red-300 bg-plate px-4 py-1.5 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {actionBusy ? 'Saving…' : panel.label}
+                    <FiXCircle aria-hidden="true" className="h-4 w-4" />
+                    Cancel order
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {panel !== null ? (
+              <form
+                className="mt-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void runAction();
+                }}
+              >
+                <p className="text-sm font-semibold text-ink">
+                  {panel === 'confirm'
+                    ? 'Confirm this order?'
+                    : panel === 'unavailable'
+                      ? 'Mark supplier unavailable?'
+                      : 'Cancel this order?'}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {panel === 'confirm'
+                    ? 'The order moves to ORDER_CONFIRMED and then PREPARING. Both steps are recorded in the status history.'
+                    : panel === 'unavailable'
+                      ? 'The order stops at SUPPLIER_UNAVAILABLE. Explain what the supplier said so the team can follow up.'
+                      : 'The customer will see the cancelled status. Explain why the order cannot continue.'}
+                </p>
+
+                <label htmlFor="action-note" className="mt-3 block text-xs font-medium text-ink">
+                  {panel === 'confirm' ? 'Note (optional)' : 'Reason'}
+                  {panel !== 'confirm' ? <span className="text-red-600"> *</span> : null}
+                </label>
+                <textarea
+                  id="action-note"
+                  rows={3}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  maxLength={2000}
+                  required={panel !== 'confirm'}
+                  minLength={panel === 'confirm' ? undefined : 3}
+                  className={`${textareaClass} mt-1`}
+                  placeholder={
+                    panel === 'confirm'
+                      ? 'e.g. Supplier confirmed stock and delivery date over Viber.'
+                      : panel === 'unavailable'
+                        ? 'e.g. Supplier has no stock until next month.'
+                        : 'e.g. Customer asked to cancel before dispatch.'
+                  }
+                />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="submit" disabled={busy} className={primaryButtonClass}>
+                    {busy
+                      ? 'Saving…'
+                      : panel === 'confirm'
+                        ? 'Confirm order'
+                        : panel === 'unavailable'
+                          ? 'Mark unavailable'
+                          : 'Cancel order'}
                   </button>
                   <button
                     type="button"
                     onClick={closePanel}
-                    disabled={actionBusy}
+                    disabled={busy}
                     className={secondaryButtonClass}
                   >
-                    Keep order as is
+                    Keep order
                   </button>
                 </div>
               </form>
             ) : null}
           </section>
 
-          <section
-            className="rounded-lg border border-rule bg-plate p-4"
-            aria-label="Related quotation request"
-          >
-            <h2 className="text-base font-semibold text-ink">Quotation request</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {order.quotation_request.quotation_number} ·{' '}
-              {formatStatusLabel(order.quotation_request.status)}
-            </p>
-            <p className="mt-2 text-xs text-gray-500">
-              Log supplier calls and messages on the request before recording the supplier's
-              answer here.
-            </p>
-            <Link
-              to={`/admin/quotation-requests/${order.quotation_request.id}`}
-              className={`${linkClass} mt-3`}
-            >
-              Open quotation request
-            </Link>
-          </section>
-        </div>
-      </div>
+          <OrderFulfilmentPanel
+            order={order}
+            onOrderUpdated={setOrder}
+            onNotice={setNotice}
+            onError={setActionError}
+          />
 
-      <section
-        className="overflow-hidden rounded-lg border border-rule bg-plate"
-        aria-label="Order items and totals"
-      >
-        <div className="border-b border-rule px-4 py-3">
-          <h2 className="text-base font-semibold text-ink">Items</h2>
-          <p className="mt-1 text-xs text-gray-500">
-            Immutable snapshots copied from the accepted quotation version.
-          </p>
-        </div>
-
-        {order.items.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-gray-500">No order items are attached.</p>
-        ) : (
-          <div className="overflow-x-auto border-b border-rule">
-            <table className="min-w-full divide-y divide-rule text-sm">
-              <caption className="sr-only">Items in order {order.order_number}</caption>
-              <thead className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th scope="col" className="px-4 py-2">
-                    Item
-                  </th>
-                  <th scope="col" className="px-4 py-2">
-                    Qty
-                  </th>
-                  <th scope="col" className="px-4 py-2 text-right">
-                    Unit price
-                  </th>
-                  <th scope="col" className="px-4 py-2 text-right">
-                    Discount
-                  </th>
-                  <th scope="col" className="px-4 py-2 text-right">
-                    Line total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rule">
-                {order.items.map((item) => (
-                  <tr key={item.id}>
-                    <th scope="row" className="px-4 py-2 text-left font-normal">
-                      <p className="font-medium text-ink">{item.product_name_snapshot}</p>
-                      <p className="text-xs text-gray-500">
-                        {[item.sku_snapshot, item.specification_snapshot, item.supplier?.shop_name]
-                          .filter(Boolean)
-                          .join(' · ') || '—'}
-                      </p>
-                    </th>
-                    <td className="px-4 py-2 tabular-nums text-gray-700">{item.quantity}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">
-                      {formatMMK(item.unit_price)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">
-                      {formatMMK(item.discount)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums font-medium text-ink">
-                      {formatMMK(item.line_total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <dl className="grid gap-3 px-4 py-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
-          <div>
-            <dt className="text-xs text-gray-500">Subtotal</dt>
-            <dd className="mt-0.5 font-medium tabular-nums text-ink">
-              {formatMMK(order.subtotal)} MMK
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500">Discount</dt>
-            <dd className="mt-0.5 font-medium tabular-nums text-ink">
-              {formatMMK(order.discount)} MMK
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500">Delivery fee</dt>
-            <dd className="mt-0.5 font-medium tabular-nums text-ink">
-              {formatMMK(order.delivery_fee)} MMK
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500">
-              Service fee ({order.service_fee_percentage}%)
-            </dt>
-            <dd className="mt-0.5 font-medium tabular-nums text-ink">
-              {formatMMK(order.service_fee)} MMK
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500">Total</dt>
-            <dd className="mt-0.5 font-semibold tabular-nums text-ink">
-              {formatMMK(order.total_amount)} MMK
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section
-          className="rounded-lg border border-rule bg-plate p-4"
-          aria-label="Cash on delivery summary"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Cash on delivery</h2>
-              <p className="mt-1 text-xs text-gray-600">
-                {formatStatusLabel(order.payment_method)} · full cash payment only
-              </p>
-            </div>
-            <OrderStatusBadge kind="payment" status={order.payment_status} />
-          </div>
-
-          <p className="mt-3 text-sm text-gray-600">
-            This summary is read-only in the supplier-confirmation step. Cash collection and
-            receipt confirmation are handled during delivery.
-          </p>
-
-          {order.cash_payment ? (
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <section className="rounded-lg border border-rule bg-plate p-4" aria-label="Customer">
+            <h2 className="text-sm font-semibold text-ink">Customer</h2>
+            <dl className="mt-3 space-y-3 text-sm">
               <div>
-                <dt className="text-xs text-gray-500">Receipt</dt>
-                <dd className="mt-0.5 font-medium text-ink">
-                  {order.cash_payment.receipt_number ?? 'Not issued yet'}
+                <dt className="text-gray-500">Contact</dt>
+                <dd className="mt-0.5 text-ink">
+                  {order.customer_name}
+                  {order.company_name ? ` · ${order.company_name}` : ''}
                 </dd>
+                <dd className="text-gray-600">{order.phone}</dd>
+                {order.email ? <dd className="text-gray-600">{order.email}</dd> : null}
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Record status</dt>
-                <dd className="mt-0.5">
-                  <OrderStatusBadge kind="payment" status={order.cash_payment.status} />
+                <dt className="text-gray-500">Delivery address</dt>
+                <dd className="mt-0.5 text-ink">{order.delivery_address}</dd>
+                <dd className="text-gray-600">
+                  {order.city}
+                  {order.township ? `, ${order.township}` : ''}
                 </dd>
+                {order.landmark ? <dd className="text-gray-600">{order.landmark}</dd> : null}
               </div>
-              <div>
-                <dt className="text-xs text-gray-500">Amount due</dt>
-                <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                  {formatMMK(order.cash_payment.amount_due)} MMK
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Collected</dt>
-                <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                  {formatMMK(order.cash_payment.amount_collected)} MMK
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Remaining</dt>
-                <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                  {formatMMK(order.cash_payment.amount_remaining)} MMK
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Collected at</dt>
-                <dd className="mt-0.5 text-gray-700">
-                  {order.cash_payment.collected_at
-                    ? formatOrderDateTime(order.cash_payment.collected_at)
-                    : '—'}
-                </dd>
-              </div>
+              {order.customer_note ? (
+                <div>
+                  <dt className="text-gray-500">Customer note</dt>
+                  <dd className="mt-0.5 whitespace-pre-line text-ink">{order.customer_note}</dd>
+                </div>
+              ) : null}
             </dl>
-          ) : (
-            <Alert tone="warning" className="mt-4">
-              No cash payment record is linked to this order yet.
-            </Alert>
-          )}
-        </section>
+          </section>
 
-        <section
-          className="rounded-lg border border-rule bg-plate p-4"
-          aria-label="Order status history"
-        >
-          <h2 className="text-base font-semibold text-ink">Status history</h2>
-          <p className="mt-1 text-xs text-gray-500">Newest first.</p>
+          {order.quotation ? (
+            <section className="rounded-lg border border-rule bg-plate p-4" aria-label="Source quotation">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <FiFileText aria-hidden="true" className="h-4 w-4 text-gray-400" />
+                Source quotation
+              </h2>
+              <p className="mt-2 font-mono text-sm text-ink">{order.quotation.quotation_number}</p>
+              <p className="text-xs text-gray-500">
+                Version {order.quotation.version} · {formatStatusLabel(order.quotation.status)} ·{' '}
+                accepted {formatOrderDateTime(order.quotation.accepted_at)}
+              </p>
+              <Link
+                to={`/admin/quotation-requests/${order.quotation_request_id}`}
+                className={`${linkClass} mt-3`}
+              >
+                Open quotation request
+              </Link>
+            </section>
+          ) : null}
 
-          {order.status_histories.length === 0 ? (
-            <p className="mt-4 text-sm text-gray-500">No status changes recorded yet.</p>
-          ) : (
-            <ol className="mt-4 space-y-4 border-l border-rule pl-4">
-              {order.status_histories.map((history, index) => {
-                const actor = orderHistoryActorLabel(history.changed_by_type);
-                return (
-                  <li key={`${history.new_status}-${history.created_at}-${index}`}>
-                    <p className="text-sm font-medium text-ink">
-                      {orderStatusTransitionLabel(history.old_status, history.new_status)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      <time dateTime={history.created_at}>
-                        {formatOrderDateTime(history.created_at)}
-                      </time>
-                      {actor ? ` · ${actor}` : ''}
-                    </p>
-                    {history.note ? (
-                      <p className="mt-1 whitespace-pre-line rounded bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                        {history.note}
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </section>
+          <section className="rounded-lg border border-rule bg-paper p-3 text-xs text-gray-600">
+            Order status and money values are locked to the accepted quotation. Later catalog
+            price changes never alter this order.
+          </section>
+        </aside>
       </div>
-
-      <p className="text-xs text-gray-500">
-        Order created <time dateTime={order.created_at}>{formatOrderDate(order.created_at)}</time>
-        {' · '}Quotation {order.quotation_number}
-        {' · '}Request #{order.quotation_request_id}
-      </p>
     </div>
   );
 }

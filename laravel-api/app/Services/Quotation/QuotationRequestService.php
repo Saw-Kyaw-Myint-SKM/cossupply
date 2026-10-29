@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
+use App\Services\Notification\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -22,6 +23,7 @@ class QuotationRequestService
 {
     public function __construct(
         private readonly QuotationNumberGenerator $quotationNumbers,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -35,7 +37,7 @@ class QuotationRequestService
      */
     public function submit(Customer $customer, array $data): QuotationRequest
     {
-        return DB::transaction(function () use ($customer, $data): QuotationRequest {
+        $request = DB::transaction(function () use ($customer, $data): QuotationRequest {
             // quotation_number is NOT NULL, so the row is first persisted
             // with a unique placeholder and immediately re-keyed to the
             // id-derived number inside the same transaction.
@@ -80,6 +82,10 @@ class QuotationRequestService
 
             return $request->refresh();
         });
+
+        $this->notifications->quotationRequested($request, $customer);
+
+        return $request;
     }
 
     /**
