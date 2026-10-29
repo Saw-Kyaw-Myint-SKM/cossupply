@@ -45,20 +45,20 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     eyebrow: 'Office supplies for every desk in Myanmar',
-    headline: 'BUILD YOUR ORDER LIST.',
-    offer: 'PRICED BY QUOTATION',
+    headline: 'Build your order list',
+    offer: 'Priced by quotation',
     cta: { label: 'Shop the catalog', to: '/products' },
   },
   {
     eyebrow: 'One list, every department',
-    headline: 'STOCK THE WHOLE OFFICE.',
-    offer: 'PAPER, INK, FURNITURE & MORE',
+    headline: 'Stock the whole office',
+    offer: 'Paper, ink, furniture & more',
     cta: { label: 'Browse categories', to: '/categories' },
   },
   {
     eyebrow: 'Cash on delivery, nationwide',
-    headline: 'PAY WHEN IT ARRIVES.',
-    offer: 'QUOTATION SUPPORT OVER VIBER',
+    headline: 'Pay when it arrives',
+    offer: 'Quotation support over Viber',
     cta: { label: 'Start your order list', to: '/products' },
   },
 ];
@@ -92,8 +92,8 @@ function SectionHeading({
           <FiChevronRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       </div>
-      <div className="relative h-0.5 w-full bg-rule/60">
-        <span aria-hidden="true" className="absolute left-0 top-0 h-[3px] w-[300px] max-w-full rounded-full bg-primary" />
+      <div className="relative h-0.5 w-full bg-white/70">
+        <span aria-hidden="true" className="absolute left-0 top-0 h-[3px] w-[300px] max-w-full rounded-full bg-gradient-to-r from-primary via-sky-400 to-violet-400" />
       </div>
     </div>
   );
@@ -150,6 +150,14 @@ export default function HomePage() {
     };
   }, []);
 
+  // Auto-slide every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSlide((prev) => (prev + 1) % SLIDES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const deals =
     products?.filter((product) => discountPercent(product) !== null) ?? [];
   const featuredProducts = deals.length >= 3 ? deals : (products ?? []);
@@ -164,78 +172,90 @@ export default function HomePage() {
 
   return (
     <div className="space-y-12 lg:space-y-16">
-      {/* Promo carousel: the dark stage from the design, driven by real
-          product photography when the catalog has any. */}
+      {/* Hero carousel */}
       <section
         aria-roledescription="carousel"
         aria-label="Store highlights"
-        className="relative overflow-hidden rounded-2xl bg-hero text-white"
+        className="relative overflow-hidden rounded-3xl shadow-glass ring-1 ring-white/60"
       >
-        <div className="relative flex min-h-[330px] items-center">
-          <div className="relative z-10 flex w-full flex-col gap-3.5 px-6 py-10 sm:px-10 lg:w-[650px] lg:py-0 lg:pl-[72px]">
-            <p className="text-base font-medium text-white/90 sm:text-xl">{activeSlide.eyebrow}</p>
-            <h1 className="text-3xl font-bold leading-tight sm:text-[44px]">
-              {activeSlide.headline}
-            </h1>
-            <p className="text-lg font-semibold text-warm sm:text-[25px]">{activeSlide.offer}</p>
-            <Link
-              to={activeSlide.cta.to}
-              className="mt-1 inline-flex w-fit items-center gap-3.5 rounded-lg bg-white px-[18px] py-2.5 text-[13px] font-bold text-primary hover:bg-accent-soft active:scale-[.99] motion-safe:transition-all"
-            >
-              {activeSlide.cta.label}
-              <FiArrowRight aria-hidden="true" className="h-[17px] w-[17px]" />
-            </Link>
+        <div className="relative h-[280px] sm:h-[320px] lg:h-[380px]">
+          {slideImage ? (
+            <img
+              src={slideImage}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 h-full w-full bg-gradient-to-br from-indigo-600 via-violet-600 to-sky-500" />
+          )}
+          
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-indigo-950/45 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(65%_85%_at_12%_100%,rgba(0,142,204,0.38),transparent_60%)]" />
+          
+          {/* Content */}
+          <div className="relative z-10 flex h-full items-center">
+            <div className="w-full px-8 sm:px-12 lg:px-16 max-w-xl">
+              <p className="text-xs font-semibold text-sky-300 mb-2 tracking-wider uppercase">{activeSlide.eyebrow}</p>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-3 drop-shadow-lg">
+                {activeSlide.headline}
+              </h1>
+              <p className="text-base sm:text-lg text-gray-100 mb-5 drop-shadow">{activeSlide.offer}</p>
+              <Link
+                to={activeSlide.cta.to}
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-sky-500 px-5 py-1.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:brightness-105 active:scale-[0.98] transition-all"
+              >
+                {activeSlide.cta.label}
+                <FiArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-0.5 pt-1" role="group" aria-label="Choose a slide">
+        {/* Bottom bar */}
+        <div className="absolute bottom-0 left-0 right-0 z-20">
+          <div className="flex items-center justify-between border-t border-white/15 bg-white/10 px-6 py-3 backdrop-blur-xl">
+            {/* Indicators */}
+            <div className="flex items-center gap-2" role="group" aria-label="Choose a slide">
               {SLIDES.map((item, index) => (
                 <button
                   key={item.headline}
                   type="button"
                   onClick={() => setSlide(index)}
-                  aria-label={`Show slide ${index + 1}: ${item.headline}`}
+                  aria-label={`Show slide ${index + 1}`}
                   aria-current={index === slide ? 'true' : undefined}
-                  className="flex h-6 items-center px-1"
+                  className="flex items-center justify-center"
                 >
                   <span
                     aria-hidden="true"
-                    className={`block h-1.5 rounded-full motion-safe:transition-all ${
-                      index === slide ? 'w-[22px] bg-white' : 'w-1.5 bg-white/40'
+                    className={`block h-1 rounded-full transition-all ${
+                      index === slide ? 'w-8 bg-cyan-300' : 'w-4 bg-white/40 hover:bg-white/60'
                     }`}
                   />
                 </button>
               ))}
             </div>
-          </div>
 
-          {slideImage ? (
-            <div aria-hidden="true" className="absolute inset-y-0 right-0 hidden w-[550px] lg:block">
-              <img
-                src={slideImage}
-                alt=""
-                className="h-full w-full rounded-r-2xl object-contain p-8"
-              />
-              <div className="absolute inset-y-0 left-0 w-[120px] bg-gradient-to-r from-hero to-transparent" />
+            {/* Arrows */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => goToSlide(slide - 1)}
+                aria-label="Previous slide"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
+              >
+                <FiChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => goToSlide(slide + 1)}
+                aria-label="Next slide"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
+              >
+                <FiChevronRight aria-hidden="true" className="h-4 w-4" />
+              </button>
             </div>
-          ) : null}
-        </div>
-
-        <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => goToSlide(slide - 1)}
-            aria-label="Previous slide"
-            className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-accent-soft text-ink hover:bg-white active:scale-[.98] sm:h-11 sm:w-11"
-          >
-            <FiChevronLeft aria-hidden="true" className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => goToSlide(slide + 1)}
-            aria-label="Next slide"
-            className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-accent-soft text-ink hover:bg-white active:scale-[.98] sm:h-11 sm:w-11"
-          >
-            <FiChevronRight aria-hidden="true" className="h-5 w-5" />
-          </button>
+          </div>
         </div>
 
         <p aria-live="polite" className="sr-only">
@@ -256,7 +276,7 @@ export default function HomePage() {
         <PricingNotice />
 
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {Array.from({ length: 5 }, (_, index) => (
               <SkeletonCard key={index} />
             ))}
@@ -282,7 +302,7 @@ export default function HomePage() {
         ) : null}
 
         {!isLoading && featuredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {featuredProducts.slice(0, 5).map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -307,7 +327,7 @@ export default function HomePage() {
                 to={`/products?category_id=${category.id}`}
                 className="group flex flex-col items-center gap-4"
               >
-                <div className="relative flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-primary bg-paper p-2 motion-safe:transition-colors group-hover:border-primary-hover group-hover:bg-accent-soft sm:h-[132px] sm:w-[132px] sm:p-3">
+                <div className="relative flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-white/70 bg-white/60 p-2 shadow-glass backdrop-blur-md motion-safe:transition-colors group-hover:border-primary/40 group-hover:bg-white/85 sm:h-[132px] sm:w-[132px] sm:p-3">
                   <img
                     src={category.image_url ?? categoryFallbackImage(category.id)}
                     alt={category.name_en}
@@ -353,7 +373,7 @@ export default function HomePage() {
                 <Link
                   key={supplier.id}
                   to={`/products?supplier_id=${supplier.id}`}
-                  className="group relative flex min-h-[206px] items-start overflow-hidden rounded-2xl bg-night-soft p-6 text-white"
+                  className="group relative flex min-h-[206px] items-start overflow-hidden rounded-2xl bg-gradient-to-br from-night via-indigo-950 to-slate-950 p-6 text-white shadow-glass ring-1 ring-white/10 motion-safe:transition-shadow hover:shadow-glass-hover"
                 >
                   <span
                     aria-hidden="true"
@@ -407,7 +427,7 @@ export default function HomePage() {
       <div className="text-center">
         <Link
           to="/products"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md motion-safe:transition-all"
+          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:brightness-105 motion-safe:transition-all"
         >
           Browse the full catalog
           <FiArrowRight aria-hidden="true" className="h-4 w-4" />

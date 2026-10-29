@@ -55,6 +55,25 @@
   --color-night-soft: #2a2a2a;
   --color-hero: #1e2740;
 
+  /* Aurora glass surfaces — the storefront's modern backdrop and cards.
+   * Tints stay low-saturation so ink text keeps its contrast and the cyan
+   * primary remains the only saturated accent in the interface. */
+  --color-aurora-indigo: #c7d2fe;
+  --color-aurora-violet: #ddd6fe;
+  --color-aurora-cyan: #a5f3fc;
+  --color-aurora-rose: #fbcfe8;
+
+  --color-glass: rgba(255, 255, 255, 0.64);
+  --color-glass-strong: rgba(255, 255, 255, 0.8);
+  --color-glass-line: rgba(255, 255, 255, 0.85);
+
+  --shadow-glass:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 14px 34px -16px rgba(49, 46, 129, 0.22);
+  --shadow-glass-hover:
+    0 2px 4px rgba(15, 23, 42, 0.05),
+    0 26px 54px -20px rgba(49, 46, 129, 0.34);
+
   /* Semantic colors — warm undertones */
   --color-success: #2d9f4a;
   --color-success-soft: #e8f5ec;
@@ -269,5 +288,75 @@
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/*
+ * The aurora stage — one quiet three-tint wash that gives every glass
+ * surface something to refract. Built from gradients only (no oversized
+ * blur layers), so it paints cheaply on phones while still reading as a
+ * soft, contemporary backdrop behind the storefront.
+ */
+@utility aurora-stage {
+  background-color: #f4f7fe;
+  background-image:
+    radial-gradient(70rem 44rem at 4% -8%, rgba(199, 210, 254, 0.8), transparent 62%),
+    radial-gradient(56rem 40rem at 102% 4%, rgba(165, 243, 252, 0.55), transparent 60%),
+    radial-gradient(52rem 44rem at 76% 108%, rgba(221, 214, 254, 0.72), transparent 62%),
+    linear-gradient(180deg, #f8faff 0%, #eef2fe 48%, #f6f4fe 100%);
+}
+
+/*
+ * Frosted surface for catalog cards and tiles: translucent white, a
+ * hairline white edge, and an indigo-tinted shadow instead of the usual
+ * flat gray. Falls back to near-solid white where backdrop-filter is
+ * unsupported so content never floats on an unreadable wash.
+ */
+@utility glass-card {
+  border-radius: 1rem;
+  border: 1px solid var(--color-glass-line);
+  background-color: var(--color-glass);
+  box-shadow: var(--shadow-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: rgba(255, 255, 255, 0.95);
+  }
+}
+
+/* Slightly denser glass for panels that hold forms, filters, and tables. */
+@utility glass-panel {
+  border-radius: 1rem;
+  border: 1px solid var(--color-glass-line);
+  background-color: var(--color-glass-strong);
+  box-shadow: var(--shadow-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: rgba(255, 255, 255, 0.97);
+  }
+}
+
+/* The interactive glass card: a short, settle-eased lift on hover only.
+ * Reduced-motion users keep the shadow cue without the movement. */
+@utility glass-card-hover {
+  transition-property: transform, box-shadow, border-color;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-settle);
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 142, 204, 0.28);
+    box-shadow: var(--shadow-glass-hover);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
   }
 }

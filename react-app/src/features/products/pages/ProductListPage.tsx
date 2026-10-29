@@ -502,7 +502,7 @@ export default function ProductListPage() {
             search stay pinned; only the option lists scroll inside. */}
         <aside
           aria-label="Product filters"
-          className="sticky top-24 hidden max-h-[calc(100vh-8rem)] flex-col rounded-lg border border-rule bg-plate p-4 lg:flex"
+          className="glass-panel sticky top-24 hidden max-h-[calc(100vh-8rem)] flex-col p-4 lg:flex"
         >
           <div className="mb-3 flex flex-none items-center justify-between">
             <h2 className="text-base font-semibold text-ink">Filters</h2>
@@ -523,7 +523,7 @@ export default function ProductListPage() {
             <label htmlFor="rail-search" className="sr-only">
               Search the catalog
             </label>
-            <div className="flex overflow-hidden rounded-md border border-line bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
+            <div className="flex overflow-hidden rounded-lg border border-white/70 bg-white/70 backdrop-blur-md focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
               <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-subtle" />
               <input
                 id="rail-search"
@@ -584,13 +584,19 @@ export default function ProductListPage() {
           </div>
         </aside>
 
-        {/* Results column. */}
-        <section ref={resultsRef} className="min-w-0 space-y-6 lg:scroll-mt-24">
-          <div className="flex items-center justify-between gap-3 lg:hidden">
+        {/* Results column. `scroll-mt` keeps the sticky header + filter bar
+            from covering the first row when the filter set changes. */}
+        <section
+          ref={resultsRef}
+          className="min-w-0 scroll-mt-[7.5rem] space-y-6 lg:scroll-mt-24"
+        >
+          {/* Mobile filter bar: pinned below the site header so the filter
+              and clear actions stay reachable while the grid scrolls. */}
+          <div className="sticky top-[68px] z-30 -mx-4 flex items-center justify-between gap-3 border-b border-white/60 bg-white/95 px-4 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur-xl sm:-mx-6 sm:px-6 lg:hidden">
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-plate px-3 py-1.5 text-sm font-medium text-ink active:scale-[.99]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-ink shadow-glass backdrop-blur-md active:scale-[.99]"
             >
               <FiFilter aria-hidden="true" className="h-4 w-4" />
               Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
@@ -619,7 +625,7 @@ export default function ProductListPage() {
           ) : null}
 
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: 8 }, (_, index) => (
                 <SkeletonCard key={index} />
               ))}
@@ -647,7 +653,7 @@ export default function ProductListPage() {
           ) : null}
 
           {!isLoading && !loadError && products.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -694,7 +700,7 @@ export default function ProductListPage() {
             role="dialog"
             aria-modal="true"
             aria-label="Filters"
-            className="motion-safe:animate-sheet-in flex max-h-[85vh] flex-col overflow-y-auto rounded-t-2xl border-t border-rule bg-plate p-4"
+            className="motion-safe:animate-sheet-in flex max-h-[85vh] flex-col overflow-y-auto rounded-t-2xl border-t border-white/60 bg-white/90 p-4 backdrop-blur-xl"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
             onClick={(event) => event.stopPropagation()}
           >

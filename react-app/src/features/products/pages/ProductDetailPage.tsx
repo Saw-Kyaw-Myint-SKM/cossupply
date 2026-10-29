@@ -238,7 +238,7 @@ export default function ProductDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <section className="lg:col-span-2">
-          <div className="overflow-hidden rounded-lg border border-rule bg-plate">
+          <div className="glass-panel overflow-hidden">
             <img
               src={product.photo_url ?? FALLBACK_BANNER}
               alt={displayName}
@@ -251,7 +251,7 @@ export default function ProductDetailPage() {
 
         <section className="space-y-5 lg:col-span-3">
           {/* The 30-second pitch: everything needed to decide, in one run. */}
-          <div id="product-pitch" className="rounded-lg border border-rule bg-plate p-6">
+          <div id="product-pitch" className="glass-panel p-6">
             <p className="text-xs text-subtle">
               {product.category?.name_en ?? 'Uncategorised'}
             </p>
@@ -291,7 +291,7 @@ export default function ProductDetailPage() {
               </label>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center rounded-md border border-line bg-plate">
+                <div className="flex items-center rounded-lg border border-white/70 bg-white/70">
                   <button
                     type="button"
                     onClick={() => step(-1)}
@@ -363,7 +363,7 @@ export default function ProductDetailPage() {
           </div>
 
           {product.supplier ? (
-            <div className="rounded-lg border border-rule bg-plate p-6">
+            <div className="glass-panel p-6">
               <h2 className="text-base font-semibold text-ink">Supplier</h2>
               <div className="mt-3 flex items-start gap-3">
                 {product.supplier.logo_url ? (
@@ -409,7 +409,7 @@ export default function ProductDetailPage() {
         </section>
       </div>
 
-      <section className="rounded-lg border border-rule bg-plate p-6">
+      <section className="glass-panel p-6">
         <h2 className="text-base font-semibold text-ink">Product details</h2>
 
         {product.description ? (
@@ -454,7 +454,7 @@ export default function ProductDetailPage() {
        * product form, so the receipt moment plays identically.
        */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-plate/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:hidden ${
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/60 bg-white/85 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:hidden ${
           pitchScrolledPast ? 'motion-safe:animate-bar-in' : 'hidden'
         }`}
       >

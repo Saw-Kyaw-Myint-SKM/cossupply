@@ -1,168 +1,434 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FiAlertCircle,
+  FiBox,
+  FiClipboard,
+  FiTruck,
+  FiTrendingUp,
+  FiUsers,
+  FiSettings,
+  FiGrid,
+  FiRefreshCw,
+} from 'react-icons/fi';
 import { listAdminOrders } from '../api/ordersApi';
+import { listAdminQuotationRequests, type QuotationRequestStatus } from '../api/quotationAdminApi';
+import { listProducts, type ProductStatus } from '../api/productsApi';
+import { listSuppliers, type SupplierStatus } from '../api/suppliersApi';
 import { useAuth } from '../../../lib/auth-context';
+
+interface StatCardProps {
+  title: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  total: number | null;
+  totalLabel: string;
+  actionableCount: number | null;
+  actionableLabel: string;
+  actionableHref?: string;
+  error?: boolean;
+  onRetry?: () => void;
+}
+
+function StatCard({
+  title,
+  icon,
+  iconBg,
+  total,
+  totalLabel: _totalLabel,
+  actionableCount,
+  actionableLabel,
+  actionableHref,
+  error,
+  onRetry,
+}: StatCardProps) {
+  return (
+    <div className="rounded-2xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-4 shadow-sm hover:shadow-md transition-shadow">
+      {/* Main row: Icon | Title | Count */}
+      <div className="flex items-center gap-3">
+        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl shadow-lg ${iconBg}`}>
+          {icon}
+        </div>
+        <span className="text-sm font-medium text-slate-600 flex-1">{title}</span>
+        <span className="text-xl font-bold text-slate-800">
+          {total === null ? (error ? '—' : '…') : total.toLocaleString('en-US')}
+        </span>
+      </div>
+
+      {/* Actionable subset */}
+      {actionableCount !== null && actionableCount > 0 && actionableHref ? (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <Link
+            to={actionableHref}
+            className="group inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+          >
+            <FiAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {actionableCount.toLocaleString('en-US')} {actionableLabel}
+            </span>
+            <span aria-hidden="true" className="group-hover:translate-x-0.5 transition-transform">
+              →
+            </span>
+          </Link>
+        </div>
+      ) : actionableCount !== null && actionableCount === 0 ? (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+            <FiTrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
+            All caught up
+          </span>
+        </div>
+      ) : null}
+
+      {/* Error retry */}
+      {error && onRetry ? (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+          >
+            <FiRefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Retry
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface QuickLinkProps {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+}
+
+function QuickLink({ to, icon, label, description }: QuickLinkProps) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded-xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-3 hover:border-indigo-200 hover:bg-white hover:shadow-md transition-all"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-500 group-hover:from-indigo-500 group-hover:to-purple-500 group-hover:text-white transition-all">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-800">{label}</p>
+        <p className="text-xs text-slate-500">{description}</p>
+      </div>
+    </Link>
+  );
+}
 
 /**
  * Admin Dashboard Page
  */
 export default function AdminDashboardPage() {
-  const { admin, adminLogout } = useAuth();
-  const [orderCount, setOrderCount] = useState<number | null>(null);
-  const [orderCountFailed, setOrderCountFailed] = useState(false);
+  const { admin } = useAuth();
 
+  // Order stats
+  const [orderTotal, setOrderTotal] = useState<number | null>(null);
+  const [orderActionable, setOrderActionable] = useState<number | null>(null);
+  const [orderError, setOrderError] = useState(false);
+  const [orderReload, setOrderReload] = useState(0);
+
+  // Quotation stats
+  const [quotationTotal, setQuotationTotal] = useState<number | null>(null);
+  const [quotationActionable, setQuotationActionable] = useState<number | null>(null);
+  const [quotationError, setQuotationError] = useState(false);
+  const [quotationReload, setQuotationReload] = useState(0);
+
+  // Product stats
+  const [productTotal, setProductTotal] = useState<number | null>(null);
+  const [productOutOfStock, setProductOutOfStock] = useState<number | null>(null);
+  const [productError, setProductError] = useState(false);
+  const [productReload, setProductReload] = useState(0);
+
+  // Supplier stats
+  const [supplierTotal, setSupplierTotal] = useState<number | null>(null);
+  const [supplierActive, setSupplierActive] = useState<number | null>(null);
+  const [supplierError, setSupplierError] = useState(false);
+  const [supplierReload, setSupplierReload] = useState(0);
+
+  // Load orders
   useEffect(() => {
     let cancelled = false;
 
-    const loadOrderCount = async () => {
-      const response = await listAdminOrders({ page: 1, per_page: 1 });
+    const load = async () => {
+      setOrderError(false);
+
+      // Load total count
+      const totalRes = await listAdminOrders({ page: 1, per_page: 1 });
       if (cancelled) return;
 
-      if (response.success && response.data) {
-        setOrderCount(response.data.meta.total);
+      if (totalRes.success && totalRes.data) {
+        setOrderTotal(totalRes.data.meta.total);
       } else {
-        setOrderCountFailed(true);
+        setOrderError(true);
+        return;
+      }
+
+      // Load actionable count (SUPPLIER_CONFIRMATION_REQUIRED)
+      const actionableRes = await listAdminOrders({
+        page: 1,
+        per_page: 1,
+        order_status: 'SUPPLIER_CONFIRMATION_REQUIRED',
+      });
+      if (cancelled) return;
+
+      if (actionableRes.success && actionableRes.data) {
+        setOrderActionable(actionableRes.data.meta.total);
       }
     };
 
-    void loadOrderCount();
+    void load();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [orderReload]);
+
+  // Load quotations
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setQuotationError(false);
+
+      // Load total count
+      const totalRes = await listAdminQuotationRequests({ page: 1, per_page: 1 });
+      if (cancelled) return;
+
+      if (totalRes.success && totalRes.data) {
+        setQuotationTotal(totalRes.data.meta.total);
+      } else {
+        setQuotationError(true);
+        return;
+      }
+
+      // Load actionable counts (NEW + CONTACTING_SUPPLIER + SUPPLIER_RESPONSE_PENDING)
+      const statuses: QuotationRequestStatus[] = [
+        'NEW',
+        'CONTACTING_SUPPLIER',
+        'SUPPLIER_RESPONSE_PENDING',
+        'PREPARING_QUOTATION',
+      ];
+      let actionableSum = 0;
+
+      for (const status of statuses) {
+        const res = await listAdminQuotationRequests({ page: 1, per_page: 1, status });
+        if (cancelled) return;
+        if (res.success && res.data) {
+          actionableSum += res.data.meta.total;
+        }
+      }
+
+      if (!cancelled) {
+        setQuotationActionable(actionableSum);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [quotationReload]);
+
+  // Load products
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setProductError(false);
+
+      // Load total count
+      const totalRes = await listProducts({ page: 1, per_page: 1 });
+      if (cancelled) return;
+
+      if (totalRes.success && totalRes.data) {
+        setProductTotal(totalRes.data.meta.total);
+      } else {
+        setProductError(true);
+        return;
+      }
+
+      // Load out of stock count
+      const oosRes = await listProducts({
+        page: 1,
+        per_page: 1,
+        status: 'OUT_OF_STOCK' as ProductStatus,
+      });
+      if (cancelled) return;
+
+      if (oosRes.success && oosRes.data) {
+        setProductOutOfStock(oosRes.data.meta.total);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productReload]);
+
+  // Load suppliers
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setSupplierError(false);
+
+      // Load total count
+      const totalRes = await listSuppliers({ page: 1, per_page: 1 });
+      if (cancelled) return;
+
+      if (totalRes.success && totalRes.data) {
+        setSupplierTotal(totalRes.data.meta.total);
+      } else {
+        setSupplierError(true);
+        return;
+      }
+
+      // Load active count
+      const activeRes = await listSuppliers({
+        page: 1,
+        per_page: 1,
+        status: 'ACTIVE' as SupplierStatus,
+      });
+      if (cancelled) return;
+
+      if (activeRes.success && activeRes.data) {
+        setSupplierActive(activeRes.data.meta.total);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supplierReload]);
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Admin Dashboard
+      {/* Context bar */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Welcome back, {admin?.name?.split(' ')[0] ?? 'Admin'}
         </h1>
-        <p className="text-gray-600 mb-2">
-          Welcome, {admin?.name}!
-        </p>
-        <p className="text-sm text-gray-500">
-          Role: <span className="capitalize">{admin?.role}</span>
-        </p>
+        <p className="text-sm text-slate-500">{today}</p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Quotation Requests</h3>
-          <p className="text-3xl font-bold text-ink">0</p>
-          <p className="text-sm text-gray-500 mt-1">Pending requests</p>
+      {/* Statistics Cards - 4 in one row */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-base font-semibold text-slate-900">Overview</h2>
         </div>
-        <Link
-          to="/admin/orders"
-          className="group rounded-lg border border-transparent bg-white p-6 shadow transition-colors hover:border-accent/40 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">Orders</h3>
-            <span className="text-xs font-medium text-gray-500 group-hover:text-accent">
-              Open queue
-            </span>
-          </div>
-          <p className="mt-2 text-3xl font-bold text-green-600" aria-live="polite">
-            {orderCount === null ? (orderCountFailed ? '—' : '…') : orderCount.toLocaleString('en-US')}
-          </p>
-          <p className="mt-1 text-sm text-gray-500">
-            {orderCountFailed ? 'Order count unavailable' : 'Total orders'}
-          </p>
-        </Link>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Products</h3>
-          <p className="text-3xl font-bold text-purple-600">0</p>
-          <p className="text-sm text-gray-500 mt-1">Published products</p>
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Orders"
+            icon={<FiTruck className="h-5 w-5 text-white" aria-hidden="true" />}
+            iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
+            total={orderTotal}
+            totalLabel="total"
+            actionableCount={orderActionable}
+            actionableLabel="need confirmation"
+            actionableHref="/admin/orders?status=SUPPLIER_CONFIRMATION_REQUIRED"
+            error={orderError}
+            onRetry={() => setOrderReload((n) => n + 1)}
+          />
+          <StatCard
+            title="Quotations"
+            icon={<FiClipboard className="h-5 w-5 text-white" aria-hidden="true" />}
+            iconBg="bg-gradient-to-br from-indigo-400 to-purple-500"
+            total={quotationTotal}
+            totalLabel="total"
+            actionableCount={quotationActionable}
+            actionableLabel="in progress"
+            actionableHref="/admin/quotation-requests"
+            error={quotationError}
+            onRetry={() => setQuotationReload((n) => n + 1)}
+          />
+          <StatCard
+            title="Products"
+            icon={<FiBox className="h-5 w-5 text-white" aria-hidden="true" />}
+            iconBg="bg-gradient-to-br from-violet-400 to-purple-500"
+            total={productTotal}
+            totalLabel="total"
+            actionableCount={productOutOfStock}
+            actionableLabel="out of stock"
+            actionableHref="/admin/products?status=OUT_OF_STOCK"
+            error={productError}
+            onRetry={() => setProductReload((n) => n + 1)}
+          />
+          <StatCard
+            title="Suppliers"
+            icon={<FiUsers className="h-5 w-5 text-white" aria-hidden="true" />}
+            iconBg="bg-gradient-to-br from-amber-400 to-orange-500"
+            total={supplierTotal}
+            totalLabel="total"
+            actionableCount={supplierActive}
+            actionableLabel="active"
+            error={supplierError}
+            onRetry={() => setSupplierReload((n) => n + 1)}
+          />
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Suppliers</h3>
-          <p className="text-3xl font-bold text-orange-600">0</p>
-          <p className="text-sm text-gray-500 mt-1">Active suppliers</p>
-        </div>
-      </div>
+      </section>
 
-      {/* Management Links */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Management</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-          <Link
-            to="/admin/suppliers"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Suppliers</span>
-            <span className="text-sm text-gray-500">Manage suppliers</span>
-          </Link>
-          <Link
-            to="/admin/categories"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Categories</span>
-            <span className="text-sm text-gray-500">Manage categories</span>
-          </Link>
-          <Link
-            to="/admin/products"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Products</span>
-            <span className="text-sm text-gray-500">Manage products</span>
-          </Link>
-          <Link
-            to="/admin/quotations"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Quotations</span>
-            <span className="text-sm text-gray-500">Manage quotations</span>
-          </Link>
-          <Link
+      {/* Quick Links Section */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-base font-semibold text-slate-900">Quick Links</h2>
+        </div>
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+          <QuickLink
+            to="/admin/quotation-requests"
+            icon={<FiClipboard aria-hidden="true" />}
+            label="Quotation Requests"
+            description="Manage customer requests"
+          />
+          <QuickLink
             to="/admin/orders"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Orders</span>
-            <span className="text-sm text-gray-500">Confirm suppliers</span>
-          </Link>
-          <Link
+            icon={<FiTruck aria-hidden="true" />}
+            label="Orders"
+            description="Confirm and track orders"
+          />
+          <QuickLink
+            to="/admin/products"
+            icon={<FiBox aria-hidden="true" />}
+            label="Products"
+            description="Manage product catalog"
+          />
+          <QuickLink
+            to="/admin/suppliers"
+            icon={<FiUsers aria-hidden="true" />}
+            label="Suppliers"
+            description="Manage supplier partners"
+          />
+          <QuickLink
+            to="/admin/categories"
+            icon={<FiGrid aria-hidden="true" />}
+            label="Categories"
+            description="Organize product categories"
+          />
+          <QuickLink
             to="/admin/settings"
-            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
-          >
-            <span className="block font-medium text-gray-900">Master Settings</span>
-            <span className="text-sm text-gray-500">Manage settings</span>
-          </Link>
+            icon={<FiSettings aria-hidden="true" />}
+            label="Settings"
+            description="Configure master settings"
+          />
         </div>
-      </div>
-
-      {/* Admin Info */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h2>
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Name</dt>
-            <dd className="mt-1 text-sm text-gray-900">{admin?.name}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Email</dt>
-            <dd className="mt-1 text-sm text-gray-900">{admin?.email}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Role</dt>
-            <dd className="mt-1 text-sm text-gray-900 capitalize">{admin?.role}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Last Login</dt>
-            <dd className="mt-1 text-sm text-gray-900">
-              {admin?.last_login_at ? new Date(admin.last_login_at).toLocaleString() : 'First login'}
-            </dd>
-          </div>
-        </dl>
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <button
-            onClick={adminLogout}
-            className="text-sm text-red-600 hover:text-red-800"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

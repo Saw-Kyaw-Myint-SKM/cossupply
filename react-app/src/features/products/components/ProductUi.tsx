@@ -255,10 +255,8 @@ export function ProductCard({
 
   return (
     <article
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white ${
-        blocked
-          ? "cursor-not-allowed border-rule"
-          : "border-rule/60 motion-safe:transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
+      className={`glass-card group relative flex flex-col overflow-hidden ${
+        blocked ? "cursor-not-allowed" : "glass-card-hover"
       }`}
     >
       {/* Photo plate on the tint; the discount badge clips into the
@@ -266,7 +264,7 @@ export function ProductCard({
       <div className="relative">
         <Link
           to={`/products/${product.id}`}
-          className="relative flex h-40 items-center justify-center overflow-hidden rounded-t-2xl p-4"
+          className="relative flex h-52 items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-white/70 via-white/30 to-primary-light/50 p-4 sm:h-40"
         >
           <img
             src={product.photo_url ?? FALLBACK_THUMB}
@@ -316,7 +314,7 @@ export function ProductCard({
         {discountPercent !== null ? (
           <span
             aria-label={`${discountPercent} percent off`}
-            className="absolute right-0 top-0 flex h-[53px] w-[51px] flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-warm text-[13px] font-semibold leading-4 text-white"
+            className="absolute right-0 top-0 flex h-[53px] w-[51px] flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-emerald-500 text-[13px] font-semibold leading-4 text-white"
           >
             {discountPercent}%
             <span className="text-[10px] font-medium leading-3">OFF</span>
@@ -324,7 +322,7 @@ export function ProductCard({
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col rounded-b-2xl bg-white px-3.5 pb-3.5 pt-3">
+      <div className="flex flex-1 flex-col rounded-b-2xl px-3.5 pb-3.5 pt-3">
         <p
           className={`truncate text-[11px] font-medium ${
             blocked ? "text-subtle/60" : "text-muted"
@@ -395,10 +393,10 @@ export function ProductCard({
             }
             className={
               blocked
-                ? "inline-flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-rule bg-paper px-4 py-2 text-[13px] font-semibold text-ink/40 focus:outline-none"
+                ? "inline-flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-rule bg-paper px-4 py-1.5 text-[13px] font-semibold text-ink/40 focus:outline-none"
                 : receipt
                   ? "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-success px-4 py-2 text-[13px] font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 motion-safe:transition-all"
-                  : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                  : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50"
             }
           >
             <span className="inline-flex items-center justify-center gap-2">

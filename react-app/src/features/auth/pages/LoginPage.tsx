@@ -39,7 +39,7 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-8">
+      <div className="glass-card p-8">
         <h1 className="text-2xl font-bold text-ink mb-6 text-center">
           Customer Login
         </h1>

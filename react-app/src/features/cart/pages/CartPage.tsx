@@ -165,8 +165,8 @@ export default function CartPage() {
 
       {banner ? <Alert tone="warning">{banner}</Alert> : null}
 
-      <section className="rounded-lg border border-rule bg-plate" aria-busy="false">
-        <ul className="divide-y divide-rule">
+      <section className="glass-panel" aria-busy="false">
+        <ul className="divide-y divide-white/60">
           {items.map((item) => {
             const rowError = rowErrors[item.product_id];
             const minimum = item.minimum_order_quantity;
@@ -213,7 +213,7 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex flex-none flex-col items-start gap-2 sm:items-end">
-                  <div className="flex items-center rounded-md border border-line bg-plate">
+                  <div className="flex items-center rounded-lg border border-white/70 bg-white/70">
                   <button
                     type="button"
                     onClick={() => handleStep(item, -1)}
@@ -286,7 +286,7 @@ export default function CartPage() {
        */}
       <form
         onSubmit={handleRequestQuotation}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-plate/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:rounded-lg sm:border sm:border-rule sm:bg-plate sm:p-6 sm:pb-6"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/60 bg-white/90 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:static sm:rounded-2xl sm:border sm:border-white/70 sm:bg-white/85 sm:p-6 sm:pb-6 sm:shadow-glass sm:backdrop-blur-xl"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <span className="text-sm font-medium text-ink">Subtotal (display price)</span>

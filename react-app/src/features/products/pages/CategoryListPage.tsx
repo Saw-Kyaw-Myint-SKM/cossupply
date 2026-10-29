@@ -70,7 +70,7 @@ export default function CategoryListPage() {
             <Link
               key={category.id}
               to={`/products?category_id=${category.id}`}
-              className="group flex overflow-hidden rounded-lg border border-rule bg-plate hover:border-accent/40 active:scale-[.99] motion-safe:transition-colors"
+              className="glass-card glass-card-hover group flex overflow-hidden active:scale-[.99]"
             >
               <img
                 src={category.image_url ?? categoryFallbackImage(category.id)}

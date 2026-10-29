@@ -366,7 +366,7 @@ export function Alert({
     <div
       id={id}
       role={tone === 'success' ? 'status' : 'alert'}
-      className={`flex items-start gap-2.5 rounded-xl border p-4 ${ALERT_TONE_CLASSES[tone]} ${className}`}
+      className={`flex items-start gap-2.5 rounded-xl border p-4 backdrop-blur-sm ${ALERT_TONE_CLASSES[tone]} ${className}`}
     >
       {ALERT_TONE_ICONS[tone]}
       <div className="min-w-0 text-sm font-medium">{children}</div>
@@ -377,7 +377,7 @@ export function Alert({
 export function LoadingPanel({ label }: { label: string }) {
   return (
     <div
-      className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-rule bg-white p-6"
+      className="glass-panel flex min-h-[40vh] items-center justify-center p-6"
       role="status"
       aria-live="polite"
     >
@@ -399,18 +399,18 @@ export function SkeletonCard(): ReactNode {
   return (
     <div
       aria-hidden="true"
-      className="flex flex-col overflow-hidden rounded-2xl border border-rule bg-white"
+      className="glass-card flex flex-col overflow-hidden"
     >
-      <div className="h-44 animate-pulse border-b border-rule bg-paper" />
+      <div className="h-44 animate-pulse border-b border-white/60 bg-white/55" />
       <div className="flex flex-1 flex-col p-4">
-        <div className="h-4 w-3/4 animate-pulse rounded bg-rule" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-paper" />
-        <div className="mt-3 flex items-center justify-between border-t border-dashed border-rule/60 pt-3">
-          <div className="h-6 w-2/5 animate-pulse rounded bg-rule" />
-          <div className="h-2.5 w-1/5 animate-pulse rounded-full bg-rule" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200/70" />
+        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-white/70" />
+        <div className="mt-3 flex items-center justify-between border-t border-dashed border-white/70 pt-3">
+          <div className="h-6 w-2/5 animate-pulse rounded bg-slate-200/70" />
+          <div className="h-2.5 w-1/5 animate-pulse rounded-full bg-slate-200/70" />
         </div>
         <div className="mt-auto pt-4">
-          <div className="h-10 w-full animate-pulse rounded-lg bg-paper" />
+          <div className="h-10 w-full animate-pulse rounded-lg bg-white/70" />
         </div>
       </div>
     </div>
@@ -530,7 +530,7 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
 /** Neutral empty state used by both the admin tables and the public catalog. */
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-rule bg-white p-10 text-center">
+    <div className="glass-card flex flex-col items-center p-10 text-center">
       <FiInbox aria-hidden="true" className="h-10 w-10 text-muted/60" />
       <h2 className="mt-3 text-base font-semibold text-ink">{title}</h2>
       {hint ? <p className="mt-1 max-w-md text-sm text-muted">{hint}</p> : null}
