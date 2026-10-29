@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminCustomerController;
 use App\Http\Controllers\Api\V1\AdminEmailLogController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
@@ -56,8 +58,10 @@ Route::get('/suppliers', [PublicSupplierController::class, 'index']);
 | Customer Authentication Routes (Public)
 |--------------------------------------------------------------------------
 */
-Route::post('/auth/register', [CustomerAuthController::class, 'register']);
-Route::post('/auth/login', [CustomerAuthController::class, 'login']);
+Route::post('/auth/register', [CustomerAuthController::class, 'register'])
+    ->middleware('throttle:register');
+Route::post('/auth/login', [CustomerAuthController::class, 'login'])
+    ->middleware('throttle:customer-login');
 
 /*
 |--------------------------------------------------------------------------
@@ -104,7 +108,7 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
 | both account types use the same documented /notifications endpoints.
 |
 */
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:notifications'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
@@ -116,7 +120,8 @@ Route::middleware('auth:sanctum')->group(function () {
 | Admin Authentication Routes (Public)
 |--------------------------------------------------------------------------
 */
-Route::post('/admin/login', [AdminAuthController::class, 'login']);
+Route::post('/admin/login', [AdminAuthController::class, 'login'])
+    ->middleware('throttle:admin-login');
 
 /*
 |--------------------------------------------------------------------------
@@ -171,6 +176,10 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     // Email delivery log and resend actions
     Route::get('/admin/email-logs', [AdminEmailLogController::class, 'index']);
     Route::post('/admin/email-logs/{emailLog}/resend', [AdminEmailLogController::class, 'resend']);
+
+    // Read-only customer directory and append-only audit trail
+    Route::get('/admin/customers', [AdminCustomerController::class, 'index']);
+    Route::get('/admin/audit-logs', [AdminAuditLogController::class, 'index']);
 
     // Private file streaming (receipts, cash payment proofs, signatures, attachments)
     Route::get('/admin/files/{path}', [AdminPrivateFileController::class, 'show'])

@@ -12,6 +12,7 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
 - Validation errors use Laravel's default 422 shape: `{"message": "...", "errors": {"field": ["..."]}}`.
+- Rate-limited requests use the standard error envelope with `429 Too Many Requests` and a `Retry-After` header. Limits: `POST /auth/register` 10/min per IP; `POST /auth/login` and `POST /admin/login` 5/min per identifier + IP; notification polling routes 120/min per user + IP.
 - All money values are integer Myanmar Kyat (MMK). All new-domain status values are UPPERCASE strings.
 
 ---
@@ -5476,3 +5477,180 @@ The response is still `200` when the resend attempt itself fails: the new log ro
 | `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
 | `404` | Not found | Unknown email log id |
 | `422` | `{"success": false, "message": "...", "errors": {"email_log": ["This email type cannot be resent."]}}` | Legacy/unsupported `email_type` or the related record can no longer be resent |
+
+---
+
+## GET /api/v1/admin/audit-logs
+
+### Task
+
+Task 12 — Audit, Security, and Validation Hardening.
+
+### Specification
+
+- `specification/LogicFlow.md` §15 (Audit Logic)
+- `specification/DatabaseFlow.md` `audit_logs`
+- `specification/RolesPermissions.md` §2 (Admin: view audit logs)
+
+### Method / Path
+
+`GET /api/v1/admin/audit-logs`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `25`, `1`–`100` |
+| `action` | string | No | Exact action key, e.g. `setting.updated`, max `100` characters |
+| `entity_type` | string | No | Exact entity type, e.g. `product`, `order`, `setting` |
+| `admin_id` | integer | No | Must exist in `admins` |
+| `search` | string | No | Case-insensitive match on `action`, `entity_id` or `ip_address`, max `100` characters |
+| `from` | date | No | Inclusive lower bound on `created_at` |
+| `to` | date | No | Inclusive upper bound; must be on or after `from` |
+
+### Behaviour
+
+Lists the append-only audit trail newest first. Rows are never created, updated or deleted through this endpoint. Each row holds the acting Admin, the action key, the entity type/id, the request IP, and the `old_data` / `new_data` snapshots written by the service that performed the change. `admin` is `null` if the admin account was removed (the audit row is kept).
+
+The response also returns the distinct `actions`, `entity_types` and `admins` currently present so the Admin screen can build filters without extra requests.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "audit_logs": [
+      {
+        "id": 42,
+        "action": "setting.updated",
+        "entity_type": "setting",
+        "entity_id": "7",
+        "old_data": {
+          "key": "quotation_validity_days",
+          "value": 7
+        },
+        "new_data": {
+          "key": "quotation_validity_days",
+          "value": 14
+        },
+        "ip_address": "127.0.0.1",
+        "created_at": "2026-10-28T09:00:00+00:00",
+        "admin": {
+          "id": 1,
+          "name": "CoSupply Admin",
+          "email": "admin@example.com"
+        }
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 25,
+      "total": 1,
+      "last_page": 1
+    },
+    "actions": ["setting.updated"],
+    "entity_types": ["setting"],
+    "admins": [
+      {
+        "id": 1,
+        "name": "CoSupply Admin",
+        "email": "admin@example.com"
+      }
+    ]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `admin_id`, invalid date range, or `per_page` out of range |
+
+---
+
+## GET /api/v1/admin/customers
+
+### Task
+
+Task 12 — Audit, Security, and Validation Hardening.
+
+### Specification
+
+- `specification/RolesPermissions.md` §1–2 (Customer/Admin permissions)
+- `specification/ImplementationNotes.md` §3 (Admin screens: Customers)
+- `specification/DatabaseFlow.md` `customers`
+
+### Method / Path
+
+`GET /api/v1/admin/customers`
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+| Query | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `page` | integer | No | Default `1`, minimum `1` |
+| `per_page` | integer | No | Default `20`, `1`–`100` |
+| `status` | string | No | `active`, `inactive` or `suspended` |
+| `customer_type` | string | No | `individual` or `business` |
+| `search` | string | No | Case-insensitive match on name, phone, email or company name, max `100` characters |
+
+### Behaviour
+
+Read-only customer directory, newest first. Each row exposes the profile fields an Admin needs (name, phone, email, company, account type, status) plus the number of quotation requests and orders owned by that customer. Password hashes and remember tokens are never serialized.
+
+There is intentionally no Admin create/update/delete route for customers: registration and profile edits remain customer-owned. The response also returns the allowed `statuses` and `customer_types` for the filter controls.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [
+      {
+        "id": 4,
+        "name": "Daw Hla",
+        "phone": "09123456789",
+        "email": "hla@example.com",
+        "company_name": "Hla Trading",
+        "customer_type": "business",
+        "status": "active",
+        "quotation_requests_count": 2,
+        "orders_count": 1,
+        "created_at": "2026-10-20T08:00:00+00:00"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 1,
+      "last_page": 1
+    },
+    "statuses": ["active", "inactive", "suspended"],
+    "customer_types": ["individual", "business"]
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `422` | Validation error | Unknown `status` / `customer_type` or `per_page` out of range |

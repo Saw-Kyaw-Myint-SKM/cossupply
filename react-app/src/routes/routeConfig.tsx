@@ -47,6 +47,8 @@ const QuotationVersionFormPage = lazy(
 const AdminOrderListPage = lazy(() => import('../features/admin/pages/OrderListPage'));
 const AdminOrderDetailPage = lazy(() => import('../features/admin/pages/OrderDetailPage'));
 const AdminEmailLogsPage = lazy(() => import('../features/admin/pages/EmailLogsPage'));
+const AdminAuditLogsPage = lazy(() => import('../features/admin/pages/AuditLogsPage'));
+const AdminCustomersPage = lazy(() => import('../features/admin/pages/CustomersPage'));
 
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
@@ -444,6 +446,26 @@ export const router = createBrowserRouter([
           <AdminProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <AdminEmailLogsPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/audit-logs',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminAuditLogsPage />
+            </Suspense>
+          </AdminProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/customers',
+        element: (
+          <AdminProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminCustomersPage />
             </Suspense>
           </AdminProtectedRoute>
         ),

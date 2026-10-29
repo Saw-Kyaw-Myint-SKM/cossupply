@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -66,5 +67,21 @@ class Customer extends Authenticatable
     public function isBusiness(): bool
     {
         return $this->customer_type === 'business';
+    }
+
+    /**
+     * Quotation requests submitted by this customer.
+     */
+    public function quotationRequests(): HasMany
+    {
+        return $this->hasMany(QuotationRequest::class);
+    }
+
+    /**
+     * Orders created from this customer's accepted quotations.
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 }

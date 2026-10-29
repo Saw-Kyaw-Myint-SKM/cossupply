@@ -99,6 +99,20 @@ export default function AdminDashboardPage() {
             <span className="text-sm text-gray-500">Delivery errors &amp; resend</span>
           </Link>
           <Link
+            to="/admin/customers"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
+          >
+            <span className="block font-medium text-gray-900">Customers</span>
+            <span className="text-sm text-gray-500">Read-only directory</span>
+          </Link>
+          <Link
+            to="/admin/audit-logs"
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
+          >
+            <span className="block font-medium text-gray-900">Audit trail</span>
+            <span className="text-sm text-gray-500">Admin action history</span>
+          </Link>
+          <Link
             to="/notifications"
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-center"
           >
