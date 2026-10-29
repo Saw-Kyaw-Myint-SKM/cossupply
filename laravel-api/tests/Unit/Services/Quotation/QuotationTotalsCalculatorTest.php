@@ -137,7 +137,22 @@ class QuotationTotalsCalculatorTest extends TestCase
         );
     }
 
-    public function test_zero_quantity_or_price_is_rejected(): void
+    public function test_zero_unit_price_is_allowed(): void
+    {
+        $result = $this->calculator->calculate(
+            [['quantity' => 2, 'unit_price' => 0]],
+            discount: 0,
+            deliveryFee: 1500,
+            serviceFeePercentage: 5,
+        );
+
+        $this->assertSame(0, $result['subtotal']);
+        $this->assertSame(0, $result['service_fee']);
+        $this->assertSame(1500, $result['total_amount']);
+        $this->assertSame(0, $result['items'][0]['line_total']);
+    }
+
+    public function test_zero_quantity_is_rejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
 

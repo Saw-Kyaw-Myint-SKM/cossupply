@@ -19,8 +19,9 @@ class UpdateCustomerProfileRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * `phone` is intentionally NOT updatable: it is the customer login
-     * identifier. If it is present in the payload it is silently ignored.
+     * `phone` is intentionally NOT updatable: it is the customer's contact
+     * identifier. `email` is the login identifier, so it stays required and
+     * unique. If `phone` is present in the payload it is silently ignored.
      * `status` and `customer_type` are server-managed too.
      *
      * @return array<string, mixed>
@@ -32,7 +33,7 @@ class UpdateCustomerProfileRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', Rule::unique('customers', 'email')->ignore($customer?->id)],
+            'email' => ['required', 'email', 'max:255', Rule::unique('customers', 'email')->ignore($customer?->id)],
         ];
     }
 }

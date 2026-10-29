@@ -74,6 +74,20 @@ class AdminSupplierTest extends TestCase
             ->assertJsonValidationErrors(['shop_name', 'contact_person', 'phone', 'address', 'city']);
     }
 
+    public function test_supplier_phone_fields_reject_malformed_values(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->postJson('/api/v1/admin/suppliers', [
+            'shop_name' => 'Bad Phone Shop',
+            'contact_person' => 'Daw Mya',
+            'phone' => 'call-me',
+            'viber_phone' => '123',
+            'address' => 'No. 1, Main Road',
+            'city' => 'Yangon',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['phone', 'viber_phone']);
+    }
+
     public function test_admin_can_update_supplier_status_and_verified_with_audit(): void
     {
         $this->actingAsAdmin();

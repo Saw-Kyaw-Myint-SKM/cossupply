@@ -148,17 +148,17 @@ class SecurityHardeningTest extends TestCase
 
     public function test_customer_login_is_rate_limited_after_five_failed_attempts(): void
     {
-        Customer::factory()->create(['phone' => '09123456789']);
+        Customer::factory()->create(['email' => 'limited@example.com']);
 
         for ($attempt = 1; $attempt <= 5; $attempt++) {
             $this->postJson('/api/v1/auth/login', [
-                'phone' => '09123456789',
+                'email' => 'limited@example.com',
                 'password' => 'wrong-password',
             ])->assertUnprocessable();
         }
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'phone' => '09123456789',
+            'email' => 'limited@example.com',
             'password' => 'wrong-password',
         ]);
 

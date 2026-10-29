@@ -31,9 +31,8 @@ export interface CustomerProfile {
 export interface CustomerProfileInput {
   name: string;
   company_name: string | null;
-  /** Email may be cleared by sending an empty string on some backends; the
-   * contract accepts `email?: string`, so `null` is sent as `undefined`. */
-  email: string | null;
+  /** Login identifier: required and unique. The server lowercases it. */
+  email: string;
 }
 
 /** GET /customer/profile — the authenticated customer's own profile. */
@@ -56,7 +55,7 @@ export async function updateCustomerProfile(
     body: JSON.stringify({
       name: input.name,
       company_name: input.company_name ?? '',
-      ...(input.email !== null ? { email: input.email } : {}),
+      email: input.email,
     }),
   });
 }

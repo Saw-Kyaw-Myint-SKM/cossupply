@@ -12,7 +12,7 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
 - Validation errors use Laravel's default 422 shape: `{"message": "...", "errors": {"field": ["..."]}}`.
-- Rate-limited requests use the standard error envelope with `429 Too Many Requests` and a `Retry-After` header. Limits: `POST /auth/register` 10/min per IP; `POST /auth/login` and `POST /admin/login` 5/min per identifier + IP; notification polling routes 120/min per user + IP.
+- Rate-limited requests use the standard error envelope with `429 Too Many Requests` and a `Retry-After` header. Limits: `POST /auth/register` 10/min per IP; `POST /auth/login` (email identifier) and `POST /admin/login` (email identifier) 5/min per identifier + IP; notification polling routes 120/min per user + IP.
 - All money values are integer Myanmar Kyat (MMK). All new-domain status values are UPPERCASE strings.
 
 ---
@@ -2491,7 +2491,7 @@ No body, no query parameters.
 Notes:
 
 - The password hash is never exposed.
-- `phone` is the login identifier and is read-only here.
+- `email` is the login identifier and must stay present and unique; `phone` is the contact identifier and is read-only here.
 
 ### Error responses
 

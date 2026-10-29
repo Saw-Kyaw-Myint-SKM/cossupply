@@ -59,13 +59,13 @@ updated_at
 
 ### `customers`
 
-Customer သည် register/login ဝင်ပြီးမှ Quotation Request တင်နိုင်သည်။ Phone ကို primary login/contact identifier အဖြစ် အသုံးပြုနိုင်ပြီး email သည် optional ဖြစ်သည်။
+Customer သည် register/login ဝင်ပြီးမှ Quotation Request တင်နိုင်သည်။ Email ကို primary login identifier အဖြစ် အသုံးပြုပြီး phone သည် primary contact identifier ဖြစ်သည်။ Registration တွင် email မဖြစ်မနေ လိုအပ်သည်။
 
 ```text
 id PK
 name
 company_name NULL
-email NULL
+email UNIQUE
 phone UNIQUE
 password_hash NOT NULL
 customer_type
@@ -75,6 +75,8 @@ phone_verified_at NULL
 created_at
 updated_at
 ```
+
+Email-only login ကို မဖွင့်မီ လက်ရှိ `email` မရှိသော customer များကို backfill လုပ်ရမည်။
 
 ### `customer_addresses`
 

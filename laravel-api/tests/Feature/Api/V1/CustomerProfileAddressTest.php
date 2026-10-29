@@ -95,7 +95,7 @@ class CustomerProfileAddressTest extends TestCase
             'name' => 'Updated Name',
             'company_name' => 'Updated Company',
             'email' => 'updated@example.com',
-            // Login identifier: silently ignored, never changed.
+            // Contact identifier: silently ignored, never changed.
             'phone' => '09222222222',
         ]);
 
@@ -110,6 +110,21 @@ class CustomerProfileAddressTest extends TestCase
             'id' => $customer->id,
             'phone' => '09111111111',
         ]);
+    }
+
+    public function test_profile_update_requires_email_and_normalizes_case(): void
+    {
+        [$customer, $token] = $this->authenticate(['email' => 'mine@example.com']);
+
+        $this->withToken($token)->putJson('/api/v1/customer/profile', ['name' => 'Name'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $this->withToken($token)->putJson('/api/v1/customer/profile', [
+            'name' => 'Name',
+            'email' => 'MINE@Example.COM',
+        ])->assertOk()
+            ->assertJsonPath('data.customer.email', 'mine@example.com');
     }
 
     public function test_profile_update_validates_email_uniqueness(): void
@@ -225,6 +240,18 @@ class CustomerProfileAddressTest extends TestCase
         $this->withToken($token)->postJson('/api/v1/customer/addresses', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['phone']);
+
+        $this->assertDatabaseCount('customer_addresses', 0);
+    }
+
+    public function test_address_phone_must_look_like_a_phone_number(): void
+    {
+        [$customer, $token] = $this->authenticate();
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/addresses',
+            $this->addressPayload(['phone' => 'call-me']),
+        )->assertUnprocessable()->assertJsonValidationErrors(['phone']);
 
         $this->assertDatabaseCount('customer_addresses', 0);
     }

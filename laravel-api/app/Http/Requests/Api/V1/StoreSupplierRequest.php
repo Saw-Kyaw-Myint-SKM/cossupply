@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Enums\SupplierStatus;
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,8 +28,8 @@ class StoreSupplierRequest extends FormRequest
             'shop_name' => ['required', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
             'contact_person' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:50'],
-            'viber_phone' => ['nullable', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:50', new PhoneNumber],
+            'viber_phone' => ['nullable', 'string', 'max:50', new PhoneNumber],
             'email' => ['nullable', 'email', 'max:255'],
             'logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'address' => ['required', 'string', 'max:1000'],

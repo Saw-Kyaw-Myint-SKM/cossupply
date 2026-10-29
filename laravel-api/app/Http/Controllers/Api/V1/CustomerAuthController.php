@@ -9,6 +9,7 @@ use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CustomerAuthController extends Controller
@@ -28,7 +29,7 @@ class CustomerAuthController extends Controller
         $customer = Customer::create([
             'name' => $validated['name'],
             'phone' => $validated['phone'],
-            'email' => $validated['email'] ?? null,
+            'email' => Str::lower(trim($validated['email'])),
             'company_name' => $validated['company_name'] ?? null,
             'password' => Hash::make($validated['password']),
             'customer_type' => $customerType,
@@ -57,11 +58,15 @@ class CustomerAuthController extends Controller
      */
     public function login(CustomerLoginRequest $request): JsonResponse
     {
-        $customer = Customer::where('phone', $request->phone)->first();
+        $email = Str::lower(trim((string) $request->input('email')));
+
+        $customer = Customer::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
 
         if (! $customer || ! Hash::check($request->password, $customer->password)) {
             throw ValidationException::withMessages([
-                'phone' => ['Invalid credentials.'],
+                'email' => ['Invalid credentials.'],
             ]);
         }
 

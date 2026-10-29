@@ -3,7 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Product;
-use Closure;
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -34,7 +34,7 @@ class StoreQuotationRequestRequest extends FormRequest
             'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:50', new PhoneNumber],
             'company_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'city' => ['required', 'string', 'max:100'],

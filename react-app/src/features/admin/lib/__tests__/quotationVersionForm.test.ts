@@ -195,6 +195,22 @@ describe('localVersionError', () => {
     );
   });
 
+  it('rejects a negative unit price', () => {
+    const state = createVersionFormState(request(), 5, 7);
+    state.items[0].unit_price = '-1';
+
+    expect(localVersionError(state)).toBe(
+      'The unit price for Plastic Chair cannot be negative.',
+    );
+  });
+
+  it('accepts a zero unit price', () => {
+    const state = createVersionFormState(request(), 5, 7);
+    state.items[0].unit_price = '0';
+
+    expect(localVersionError(state)).toBeNull();
+  });
+
   it('rejects a validity date in the past', () => {
     const state = createVersionFormState(request(), 5, 7);
     state.items[0].unit_price = '45000';

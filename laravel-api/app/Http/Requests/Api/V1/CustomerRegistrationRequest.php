@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Rules\PhoneNumber;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
@@ -18,14 +20,14 @@ class CustomerRegistrationRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'min:9', 'max:20', 'unique:customers,phone'],
-            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:customers,email'],
+            'phone' => ['required', 'string', 'max:50', new PhoneNumber, 'unique:customers,phone'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:customers,email'],
             'company_name' => ['nullable', 'string', 'max:255'],
             'password' => ['required', 'confirmed', Password::defaults()],
         ];

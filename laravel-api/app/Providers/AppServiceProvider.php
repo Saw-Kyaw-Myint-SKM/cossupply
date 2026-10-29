@@ -27,9 +27,9 @@ class AppServiceProvider extends ServiceProvider
         // password guessing is bounded without locking out unrelated users
         // behind the same shared connection.
         RateLimiter::for('customer-login', function (Request $request): Limit {
-            $phone = Str::lower(trim((string) $request->input('phone')));
+            $email = Str::lower(trim((string) $request->input('email')));
 
-            return Limit::perMinute(5)->by($phone.'|'.$request->ip());
+            return Limit::perMinute(5)->by($email.'|'.$request->ip());
         });
 
         RateLimiter::for('admin-login', function (Request $request): Limit {

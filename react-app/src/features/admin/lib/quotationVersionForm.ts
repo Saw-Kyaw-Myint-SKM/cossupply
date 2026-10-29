@@ -173,8 +173,11 @@ export function localVersionError(state: VersionFormState): string | null {
     if (parseWhole(item.quantity) < 1) {
       return `Enter a quantity of at least 1 for ${item.product_name}.`;
     }
-    if (parseWhole(item.unit_price) < 1) {
+    if (item.unit_price.trim() === '') {
       return `Enter a confirmed unit price for ${item.product_name}.`;
+    }
+    if (parseWhole(item.unit_price) < 0) {
+      return `The unit price for ${item.product_name} cannot be negative.`;
     }
     if (parseWhole(item.discount) < 0) {
       return `The discount for ${item.product_name} cannot be negative.`;
