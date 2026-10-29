@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 
 // Lazy load pages
 import { lazy, Suspense } from 'react';
@@ -53,8 +53,13 @@ const AdminCustomersPage = lazy(() => import('../features/admin/pages/CustomersP
 // Layout
 import { AppLayout } from '../components/layout/AppLayout';
 
-// Auth context
-import { useAuth } from '../lib/auth-context';
+// Route guards
+import {
+  AdminProtectedRoute,
+  AuthenticatedRoute,
+  CustomerProtectedRoute,
+  GuestRoute,
+} from './guards';
 
 // Loading fallback
 const PageLoader = () => (
@@ -62,49 +67,6 @@ const PageLoader = () => (
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ink"></div>
   </div>
 );
-
-// Wrapper component for protected routes
-function CustomerProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, userType } = useAuth();
-  
-  if (!isAuthenticated || userType !== 'customer') {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-}
-
-function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, userType } = useAuth();
-  
-  if (!isAuthenticated || userType !== 'admin') {
-    return <Navigate to="/admin/login" replace />;
-  }
-  
-  return <>{children}</>;
-}
-
-/** Customer or Admin: the notifications page is shared by both roles. */
-function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-// Wrapper for auth pages (redirect if already logged in)
-function GuestRoute({ children, redirectPath }: { children: React.ReactNode; redirectPath: string }) {
-  const { isAuthenticated } = useAuth();
-  
-  if (isAuthenticated) {
-    return <Navigate to={redirectPath} replace />;
-  }
-  
-  return <>{children}</>;
-}
 
 export const router = createBrowserRouter([
   {
