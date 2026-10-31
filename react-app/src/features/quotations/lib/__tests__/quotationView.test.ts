@@ -7,6 +7,7 @@
  * markers. No DOM is required — the project's vitest environment is `node`.
  */
 import { describe, expect, it } from 'vitest';
+import type { Translator } from '../../../../lib/i18n-context';
 import type {
   CustomerQuotationVersion,
   QuotationRequestDetail,
@@ -35,6 +36,20 @@ import {
   sortVersionsNewestFirst,
   visibleQuotationVersions,
 } from '../quotationView';
+
+const englishT: Translator = (key, values) => {
+  const templates: Record<string, string> = {
+    statusSent: 'Sent', statusReviewing: 'Reviewing', statusChangeRequested: 'Change requested',
+    statusSuperseded: 'Superseded', statusViewed: 'Viewed', statusNoValue: '—',
+    validUntil: 'Valid until {date}', expired: 'Expired', noValidityDate: 'No validity date',
+    version: 'Version {version}', viewedByCustomer: 'Viewed by customer',
+    changeRequestedByCustomer: 'Change requested by customer', customer: 'Customer', adminUser: 'Admin',
+  };
+  const template = templates[key] ?? key;
+  return values
+    ? template.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`))
+    : template;
+};
 
 function makeVersion(
   overrides: Partial<CustomerQuotationVersion> = {},
@@ -93,11 +108,11 @@ function makeRequest(
 
 describe('quotation status mapping', () => {
   it('labels request and version statuses', () => {
-    expect(quotationStatusLabel('SENT')).toBe('Sent');
-    expect(quotationStatusLabel('CUSTOMER_REVIEWING')).toBe('Reviewing');
-    expect(quotationStatusLabel('CHANGE_REQUESTED')).toBe('Change requested');
-    expect(quotationStatusLabel('SUPERSEDED')).toBe('Superseded');
-    expect(quotationStatusLabel(null)).toBe('—');
+    expect(quotationStatusLabel('SENT', englishT)).toBe('Sent');
+    expect(quotationStatusLabel('CUSTOMER_REVIEWING', englishT)).toBe('Reviewing');
+    expect(quotationStatusLabel('CHANGE_REQUESTED', englishT)).toBe('Change requested');
+    expect(quotationStatusLabel('SUPERSEDED', englishT)).toBe('Superseded');
+    expect(quotationStatusLabel(null, englishT)).toBe('—');
   });
 
   it('maps semantic tones so accepted is green and rejected/expired are red', () => {
@@ -173,71 +188,71 @@ describe('action visibility', () => {
 
 describe('COD acknowledgement and note payloads', () => {
   it('blocks accept until the COD terms are acknowledged', () => {
-    const blocked = buildAcceptPayload(false);
+    const blocked = buildAcceptPayload(false, englishT);
     expect(blocked.ok).toBe(false);
     expect(blocked.payload).toBeNull();
     expect(blocked.fieldErrors.cod_terms_accepted).toHaveLength(1);
 
-    const allowed = buildAcceptPayload(true);
+    const allowed = buildAcceptPayload(true, englishT);
     expect(allowed.ok).toBe(true);
     expect(allowed.payload).toEqual({ cod_terms_accepted: true });
   });
 
   it('accepts an empty optional rejection note as an empty body', () => {
-    const built = buildRejectPayload('   ');
+    const built = buildRejectPayload('   ', englishT);
     expect(built.ok).toBe(true);
     expect(built.payload).toEqual({});
   });
 
   it('trims a supplied rejection note', () => {
-    const built = buildRejectPayload('  Found a better price  ');
+    const built = buildRejectPayload('  Found a better price  ', englishT);
     expect(built.ok).toBe(true);
     expect(built.payload).toEqual({ customer_note: 'Found a better price' });
   });
 
   it('requires a change-request note and trims it', () => {
-    const empty = buildChangeRequestPayload('   ');
+    const empty = buildChangeRequestPayload('   ', englishT);
     expect(empty.ok).toBe(false);
     expect(empty.payload).toBeNull();
     expect(empty.fieldErrors.customer_note).toHaveLength(1);
 
-    const filled = buildChangeRequestPayload('  Please ship 10 instead of 5  ');
+    const filled = buildChangeRequestPayload('  Please ship 10 instead of 5  ', englishT);
     expect(filled.ok).toBe(true);
     expect(filled.payload).toEqual({ customer_note: 'Please ship 10 instead of 5' });
   });
 
   it('enforces the 2,000 character limit on both note actions', () => {
     const atLimit = 'a'.repeat(CUSTOMER_NOTE_MAX_LENGTH);
-    expect(buildChangeRequestPayload(atLimit).ok).toBe(true);
-    expect(buildRejectPayload(atLimit).ok).toBe(true);
+    expect(buildChangeRequestPayload(atLimit, englishT).ok).toBe(true);
+    expect(buildRejectPayload(atLimit, englishT).ok).toBe(true);
 
     const overLimit = 'a'.repeat(CUSTOMER_NOTE_MAX_LENGTH + 1);
-    expect(buildChangeRequestPayload(overLimit).ok).toBe(false);
-    expect(buildRejectPayload(overLimit).ok).toBe(false);
+    expect(buildChangeRequestPayload(overLimit, englishT).ok).toBe(false);
+    expect(buildRejectPayload(overLimit, englishT).ok).toBe(false);
   });
 });
 
 describe('money, dates, and version helpers', () => {
   it('formats integer MMK without decimal places and preserves values', () => {
-    expect(formatQuotationAmount(11000)).toBe('11,000');
-    expect(formatQuotationAmount(1234.9)).toBe('1,234');
-    expect(formatQuotationAmount(null)).toBe('—');
-    expect(formatQuotationAmount(Number.NaN)).toBe('—');
+    expect(formatQuotationAmount(11000, englishT)).toBe('11,000');
+    expect(formatQuotationAmount(1234.9, englishT)).toBe('1,234');
+    expect(formatQuotationAmount(null, englishT)).toBe('—');
+    expect(formatQuotationAmount(Number.NaN, englishT)).toBe('—');
   });
 
   it('formats date-only validity without timezone drift', () => {
-    expect(formatQuotationDate('2026-10-31')).toBe('Oct 31, 2026');
-    expect(formatQuotationDate(null)).toBe('—');
-    expect(formatValidity('2026-10-31')).toBe('Valid until Oct 31, 2026');
-    expect(formatValidity('2026-10-31', true)).toBe('Expired Oct 31, 2026');
-    expect(formatValidity(null)).toBe('No validity date');
+    expect(formatQuotationDate('2026-10-31', 'en', englishT)).toBe('Oct 31, 2026');
+    expect(formatQuotationDate(null, 'en', englishT)).toBe('—');
+    expect(formatValidity('2026-10-31', false, 'en', englishT)).toBe('Valid until Oct 31, 2026');
+    expect(formatValidity('2026-10-31', true, 'en', englishT)).toBe('Expired Oct 31, 2026');
+    expect(formatValidity(null, false, 'en', englishT)).toBe('No validity date');
   });
 
   it('formats audit timestamps to the minute', () => {
-    expect(formatQuotationDateTime('2026-10-19T08:00:00.000000Z')).toMatch(
+    expect(formatQuotationDateTime('2026-10-19T08:00:00.000000Z', 'en', englishT)).toMatch(
       /Oct 19, 2026/,
     );
-    expect(formatQuotationDateTime(null)).toBe('—');
+    expect(formatQuotationDateTime(null, 'en', englishT)).toBe('—');
   });
 
   it('sorts newest first without mutating the API array and hides drafts', () => {
@@ -287,13 +302,13 @@ describe('money, dates, and version helpers', () => {
   });
 
   it('labels action history and actors', () => {
-    expect(quotationActionLabel('VIEWED')).toBe('Viewed by customer');
-    expect(quotationActionLabel('REQUESTED_CHANGE')).toBe(
+    expect(quotationActionLabel('VIEWED', englishT)).toBe('Viewed by customer');
+    expect(quotationActionLabel('REQUESTED_CHANGE', englishT)).toBe(
       'Change requested by customer',
     );
-    expect(quotationActorLabel('CUSTOMER')).toBe('Customer');
-    expect(quotationActorLabel('ADMIN')).toBe('Admin');
-    expect(quotationActorLabel(null)).toBeNull();
+    expect(quotationActorLabel('CUSTOMER', englishT)).toBe('Customer');
+    expect(quotationActorLabel('ADMIN', englishT)).toBe('Admin');
+    expect(quotationActorLabel(null, englishT)).toBeNull();
   });
 });
 
@@ -305,7 +320,7 @@ describe('list markers', () => {
       current_status: 'VIEWED',
       valid_until: '2026-10-31',
       is_expired: false,
-    });
+    }, 'en', englishT);
 
     expect(markers).toEqual({
       hasCurrentVersion: true,
@@ -324,7 +339,7 @@ describe('list markers', () => {
       current_status: 'SENT',
       valid_until: '2026-10-01',
       is_expired: true,
-    });
+    }, 'en', englishT);
 
     expect(markers.actionNeeded).toBe(false);
     expect(markers.expired).toBe(true);
@@ -338,7 +353,7 @@ describe('list markers', () => {
       current_status: null,
       valid_until: null,
       is_expired: null,
-    });
+    }, 'en', englishT);
 
     expect(markers.hasCurrentVersion).toBe(false);
     expect(markers.currentVersionLabel).toBeNull();

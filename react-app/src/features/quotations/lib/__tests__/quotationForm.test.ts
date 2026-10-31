@@ -4,6 +4,7 @@
  * address-book input preparation.
  */
 import { describe, expect, it } from 'vitest';
+import type { Translator } from '../../../../lib/i18n-context';
 import type { CustomerAddress } from '../../../customer/api/addressesApi';
 import type { CartItem } from '../../../../lib/cart-storage';
 import {
@@ -63,6 +64,18 @@ const baseContact: QuotationContactState = {
   email: 'hla@example.com',
 };
 
+const englishT: Translator = (key, values) => {
+  const templates: Record<string, string> = {
+    nearLandmark: 'Near {landmark}',
+    validDateError: 'Enter a valid date (YYYY-MM-DD).',
+    deliveryDatePast: 'The required delivery date cannot be in the past.',
+  };
+  const template = templates[key] ?? key;
+  return values
+    ? template.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`))
+    : template;
+};
+
 const baseArgs = () => ({
   contact: baseContact,
   selectedAddressId: 7,
@@ -72,14 +85,15 @@ const baseArgs = () => ({
   items: [line()],
   requiredDeliveryDate: '',
   customerNote: '',
+  t: englishT,
   saveToAddressBook: false,
 });
 
 describe('composeFullAddress / resolveManualFullAddress', () => {
   it('joins the non-empty parts with separators', () => {
-    expect(composeFullAddress(emptyManualAddress())).toBe('');
+    expect(composeFullAddress(emptyManualAddress(), englishT)).toBe('');
     expect(
-      composeFullAddress({ ...emptyManualAddress(), city: 'Yangon', township: 'Bahan' }),
+      composeFullAddress({ ...emptyManualAddress(), city: 'Yangon', township: 'Bahan' }, englishT),
     ).toBe('Bahan, Yangon');
     expect(
       composeFullAddress({
@@ -90,15 +104,15 @@ describe('composeFullAddress / resolveManualFullAddress', () => {
         township: 'Bahan',
         city: 'Yangon',
         landmark: 'Station',
-      }),
+      }, englishT),
     ).toBe('No. 40, Cypress Lane, Ward 12, Bahan, Yangon — Near Station');
   });
 
   it('prefers the typed full address over the composition', () => {
     const manual = { ...emptyManualAddress(), city: 'Yangon', full_address: 'Gate 3, Dagon Port' };
 
-    expect(resolveManualFullAddress(manual)).toBe('Gate 3, Dagon Port');
-    expect(resolveManualFullAddress(emptyManualAddress())).toBe('');
+    expect(resolveManualFullAddress(manual, englishT)).toBe('Gate 3, Dagon Port');
+    expect(resolveManualFullAddress(emptyManualAddress(), englishT)).toBe('');
   });
 });
 
@@ -128,14 +142,14 @@ describe('prefillManualFromAddress', () => {
 
 describe('requiredDeliveryDateError / todayISODate', () => {
   it('allows blank and today-or-later ISO dates', () => {
-    expect(requiredDeliveryDateError('')).toBeNull();
-    expect(requiredDeliveryDateError(todayISODate())).toBeNull();
-    expect(requiredDeliveryDateError('2099-12-31')).toBeNull();
+    expect(requiredDeliveryDateError('', englishT)).toBeNull();
+    expect(requiredDeliveryDateError(todayISODate(), englishT)).toBeNull();
+    expect(requiredDeliveryDateError('2099-12-31', englishT)).toBeNull();
   });
 
   it('rejects past dates and malformed input', () => {
-    expect(requiredDeliveryDateError('2000-01-01')).toMatch(/cannot be in the past/);
-    expect(requiredDeliveryDateError('31/12/2099')).toMatch(/YYYY-MM-DD/);
+    expect(requiredDeliveryDateError('2000-01-01', englishT)).toMatch(/cannot be in the past/);
+    expect(requiredDeliveryDateError('31/12/2099', englishT)).toMatch(/YYYY-MM-DD/);
   });
 });
 

@@ -24,13 +24,14 @@ import {
   needsSupplierConfirmation,
 } from "../../../lib/cart-storage";
 import { useCart } from "../../../lib/cart-context";
+import { useI18n } from '../../../lib/i18n-context';
 
-const STOCK_LABELS: Record<StockStatus, string> = {
-  IN_STOCK: "In stock",
-  LOW_STOCK: "Low stock",
-  OUT_OF_STOCK: "Out of stock",
-  PRE_ORDER: "Pre-order",
-  SUPPLIER_CONFIRMATION_REQUIRED: "Supplier confirmation required",
+const STOCK_LABEL_KEYS: Record<StockStatus, 'inStock' | 'lowStock' | 'outOfStock' | 'preOrder' | 'supplierConfirmationRequired'> = {
+  IN_STOCK: 'inStock',
+  LOW_STOCK: 'lowStock',
+  OUT_OF_STOCK: 'outOfStock',
+  PRE_ORDER: 'preOrder',
+  SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired',
 };
 
 const STOCK_BADGE_CLASSES: Record<StockStatus, string> = {
@@ -46,10 +47,11 @@ export function StockBadge({
 }: {
   stock: PublicProduct["stock"];
 }): ReactNode {
+  const { t } = useI18n();
   if (!stock) {
     return (
       <span className="inline-flex items-center rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-        Availability on request
+        {t('availabilityOnRequest')}
       </span>
     );
   }
@@ -58,7 +60,7 @@ export function StockBadge({
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STOCK_BADGE_CLASSES[stock.stock_status]}`}
     >
-      {STOCK_LABELS[stock.stock_status]}
+      {t(STOCK_LABEL_KEYS[stock.stock_status])}
     </span>
   );
 }
@@ -85,12 +87,13 @@ export function StockLine({
 }: {
   stock: PublicProduct["stock"];
 }): ReactNode {
+  const { t } = useI18n();
   const tone = stock
     ? STOCK_LINE_TONES[stock.stock_status]
     : { pill: "bg-paper text-muted", dot: "bg-subtle" };
   const word = stock
-    ? STOCK_LABELS[stock.stock_status]
-    : "Availability on request";
+    ? t(STOCK_LABEL_KEYS[stock.stock_status])
+    : t('availabilityOnRequest');
 
   return (
     <span
@@ -116,12 +119,13 @@ export function PriceBlock({
   price: PublicProductPrice | null | undefined;
   showValidity?: boolean;
 }): ReactNode {
+  const { t } = useI18n();
   const unit = displayUnitPrice(price);
 
   if (unit === null || !price) {
     return (
       <p className="text-sm font-medium text-muted">
-        Price will be confirmed in quotation
+        {t('priceConfirmed')}
       </p>
     );
   }
@@ -134,24 +138,24 @@ export function PriceBlock({
         {discounted ? (
           <span
             className="text-sm text-subtle line-through"
-            aria-label="Original display price"
+            aria-label={t('originalDisplayPrice')}
           >
             {formatMMK(price.retail_price)} MMK
           </span>
         ) : null}
         <span
           className="text-lg font-semibold text-ink"
-          aria-label="Display price"
+          aria-label={t('displayPrice')}
         >
           {formatMMK(unit)} MMK
         </span>
       </div>
       <p className="text-xs text-subtle">
-        Display price — final price is confirmed in the quotation.
+        {t('displayPriceFinal')}
       </p>
       {showValidity && price.price_valid_until ? (
         <p className="text-xs text-subtle">
-          Display price valid until {price.price_valid_until}.
+          {t('displayPriceValidUntil', { date: price.price_valid_until })}
         </p>
       ) : null}
     </div>
@@ -164,12 +168,12 @@ export function ConfirmationNote({
 }: {
   stock: PublicProduct["stock"];
 }): ReactNode {
+  const { t } = useI18n();
   if (!needsSupplierConfirmation(stock?.stock_status ?? null)) return null;
 
   return (
     <Alert tone="warning" className="mt-4">
-      Price and stock will be confirmed by the supplier before the quotation is
-      issued.
+      {t('priceStockConfirmation')}
     </Alert>
   );
 }
@@ -222,14 +226,14 @@ export function ProductCard({
   product: PublicProduct;
 }): ReactNode {
   const { items, add, lastAdded } = useCart();
+  const { t, displayName: catalogName } = useI18n();
   const [message, setMessage] = useState<string | null>(null);
 
   const lineQuantity =
     items.find((item) => item.product_id === product.id)?.quantity ?? 0;
-  const inCart = lineQuantity > 0;
   const blocked = cartBlockReason(product);
   const moq = minimumQuantity(product.price);
-  const displayName = product.name_en ?? product.name_mm;
+  const displayName = catalogName(product);
   const price = product.price;
   const unitPrice = displayUnitPrice(price);
 
@@ -243,7 +247,7 @@ export function ProductCard({
   /** Short state word for the disabled card: the ghost bar and the hover
    * overlay headline. The full reason sentence stays in `blocked`. */
   const blockedLabel =
-    product.stock?.stock_status === "OUT_OF_STOCK" ? "Out of stock" : "Unavailable";
+    product.stock?.stock_status === "OUT_OF_STOCK" ? t('outOfStock') : t('unavailable');
 
   const retail = price?.retail_price ?? null;
   const hasReduction =
@@ -297,14 +301,14 @@ export function ProductCard({
         <div className="absolute left-2.5 top-2.5 max-w-[70%]">
           {product.stock?.stock_status === "SUPPLIER_CONFIRMATION_REQUIRED" ? (
             <span
-              title="Price and stock will be confirmed by the supplier before the quotation"
+              title={t('priceStockConfirmation')}
               className="inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700"
             >
               <span
                 aria-hidden="true"
                 className="h-1.5 w-1.5 flex-none rounded-full bg-violet-500"
               />
-              Confirm
+              {t('confirm')}
             </span>
           ) : (
             <StockLine stock={product.stock} />
@@ -313,11 +317,11 @@ export function ProductCard({
 
         {discountPercent !== null ? (
           <span
-            aria-label={`${discountPercent} percent off`}
+            aria-label={t('discountPercent', { percent: discountPercent })}
             className="absolute right-0 top-0 flex h-[53px] w-[51px] flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-emerald-500 text-[13px] font-semibold leading-4 text-white"
           >
             {discountPercent}%
-            <span className="text-[10px] font-medium leading-3">OFF</span>
+            <span className="text-[10px] font-medium leading-3">{t('off')}</span>
           </span>
         ) : null}
       </div>
@@ -328,9 +332,9 @@ export function ProductCard({
             blocked ? "text-subtle/60" : "text-muted"
           }`}
         >
-          {product.category?.name_en ?? "Uncategorised"}
+          {product.category ? catalogName(product.category) : t('uncategorised')}
           {` · ${product.unit}`}
-          {moq > 1 ? ` · MOQ ${moq}` : null}
+          {moq > 1 ? ` · ${t('minimumOrderShort', { count: moq })}` : null}
         </p>
 
         <h3 className="mt-1 text-[13px] font-medium leading-[18px]">
@@ -357,7 +361,7 @@ export function ProductCard({
               <span className="text-[11px] font-medium text-muted">MMK</span>
               {hasReduction && retail !== null ? (
                 <span
-                  aria-label="Original display price"
+                  aria-label={t('originalDisplayPrice')}
                   className="text-[13px] text-muted line-through"
                 >
                   {formatMMK(retail)}
@@ -366,7 +370,7 @@ export function ProductCard({
             </>
           ) : (
             <span className="text-[13px] text-muted">
-              Price on quotation
+              {t('priceOnQuotation')}
             </span>
           )}
         </div>
@@ -386,10 +390,10 @@ export function ProductCard({
             disabled={Boolean(blocked)}
             aria-label={
               blocked
-                ? `${displayName}: ${blocked}`
+                ? t('unavailableItem', { name: displayName, reason: blocked })
                 : lineQuantity > 0
-                  ? `Add ${displayName} to your order list; ${lineQuantity} ${product.unit} already in your order list`
-                  : `Add ${displayName} to your order list`
+                  ? t('addExistingItemToOrderList', { name: displayName, quantity: lineQuantity, unit: product.unit })
+                  : t('addItemToOrderList', { name: displayName })
             }
             className={
               blocked
@@ -414,10 +418,8 @@ export function ProductCard({
                 {blocked
                   ? blockedLabel
                   : receipt
-                    ? `Added — ${receipt.quantity}`
-                    : inCart
-                      ? "Add another"
-                      : "Add to order list"}
+                    ? t('added', { quantity: receipt.quantity })
+                    : t('addToOrderList')}
               </span>
             </span>
 
@@ -451,8 +453,8 @@ export function ProductCard({
 
         <p aria-live="polite" className="sr-only">
           {receipt
-            ? `Added ${receipt.quantity} ${product.unit} of ${displayName} to your order list.`
-            : " "}
+            ? t('receiptAddedToOrderList', { quantity: receipt.quantity, unit: product.unit, name: displayName })
+            : ' '}
         </p>
       </div>
     </article>

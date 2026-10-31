@@ -2,6 +2,7 @@
  * Unit tests for the shared order presentation helpers (Task 09).
  */
 import { describe, expect, it } from 'vitest';
+import type { Translator } from '../../../../lib/i18n-context';
 import {
   CANCELLABLE_ORDER_STATUSES,
   canCancelOrder,
@@ -9,13 +10,28 @@ import {
   formatOrderDateTime,
   isOpenOrderStatus,
   orderStatusHint,
+  orderStatusLabel,
   paymentMethodLabel,
 } from '../orderDisplay';
 
+const t: Translator = (key, values) => {
+  const valuesText = values
+    ? Object.entries(values).map(([name, value]) => `${name}=${value}`).join(',')
+    : '';
+  return valuesText ? `${key}:${valuesText}` : key;
+};
+
 describe('formatOrderDate', () => {
-  it('keeps a date-only value on its calendar day', () => {
-    expect(formatOrderDate('2026-10-29')).toBe(
-      new Date(2026, 9, 29).toLocaleDateString(undefined, {
+  it('keeps a date-only value on its calendar day in the requested locale', () => {
+    expect(formatOrderDate('2026-10-29', 'en', t)).toBe(
+      new Date(2026, 9, 29).toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+    );
+    expect(formatOrderDate('2026-10-29', 'my', t)).toBe(
+      new Date(2026, 9, 29).toLocaleDateString('my-MM', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -23,38 +39,38 @@ describe('formatOrderDate', () => {
     );
   });
 
-  it('renders a dash for missing values', () => {
-    expect(formatOrderDate(null)).toBe('—');
-    expect(formatOrderDate(undefined)).toBe('—');
+  it('uses the translated missing-value label', () => {
+    expect(formatOrderDate(null, 'en', t)).toBe('statusNoValue');
+    expect(formatOrderDate(undefined, 'my', t)).toBe('statusNoValue');
   });
 });
 
 describe('formatOrderDateTime', () => {
-  it('renders a dash for missing values', () => {
-    expect(formatOrderDateTime(null)).toBe('—');
-  });
-
-  it('formats an ISO timestamp', () => {
-    expect(formatOrderDateTime('2026-10-23T09:00:00+00:00')).toBe(
-      new Date('2026-10-23T09:00:00+00:00').toLocaleString(undefined, {
+  it('uses the requested locale for timestamps', () => {
+    expect(formatOrderDateTime('2026-10-23T09:00:00+00:00', 'en', t)).toBe(
+      new Date('2026-10-23T09:00:00+00:00').toLocaleString('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
       }),
     );
   });
+
+  it('uses the translated missing-value label', () => {
+    expect(formatOrderDateTime(null, 'my', t)).toBe('statusNoValue');
+  });
 });
 
 describe('paymentMethodLabel', () => {
-  it('names the fixed COD method', () => {
-    expect(paymentMethodLabel('CASH_ON_DELIVERY')).toBe('Cash on delivery');
+  it('uses the translated fixed COD method', () => {
+    expect(paymentMethodLabel('CASH_ON_DELIVERY', t)).toBe('cashOnDelivery');
   });
 
-  it('turns an unknown enum into spaced words', () => {
-    expect(paymentMethodLabel('BANK_TRANSFER')).toBe('BANK TRANSFER');
+  it('uses the translated unknown-status template for new methods', () => {
+    expect(paymentMethodLabel('BANK_TRANSFER', t)).toBe('statusUnknown:status=Bank transfer');
   });
 
-  it('renders a dash for a null method', () => {
-    expect(paymentMethodLabel(null)).toBe('—');
+  it('uses the translated missing-value label for a null method', () => {
+    expect(paymentMethodLabel(null, t)).toBe('statusNoValue');
   });
 });
 
@@ -91,11 +107,14 @@ describe('order status helpers', () => {
     expect(isOpenOrderStatus('CANCELLED')).toBe(false);
   });
 
-  it('explains known statuses and falls back for unknown ones', () => {
-    expect(orderStatusHint('SUPPLIER_CONFIRMATION_REQUIRED')).toContain('confirming stock');
-    expect(orderStatusHint('CANCELLED')).toBe('This order was cancelled.');
-    expect(orderStatusHint('SOMETHING_NEW')).toBe(
-      'The supplier team is handling this order.',
-    );
+  it('uses translated labels for known statuses and a translated unknown fallback', () => {
+    expect(orderStatusLabel('ORDER_CONFIRMED', t)).toBe('statusOrderConfirmed');
+    expect(orderStatusLabel('SOMETHING_NEW', t)).toBe('statusUnknown:status=Something new');
+  });
+
+  it('uses translated hints for known and unknown statuses', () => {
+    expect(orderStatusHint('SUPPLIER_CONFIRMATION_REQUIRED', t)).toBe('orderStatusSupplierConfirmation');
+    expect(orderStatusHint('CANCELLED', t)).toBe('orderStatusCancelled');
+    expect(orderStatusHint('SOMETHING_NEW', t)).toBe('orderStatusDefault');
   });
 });

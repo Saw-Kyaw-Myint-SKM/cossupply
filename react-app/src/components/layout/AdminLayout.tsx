@@ -17,33 +17,36 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../lib/auth-context';
 import logo from '../../assets/logo.png';
+import { LanguageSwitcher } from '../ui/LanguageSwitcher';
+import { useI18n, type TranslationKey } from '../../lib/i18n-context';
 
 interface NavItem {
   to: string;
   icon: ReactNode;
-  label: string;
+  label: TranslationKey;
   children?: NavItem[];
 }
 
 const NAV_LINKS: NavItem[] = [
-  { to: '/admin/dashboard', icon: <FiHome />, label: 'Dashboard' },
-  { 
-    to: '/admin/quotation-requests', 
-    icon: <FiClipboard />, 
-    label: 'Quotations',
+  { to: '/admin/dashboard', icon: <FiHome />, label: 'dashboard' },
+  {
+    to: '/admin/quotation-requests',
+    icon: <FiClipboard />,
+    label: 'quotations',
     children: [
-      { to: '/admin/quotation-requests', icon: <FiFileText />, label: 'All Requests' },
+      { to: '/admin/quotation-requests', icon: <FiFileText />, label: 'quotations' },
     ]
   },
-  { to: '/admin/orders', icon: <FiTruck />, label: 'Orders' },
-  { to: '/admin/products', icon: <FiBox />, label: 'Products' },
-  { to: '/admin/suppliers', icon: <FiUsers />, label: 'Suppliers' },
-  { to: '/admin/categories', icon: <FiGrid />, label: 'Categories' },
-  { to: '/admin/settings', icon: <FiSettings />, label: 'Settings' },
+  { to: '/admin/orders', icon: <FiTruck />, label: 'orders' },
+  { to: '/admin/products', icon: <FiBox />, label: 'products' },
+  { to: '/admin/suppliers', icon: <FiUsers />, label: 'suppliers' },
+  { to: '/admin/categories', icon: <FiGrid />, label: 'categories' },
+  { to: '/admin/settings', icon: <FiSettings />, label: 'settings' },
 ];
 
 function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
   const location = useLocation();
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
 
@@ -72,7 +75,7 @@ function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
             <span className={active ? 'text-gray-900' : 'text-gray-400'}>
               {item.icon}
             </span>
-            {item.label}
+            {t(item.label)}
           </div>
           {isOpen ? (
             <FiChevronDown className="h-4 w-4" />
@@ -93,7 +96,7 @@ function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
-                  {child.label}
+                  {t(child.label)}
                 </Link>
               </li>
             ))}
@@ -117,13 +120,14 @@ function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
       <span className={active ? 'text-gray-900' : 'text-gray-400'}>
         {item.icon}
       </span>
-      {item.label}
+      {t(item.label)}
     </Link>
   );
 }
 
 export function AdminLayout() {
   const { admin, adminLogout } = useAuth();
+  const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -149,23 +153,23 @@ export function AdminLayout() {
             <Link to="/admin/dashboard" className="flex items-center gap-2">
               <img
                 src={logo}
-                alt="CoSupply"
+                alt={t('adminBrand')}
                 className="h-8 w-auto"
               />
-              <span className="text-xs font-medium text-gray-400">Admin</span>
+              <span className="text-xs font-medium text-gray-400">{t('admin')}</span>
             </Link>
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Close sidebar"
+              aria-label={t('closeSidebar')}
             >
               <FiX className="h-5 w-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
+          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label={t('adminNavigation')}>
             <ul className="space-y-1">
               {NAV_LINKS.map((link) => (
                 <li key={link.to}>
@@ -179,7 +183,7 @@ export function AdminLayout() {
           <div className="border-t border-gray-200 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white">
-                {admin?.name?.charAt(0).toUpperCase() ?? 'A'}
+                {admin?.name?.charAt(0).toUpperCase() ?? t('adminAvatarFallback')}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{admin?.name}</p>
@@ -192,7 +196,7 @@ export function AdminLayout() {
               className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
             >
               <FiLogOut className="h-4 w-4" aria-hidden="true" />
-              Log out
+              {t('signOut')}
             </button>
           </div>
         </div>
@@ -206,11 +210,12 @@ export function AdminLayout() {
             type="button"
             onClick={() => setSidebarOpen(true)}
             className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Open sidebar"
+            aria-label={t('openSidebar')}
           >
             <FiMenu className="h-5 w-5" />
           </button>
-          <span className="font-semibold text-gray-900">Admin</span>
+          <LanguageSwitcher />
+          <span className="font-semibold text-gray-900">{t('admin')}</span>
         </header>
 
         {/* Page content */}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth-context';
+import { useI18n } from '../../../lib/i18n-context';
 
 /**
  * Customer Login Page
@@ -8,6 +9,7 @@ import { useAuth } from '../../../lib/auth-context';
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { t } = useI18n();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -30,7 +32,7 @@ export default function LoginPage() {
     if (response.success) {
       navigate('/dashboard');
     } else {
-      setError(response.message || 'Login failed');
+      setError(response.message || t('loginFailed'));
       if (response.errors) {
         setFieldErrors(response.errors);
       }
@@ -41,7 +43,7 @@ export default function LoginPage() {
     <div className="max-w-md mx-auto">
       <div className="glass-card p-8">
         <h1 className="text-2xl font-bold text-ink mb-6 text-center">
-          Customer Login
+          {t('loginTitle')}
         </h1>
 
         {error && (
@@ -53,7 +55,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">
-              Email
+              {t('email')}
             </label>
             <input
               type="email"
@@ -74,7 +76,7 @@ export default function LoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">
-              Password
+              {t('password')}
             </label>
             <input
               type="password"
@@ -94,24 +96,24 @@ export default function LoginPage() {
             disabled={isLoading}
             className="w-full py-1.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? t('loggingIn') : t('login')}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-muted">
-            Don't have an account?{' '}
+            {t('noAccount')}{' '}
             <Link to="/register" className="font-medium text-accent hover:text-accent/80">
-              Register here
+              {t('registerHere')}
             </Link>
           </p>
         </div>
 
         <div className="mt-4 pt-4 border-t border-rule">
           <p className="text-sm text-subtle text-center">
-            Admin?{' '}
+            {t('adminQuestion')}{' '}
             <Link to="/admin/login" className="font-medium text-ink hover:text-ink">
-              Login here
+              {t('loginHere')}
             </Link>
           </p>
         </div>

@@ -7,6 +7,7 @@ import {
   type Setting,
   type SettingValue,
 } from '../api/settingsApi';
+import { useI18n, type TranslationKey } from '../../../lib/i18n-context';
 import type { ApiResponse } from '../../../api/client';
 
 /**
@@ -34,19 +35,19 @@ interface IntegerBounds {
   max?: number;
 }
 
-const GROUP_TITLES: Record<string, string> = {
-  company: 'Company',
-  localization: 'Localization',
-  quotation: 'Quotations',
-  order: 'Orders',
-  payment: 'Payments',
+const GROUP_TITLES: Record<string, TranslationKey> = {
+  company: 'companyGroup',
+  localization: 'localizationGroup',
+  quotation: 'quotationGroup',
+  order: 'orderGroup',
+  payment: 'paymentGroup',
 };
 
-const SELECT_OPTIONS: Record<string, readonly SelectOption[]> = {
-  default_currency: [{ value: 'MMK', label: 'MMK (Myanmar Kyat)' }],
-  timezone: [{ value: 'Asia/Yangon', label: 'Asia/Yangon (Myanmar Time, UTC+6:30)' }],
-  delivery_fee_mode: [{ value: 'MANUAL_PER_QUOTATION', label: 'Manual per quotation' }],
-  payment_method: [{ value: 'CASH_ON_DELIVERY', label: 'Cash on delivery' }],
+const SELECT_OPTIONS: Record<string, readonly { value: string; labelKey: TranslationKey }[]> = {
+  default_currency: [{ value: 'MMK', labelKey: 'currencyMyanmar' }],
+  timezone: [{ value: 'Asia/Yangon', labelKey: 'yangonTime' }],
+  delivery_fee_mode: [{ value: 'MANUAL_PER_QUOTATION', labelKey: 'manualPerQuotation' }],
+  payment_method: [{ value: 'CASH_ON_DELIVERY', labelKey: 'cashOnDelivery' }],
 };
 
 const TEXT_FIELD_RULES: Record<
@@ -111,14 +112,10 @@ function toSettingValue(setting: Setting, draftValue: DraftValue): SettingValue 
   return typeof draftValue === 'string' ? draftValue : null;
 }
 
-function invalidValueMessage(setting: Setting): string {
-  if (setting.value_type === 'integer') {
-    return 'Enter a whole number.';
-  }
-  if (setting.value_type === 'boolean') {
-    return 'Choose a value for this setting.';
-  }
-  return 'Enter a value for this setting.';
+function invalidValueMessage(setting: Setting, t: ReturnType<typeof useI18n>['t']): string {
+  if (setting.value_type === 'integer') return t('settingsWholeNumber');
+  if (setting.value_type === 'boolean') return t('settingsChooseValue');
+  return t('settingsEnterValue');
 }
 
 function mergeSettings(current: Setting[], updated: Setting[]): Setting[] {
@@ -126,66 +123,39 @@ function mergeSettings(current: Setting[], updated: Setting[]): Setting[] {
   return current.map((setting) => updatedByKey.get(setting.key) ?? setting);
 }
 
-function groupTitle(groupName: string): string {
+function groupTitle(groupName: string, t: ReturnType<typeof useI18n>['t']): string {
   const known = GROUP_TITLES[groupName];
-  if (known) return known;
+  if (known) return t(known);
 
-  const spaced = groupName.replace(/_/g, ' ');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  return groupName;
 }
 
-function optionsFor(setting: Setting): readonly SelectOption[] | null {
+function optionsFor(
+  setting: Setting,
+  t: ReturnType<typeof useI18n>['t'],
+): readonly SelectOption[] | null {
   const configured = SELECT_OPTIONS[setting.key];
   if (!configured) return null;
 
   const currentValue = String(setting.value);
-  if (configured.some((option) => option.value === currentValue)) {
-    return configured;
-  }
+  const options = configured.map(({ value, labelKey }) => ({ value, label: t(labelKey) }));
+  if (options.some((option) => option.value === currentValue)) return options;
 
-  // Keep an unexpected stored value selectable instead of silently replacing it.
-  return [...configured, { value: currentValue, label: `${currentValue} (current)` }];
+  return [...options, { value: currentValue, label: t('currentValue', { value: currentValue }) }];
 }
 
-function describeLoadError(response: ApiResponse<unknown>): LoadErrorState {
-  if (response.status === 401) {
-    return {
-      message: 'Your admin session has expired. Sign in again to view master settings.',
-      needsLogin: true,
-    };
-  }
-  if (response.status === 403) {
-    return {
-      message:
-        response.message ?? 'Your account does not have permission to view master settings.',
-      needsLogin: false,
-    };
-  }
-  if (response.status === undefined) {
-    return {
-      message: 'Could not reach the server. Check that the API is running and try again.',
-      needsLogin: false,
-    };
-  }
-  return {
-    message: response.message ?? 'Unable to load master settings.',
-    needsLogin: false,
-  };
+function describeLoadError(response: ApiResponse<unknown>, t: ReturnType<typeof useI18n>['t']): LoadErrorState {
+  if (response.status === 401) return { message: t('settingsSessionExpiredView'), needsLogin: true };
+  if (response.status === 403) return { message: response.message ?? t('settingsPermissionView'), needsLogin: false };
+  if (response.status === undefined) return { message: t('serverUnavailable'), needsLogin: false };
+  return { message: response.message ?? t('settingsLoadFailed'), needsLogin: false };
 }
 
-function describeSaveError(response: ApiResponse<unknown>): string {
-  if (response.status === 401) {
-    return 'Your admin session has expired. Sign in again, then save your changes.';
-  }
-  if (response.status === 403) {
-    return (
-      response.message ?? 'Your account does not have permission to change master settings.'
-    );
-  }
-  if (response.status === undefined) {
-    return 'Could not reach the server, so nothing was saved. Try again.';
-  }
-  return response.message ?? 'The settings could not be saved.';
+function describeSaveError(response: ApiResponse<unknown>, t: ReturnType<typeof useI18n>['t']): string {
+  if (response.status === 401) return t('settingsSessionExpiredSave');
+  if (response.status === 403) return response.message ?? t('settingsPermissionSave');
+  if (response.status === undefined) return t('settingsSaveUnreachable');
+  return response.message ?? t('settingsSaveFailed');
 }
 
 const inputBaseClass =
@@ -194,6 +164,7 @@ const inputNormalClass = 'border-gray-300 focus:border-accent focus:ring-accent'
 const inputErrorClass = 'border-red-300 focus:border-red-500 focus:ring-red-500';
 
 export default function AdminSettingsPage() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<Setting[] | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -224,7 +195,7 @@ export default function AdminSettingsPage() {
         setDraft(buildDraft(loaded));
         setFieldErrors({});
       } else {
-        setLoadError(describeLoadError(response));
+        setLoadError(describeLoadError(response, t));
       }
 
       setIsLoading(false);
@@ -302,7 +273,7 @@ export default function AdminSettingsPage() {
       const value = draftValue === undefined ? null : toSettingValue(setting, draftValue);
 
       if (value === null) {
-        localErrors[setting.key] = [invalidValueMessage(setting)];
+        localErrors[setting.key] = [invalidValueMessage(setting, t)];
       } else {
         payload[setting.key] = value;
       }
@@ -311,7 +282,7 @@ export default function AdminSettingsPage() {
     if (Object.keys(localErrors).length > 0) {
       setSuccessMessage(null);
       setFieldErrors(localErrors);
-      setFormError('Some values need attention before saving.');
+      setFormError(t('settingsNeedAttention'));
       focusFirstError(localErrors);
       return;
     }
@@ -329,12 +300,12 @@ export default function AdminSettingsPage() {
       const merged = mergeSettings(settings, response.data.settings);
       setSettings(merged);
       setDraft(buildDraft(merged));
-      setSuccessMessage(response.message ?? 'Settings updated.');
+      setSuccessMessage(response.message ?? t('settingsUpdated'));
       return;
     }
 
     const mappedErrors: Record<string, string[]> = {};
-    let formMessage = describeSaveError(response);
+    let formMessage = describeSaveError(response, t);
 
     for (const [errorKey, messages] of Object.entries(response.errors ?? {})) {
       if (errorKey.startsWith('settings.')) {
@@ -350,7 +321,7 @@ export default function AdminSettingsPage() {
     focusFirstError(mappedErrors);
   };
 
-  const renderControl = (setting: Setting) => {
+  const renderControl = (setting: Setting, t: ReturnType<typeof useI18n>['t']) => {
     const id = fieldId(setting.key);
     const draftValue = draft[setting.key];
     const hasError = Boolean(fieldErrors[setting.key]);
@@ -378,7 +349,7 @@ export default function AdminSettingsPage() {
             className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
           />
           <span className="text-sm text-gray-600" aria-hidden="true">
-            {checked ? 'Enabled' : 'Disabled'}
+            {checked ? t('enabled') : t('disabled')}
           </span>
         </div>
       );
@@ -405,7 +376,7 @@ export default function AdminSettingsPage() {
       );
     }
 
-    const selectOptions = optionsFor(setting);
+    const selectOptions = optionsFor(setting, t);
     if (selectOptions) {
       return (
         <select
@@ -435,7 +406,7 @@ export default function AdminSettingsPage() {
         required
         maxLength={rules?.maxLength}
         pattern={rules?.pattern}
-        title={rules?.pattern ? 'Use letters and numbers only.' : undefined}
+        title={rules?.pattern ? t('lettersNumbersOnly') : undefined}
         value={typeof draftValue === 'string' ? draftValue : ''}
         disabled={isSaving}
         aria-invalid={hasError || undefined}
@@ -454,7 +425,7 @@ export default function AdminSettingsPage() {
         aria-live="polite"
       >
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-ink motion-reduce:animate-none" />
-        <span className="sr-only">Loading master settings…</span>
+        <span className="sr-only">{t('loadingMasterSettings')}</span>
       </div>
     );
   }
@@ -463,10 +434,10 @@ export default function AdminSettingsPage() {
     return (
       <div className="space-y-6">
         <div className="rounded-lg bg-white p-6 shadow">
-          <h1 className="text-2xl font-bold text-gray-900">Master Settings</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('masterSettings')}</h1>
         </div>
         <div className="rounded-lg border border-red-200 bg-red-50 p-6" role="alert">
-          <h2 className="text-lg font-semibold text-red-800">Settings are unavailable</h2>
+          <h2 className="text-lg font-semibold text-red-800">{t('masterSettingsUnavailable')}</h2>
           <p className="mt-1 text-sm text-red-700">{loadError.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
@@ -474,14 +445,14 @@ export default function AdminSettingsPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className="rounded-md bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
             >
-              Try again
+              {t('tryAgain')}
             </button>
             {loadError.needsLogin ? (
               <Link
                 to="/admin/login"
                 className="text-sm font-medium text-gray-700 underline hover:text-gray-900"
               >
-                Go to admin login
+                {t('goToAdminLogin')}
               </Link>
             ) : null}
           </div>
@@ -494,22 +465,22 @@ export default function AdminSettingsPage() {
     return (
       <div className="space-y-6">
         <div className="rounded-lg bg-white p-6 shadow">
-          <h1 className="text-2xl font-bold text-gray-900">Master Settings</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('masterSettings')}</h1>
           <p className="mt-1 text-gray-600">
-            Operational defaults for quotations, orders, and payments.
+            {t('masterSettingsDescription')}
           </p>
         </div>
         <div className="rounded-lg bg-white p-6 text-center shadow">
-          <h2 className="text-lg font-semibold text-gray-900">No settings found</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('settingsEmpty')}</h2>
           <p className="mt-1 text-sm text-gray-500">
-            The settings catalog is empty. Refresh to check again.
+            {t('settingsEmptyHint')}
           </p>
           <button
             type="button"
             onClick={() => setReloadToken((token) => token + 1)}
             className="mt-4 rounded-md bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
           >
-            Refresh
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -519,13 +490,12 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold text-gray-900">Master Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('masterSettings')}</h1>
         <p className="mt-1 text-gray-600">
-          Company details, numbering, quotation defaults, and payment rules used across CoSupply.
+          {t('masterSettingsDescription')}
         </p>
         <p className="mt-2 text-sm text-gray-500">
-          {settings.length} settings across {groups.length} groups. Edited values are saved
-          together or not at all.
+          {t('settingsCount', { settings: settings.length, groups: groups.length })}
         </p>
       </div>
 
@@ -550,7 +520,7 @@ export default function AdminSettingsPage() {
         {groups.map((group) => (
           <section key={group.name} className="rounded-lg bg-white shadow">
             <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{groupTitle(group.name)}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{groupTitle(group.name, t)}</h2>
             </div>
             <div className="divide-y divide-gray-100">
               {group.items.map((setting) => {
@@ -567,7 +537,7 @@ export default function AdminSettingsPage() {
                         </label>
                         {setting.is_public ? (
                           <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
-                            Public
+                            {t('public')}
                           </span>
                         ) : null}
                       </div>
@@ -582,7 +552,7 @@ export default function AdminSettingsPage() {
                     </div>
 
                     <div className="sm:col-span-2">
-                      {renderControl(setting)}
+                      {renderControl(setting, t)}
                       {fieldMessages && fieldMessages.length > 0 ? (
                         <p id={errorId(setting.key)} className="mt-1.5 text-sm text-red-600">
                           {fieldMessages[0]}
@@ -599,17 +569,20 @@ export default function AdminSettingsPage() {
         <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow">
           <p className="text-sm text-gray-600" aria-live="polite">
             {isSaving
-              ? 'Saving changes…'
+              ? t('savingChanges')
               : hasChanges
-                ? `${dirtyKeys.length} unsaved ${dirtyKeys.length === 1 ? 'change' : 'changes'}`
-                : 'All changes saved'}
+                ? t('unsavedChanges', {
+                    count: dirtyKeys.length,
+                    changeLabel: dirtyKeys.length === 1 ? t('change') : t('changesPlural'),
+                  })
+                : t('allChangesSaved')}
           </p>
           <button
             type="submit"
             disabled={!hasChanges || isSaving}
             className="rounded-md border border-transparent bg-gray-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? 'Saving…' : 'Save changes'}
+            {isSaving ? t('savingChanges') : t('saveChanges')}
           </button>
         </div>
       </form>

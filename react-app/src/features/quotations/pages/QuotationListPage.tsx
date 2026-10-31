@@ -22,6 +22,7 @@ import {
   primaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { useI18n, type Translator } from '../../../lib/i18n-context';
 import type { PaginationMeta } from '../../../api/query';
 
 const PER_PAGE = 10;
@@ -30,11 +31,13 @@ const PER_PAGE = 10;
  * "Oct 19, 2026, 2:45 PM"-style stamp; list pages elsewhere use the
  * browser default formatting (AdminDashboardPage), so keep that.
  */
-function formatRequestDate(iso: string): string {
-  return new Date(iso).toLocaleString();
+function formatRequestDate(iso: string, locale: 'en' | 'my', t: Translator): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? t('statusNoValue') : date.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US');
 }
 
 export default function QuotationListPage() {
+  const { t, locale } = useI18n();
   const [requests, setRequests] = useState<QuotationRequestSummary[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
 
@@ -58,7 +61,7 @@ export default function QuotationListPage() {
         setRequests(response.data.quotation_requests);
         setMeta(response.data.meta);
       } else {
-        setLoadError(describeCustomerLoadError(response, 'your quotations'));
+        setLoadError(describeCustomerLoadError(response, t('quotationLoadSubject')));
       }
 
       setIsLoading(false);
@@ -69,12 +72,12 @@ export default function QuotationListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, reloadToken]);
+  }, [page, reloadToken, t]);
 
   const header = (
     <PageHeader
-      title="My quotations"
-      description="Quotation requests submitted from your order list. Final pricing arrives when the quotation is issued."
+      title={t('myQuotations')}
+      description={t('quotationsDescription')}
     />
   );
 
@@ -84,7 +87,7 @@ export default function QuotationListPage() {
       <div className="space-y-6">
         {header}
         <div className="rounded-lg border border-red-200 bg-red-50 p-6" role="alert">
-          <h2 className="text-lg font-semibold text-red-800">Quotations are unavailable</h2>
+          <h2 className="text-lg font-semibold text-red-800">{t('quotationsUnavailable')}</h2>
           <p className="mt-1 text-sm text-red-700">{loadError.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
@@ -92,11 +95,11 @@ export default function QuotationListPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={primaryButtonClass}
             >
-              Try again
+              {t('tryAgain')}
             </button>
             {loadError.needsLogin ? (
               <Link to="/login" className={linkClass}>
-                Go to login
+                {t('goToLogin')}
               </Link>
             ) : null}
           </div>
@@ -109,7 +112,7 @@ export default function QuotationListPage() {
     return (
       <div className="space-y-6">
         {header}
-        <LoadingPanel label="Loading your quotations…" />
+        <LoadingPanel label={t('loadingQuotations')} />
       </div>
     );
   }
@@ -121,12 +124,12 @@ export default function QuotationListPage() {
       <div className="space-y-6">
         {header}
         <EmptyState
-          title="No quotation requests yet"
-          hint="Add products to your order list, then request a quotation — it shows up here."
+          title={t('noQuotationRequests')}
+          hint={t('noQuotationRequestsHint')}
         />
         <div className="text-center">
           <Link to="/cart" className={`${primaryButtonClass} inline-block`}>
-            Open your order list
+            {t('openOrderList')}
           </Link>
         </div>
       </div>
@@ -139,18 +142,18 @@ export default function QuotationListPage() {
 
       {isLoading && rows.length > 0 ? (
         <p className="px-1 text-xs text-gray-500" aria-live="polite">
-          Refreshing…
+          {t('refreshing')}
         </p>
       ) : null}
 
       <section
         className="rounded-lg border border-rule bg-plate"
         aria-busy={isLoading}
-        aria-label="Quotation requests"
+        aria-label={t('quotationRequests')}
       >
         <ul className="divide-y divide-rule">
           {rows.map((row) => {
-            const markers = buildQuotationListMarkers(row);
+            const markers = buildQuotationListMarkers(row, locale, t);
 
             return (
               <li key={row.id}>
@@ -166,12 +169,12 @@ export default function QuotationListPage() {
                       <QuotationStatusBadge status={row.status} />
                       {markers.actionNeeded ? (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                          Action needed
+                          {t('actionNeeded')}
                         </span>
                       ) : null}
                       {markers.expired ? (
                         <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-                          Expired
+                          {t('expired')}
                         </span>
                       ) : null}
                     </div>
@@ -207,10 +210,10 @@ export default function QuotationListPage() {
 
                   <div className="flex-none text-left sm:text-right">
                     <p className="text-sm text-gray-700">
-                      {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
+                      {row.item_count} {t(row.item_count === 1 ? 'line' : 'lines')}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Requested {formatRequestDate(row.created_at)}
+                      {t('requested', { date: formatRequestDate(row.created_at, locale, t) })}
                     </p>
                   </div>
                 </Link>

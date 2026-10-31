@@ -36,6 +36,7 @@ import {
   secondaryButtonClass,
 } from '../../../components/catalog-ui/CatalogUi';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
+import { useI18n } from '../../../lib/i18n-context';
 
 const STOCK_FILTERS: Array<{ value: StockStatus | ''; label: string; dot?: string }> = [
   { value: '', label: 'All availability', dot: 'bg-subtle' },
@@ -190,6 +191,7 @@ function LoadingMoreRow({ label }: { label: string }) {
 
 export default function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { displayName } = useI18n();
 
   const search = searchParams.get('search') ?? '';
   const categoryId = searchParams.get('category_id') ?? '';
@@ -392,7 +394,7 @@ export default function ProductListPage() {
     { value: '', label: 'All categories' },
     ...categories.map((category) => ({
       value: String(category.id),
-      label: category.name_en,
+      label: displayName(category),
     })),
   ];
 
@@ -445,7 +447,7 @@ export default function ProductListPage() {
           <option value="">All categories</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
-              {category.name_en}
+              {displayName(category)}
             </option>
           ))}
         </select>

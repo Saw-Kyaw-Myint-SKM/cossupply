@@ -10,6 +10,7 @@
  * add-to-order-list surface confirms the logged line the same way.
  */
 import { useEffect, useReducer, type ReactNode } from 'react';
+import { useI18n, type TranslationKey } from '../../lib/i18n-context';
 import { FiAlertCircle, FiAlertTriangle, FiCheckCircle, FiChevronLeft, FiChevronRight, FiInbox, FiInfo } from 'react-icons/fi';
 import type { ApiResponse } from '../../api/client';
 import type { PaginationMeta } from '../../api/query';
@@ -20,45 +21,55 @@ export interface LoadErrorState {
   needsLogin: boolean;
 }
 
-export function describeLoadError(response: ApiResponse<unknown>, subject: string): LoadErrorState {
+type Translate = ReturnType<typeof useI18n>['t'];
+
+export function describeLoadError(
+  response: ApiResponse<unknown>,
+  subject: string,
+  t?: Translate,
+): LoadErrorState {
   if (response.status === 401) {
     return {
-      message: `Your admin session has expired. Sign in again to view ${subject}.`,
+      message: t ? t('sessionExpiredView', { subject }) : `Your admin session has expired. Sign in again to view ${subject}.`,
       needsLogin: true,
     };
   }
 
   if (response.status === 403) {
     return {
-      message: response.message ?? `Your account does not have permission to view ${subject}.`,
+      message: response.message ?? (t ? t('permissionView', { subject }) : `Your account does not have permission to view ${subject}.`),
       needsLogin: false,
     };
   }
 
   if (response.status === undefined) {
     return {
-      message: 'Could not reach the server. Check that the API is running and try again.',
+      message: t ? t('serverUnavailable') : 'Could not reach the server. Check that the API is running and try again.',
       needsLogin: false,
     };
   }
 
   return {
-    message: response.message ?? `Unable to load ${subject}.`,
+    message: response.message ?? (t ? t('loadFailed', { subject }) : `Unable to load ${subject}.`),
     needsLogin: false,
   };
 }
 
-export function describeRequestError(response: ApiResponse<unknown>, fallback: string): string {
+export function describeRequestError(
+  response: ApiResponse<unknown>,
+  fallback: string,
+  t?: Translate,
+): string {
   if (response.status === 401) {
-    return 'Your admin session has expired. Sign in again, then try again.';
+    return t ? t('sessionExpiredRetry') : 'Your admin session has expired. Sign in again, then try again.';
   }
 
   if (response.status === 403) {
-    return response.message ?? 'Your account does not have permission to do that.';
+    return response.message ?? (t ? t('permissionAction') : 'Your account does not have permission to do that.');
   }
 
   if (response.status === undefined) {
-    return 'Could not reach the server. Try again.';
+    return t ? t('requestUnavailable') : 'Could not reach the server. Try again.';
   }
 
   return response.message ?? fallback;
@@ -165,13 +176,17 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   const tone = STATUS_BADGE_CLASSES[status] ?? 'bg-paper text-ink ring-gray-500/20';
+  const statusKey: Record<string, TranslationKey> = {
+    NEW: 'statusNew', CONTACTING_SUPPLIER: 'statusContactingSupplier', SUPPLIER_RESPONSE_PENDING: 'statusAwaitingSupplier', PREPARING_QUOTATION: 'statusPreparingQuotation', QUOTATION_SENT: 'statusQuotationSent', CUSTOMER_REVIEWING: 'statusReviewing', CHANGE_REQUESTED: 'statusChangeRequested', ACCEPTED: 'statusAccepted', REJECTED: 'statusRejected', EXPIRED: 'statusExpired', CANCELLED: 'statusCancelled', DRAFT: 'statusDraft', SENT: 'statusSent', VIEWED: 'statusViewed', SUPERSEDED: 'statusSuperseded', SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired', ORDER_CONFIRMED: 'statusOrderConfirmed', PREPARING: 'statusPreparing', READY_TO_SHIP: 'statusReadyToShip', OUT_FOR_DELIVERY: 'statusOutForDelivery', DELIVERED: 'statusDelivered', COMPLETED: 'statusCompleted', SUPPLIER_UNAVAILABLE: 'statusSupplierUnavailable', DELIVERY_FAILED: 'statusDeliveryFailed', RETURNED: 'statusReturned', NOT_ASSIGNED: 'statusNotAssigned', NOT_PAID: 'statusNotPaid', CASH_COLLECTION_PENDING: 'statusCashCollectionPending', CASH_COLLECTED: 'statusCashCollected', PAYMENT_CONFIRMED: 'statusPaymentConfirmed', CUSTOMER_REFUSED_TO_PAY: 'statusCustomerRefusedToPay', PAYMENT_FAILED: 'statusPaymentFailed',
+  };
 
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
     >
-      {formatStatusLabel(status)}
+      {statusKey[status] ? t(statusKey[status]) : t('statusUnknown', { status: formatStatusLabel(status) })}
     </span>
   );
 }
@@ -272,13 +287,19 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 /** Client-side pre-check mirroring the documented jpeg/jpg/png/webp ≤ 2 MB rule. */
-export function validateImageFile(file: File): string | null {
+const defaultImageError = (key: 'imageTypeError' | 'imageSizeError') =>
+  key === 'imageTypeError' ? 'Choose a JPEG, PNG, or WebP image.' : 'The image must be 2 MB or smaller.';
+
+export function validateImageFile(
+  file: File,
+  t: (key: 'imageTypeError' | 'imageSizeError') => string = defaultImageError,
+): string | null {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return 'Choose a JPEG, PNG, or WebP image.';
+    return t('imageTypeError');
   }
 
   if (file.size > MAX_IMAGE_BYTES) {
-    return 'The image must be 2 MB or smaller.';
+    return t('imageSizeError');
   }
 
   return null;
@@ -336,11 +357,11 @@ export function ReceiptCheckMark(): ReactNode {
  * standing fact, not a warning state.
  */
 export function PricingNotice({ className = '' }: { className?: string }): ReactNode {
+  const { t } = useI18n();
   return (
     <p className={`flex items-center gap-2 text-[13px] leading-5 text-subtle ${className}`}>
       <FiInfo aria-hidden="true" className="h-4 w-4 flex-none text-subtle" />
-      All prices shown are display prices — final pricing is confirmed by the supplier in your
-      quotation.
+      {t('pricingNotice')}
     </p>
   );
 }
@@ -473,6 +494,7 @@ export function Pagination({
   onPage: (page: number) => void;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
   const from = meta.total === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1;
   const to = Math.min(meta.current_page * meta.per_page, meta.total);
   const lastPage = Math.max(meta.last_page, 1);
@@ -480,9 +502,7 @@ export function Pagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule bg-white px-4 py-3 rounded-b-2xl">
       <p className="text-sm text-muted">
-        Showing <span className="font-semibold text-ink">{from}</span>–
-        <span className="font-semibold text-ink">{to}</span> of{' '}
-        <span className="font-semibold text-ink tabular-nums">{meta.total}</span>
+        {t('paginationSummary', { from, to, total: meta.total })}
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -492,7 +512,7 @@ export function Pagination({
           className={secondaryButtonClass}
         >
           <FiChevronLeft aria-hidden="true" className="h-4 w-4" />
-          Previous
+          {t('previous')}
         </button>
         <span className="text-sm font-medium text-ink" aria-live="polite">
           {meta.current_page} / {lastPage}
@@ -503,7 +523,7 @@ export function Pagination({
           disabled={disabled || meta.current_page >= lastPage}
           className={secondaryButtonClass}
         >
-          Next
+          {t('next')}
           <FiChevronRight aria-hidden="true" className="h-4 w-4" />
         </button>
       </div>
@@ -526,6 +546,7 @@ export interface FieldProps {
  * id `<htmlFor>-error`, which callers reference from `aria-describedby`.
  */
 export function Field({ label, htmlFor, required = false, error, hint, hintId, children }: FieldProps) {
+  const { t } = useI18n();
   const message = error && error.length > 0 ? error[0] : null;
 
   return (
@@ -538,7 +559,7 @@ export function Field({ label, htmlFor, required = false, error, hint, hintId, c
               {' '}
               *
             </span>
-            <span className="sr-only"> (required)</span>
+            <span className="sr-only"> ({t('required')})</span>
           </>
         ) : null}
       </label>

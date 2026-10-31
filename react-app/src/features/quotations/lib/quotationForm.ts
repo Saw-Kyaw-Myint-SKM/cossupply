@@ -6,6 +6,7 @@
  * delivery fields, so "items derived from the cart" is one deterministic,
  * testable step. Nothing here touches the network or React state.
  */
+import type { Translator } from '../../../lib/i18n-context';
 import type { CustomerAddress, CustomerAddressInput } from '../../customer/api/addressesApi';
 import type { QuotationRequestInput } from '../api/quotationsApi';
 import type { CartItem } from '../../../lib/cart-storage';
@@ -57,6 +58,7 @@ export function composeFullAddress(
     ManualAddressState,
     'building_no' | 'street' | 'ward' | 'township' | 'city' | 'landmark'
   >,
+  t: Translator,
 ): string {
   const pieces = [parts.building_no, parts.street, parts.ward, parts.township, parts.city]
     .map((piece) => piece.trim())
@@ -64,7 +66,7 @@ export function composeFullAddress(
 
   const base = pieces.join(', ');
   const landmark = parts.landmark.trim();
-  return landmark !== '' ? `${base ? `${base} — ` : ''}Near ${landmark}` : base;
+  return landmark !== '' ? `${base ? `${base} — ` : ''}${t('nearLandmark', { landmark })}` : base;
 }
 
 /**
@@ -72,9 +74,9 @@ export function composeFullAddress(
  * `full_address` when given, otherwise composed from the address parts (the
  * contract allows `full_address` to be composed in the UI).
  */
-export function resolveManualFullAddress(manual: ManualAddressState): string {
+export function resolveManualFullAddress(manual: ManualAddressState, t: Translator): string {
   const typed = manual.full_address.trim();
-  return typed !== '' ? typed : composeFullAddress(manual);
+  return typed !== '' ? typed : composeFullAddress(manual, t);
 }
 
 /**
@@ -109,13 +111,13 @@ export function todayISODate(): string {
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** ISO date check: well-formed and today-or-later (YYYY-MM-DD sorts lexically). */
-export function requiredDeliveryDateError(value: string): string | null {
+export function requiredDeliveryDateError(value: string, t: Translator): string | null {
   const date = value.trim();
 
   if (date === '') return null;
-  if (!ISO_DATE_PATTERN.test(date)) return 'Enter a valid date (YYYY-MM-DD).';
+  if (!ISO_DATE_PATTERN.test(date)) return t('validDateError');
 
-  return date >= todayISODate() ? null : 'The required delivery date cannot be in the past.';
+  return date >= todayISODate() ? null : t('deliveryDatePast');
 }
 
 export interface BuildQuotationPayloadArgs {
@@ -129,6 +131,7 @@ export interface BuildQuotationPayloadArgs {
   items: CartItem[];
   requiredDeliveryDate: string;
   customerNote: string;
+  t: Translator;
   /** "Save to my addresses" checkbox in manual mode. */
   saveToAddressBook: boolean;
 }
@@ -181,10 +184,10 @@ type DeliveryResolution = {
 
 function resolveDelivery(args: BuildQuotationPayloadArgs, fieldErrors: Record<string, string[]>): DeliveryResolution {
   const name = args.contact.name.trim();
-  if (name === '') fieldErrors.name = ['Your name is required.'];
+  if (name === '') fieldErrors.name = [args.t('nameRequired')];
 
   const phone = args.contact.phone.trim();
-  if (phone === '') fieldErrors.phone = ['A contact phone number is required.'];
+  if (phone === '') fieldErrors.phone = [args.t('phoneRequired')];
 
   const saved =
     args.mode === 'saved' && args.selectedAddressId !== null
@@ -203,13 +206,11 @@ function resolveDelivery(args: BuildQuotationPayloadArgs, fieldErrors: Record<st
   }
 
   const manualCity = args.manual.city.trim();
-  if (manualCity === '') fieldErrors.city = ['The delivery city is required.'];
+  if (manualCity === '') fieldErrors.city = [args.t('deliveryCityRequired')];
 
-  const deliveryAddress = resolveManualFullAddress(args.manual);
+  const deliveryAddress = resolveManualFullAddress(args.manual, args.t);
   if (deliveryAddress === '') {
-    fieldErrors.delivery_address = [
-      'Enter the full delivery address or every address part needed to compose it.',
-    ];
+    fieldErrors.delivery_address = [args.t('deliveryAddressRequired')];
   }
 
   return {
@@ -243,7 +244,7 @@ export function buildQuotationRequestPayload(args: BuildQuotationPayloadArgs): B
   const delivery = resolveDelivery(args, fieldErrors);
 
   const dateOption = args.requiredDeliveryDate.trim();
-  const dateError = requiredDeliveryDateError(dateOption);
+  const dateError = requiredDeliveryDateError(dateOption, args.t);
   if (dateError) fieldErrors.required_delivery_date = [dateError];
 
   args.items.forEach((item, index) => {
@@ -283,15 +284,13 @@ export function buildQuotationRequestPayload(args: BuildQuotationPayloadArgs): B
     const contactName = args.manual.contact_name.trim();
     const addressPhone = args.manual.phone.trim();
     const township = args.manual.township.trim();
-    const fullAddress = resolveManualFullAddress(args.manual);
+    const fullAddress = resolveManualFullAddress(args.manual, args.t);
 
-    if (contactName === '') addressErrors.contact_name = ['The contact person is required.'];
-    if (addressPhone === '') addressErrors.phone = ['A phone number is required.'];
-    if (township === '') addressErrors.township = ['The township is required for a saved address.'];
+    if (contactName === '') addressErrors.contact_name = [args.t('contactPersonRequired')];
+    if (addressPhone === '') addressErrors.phone = [args.t('addressPhoneRequired')];
+    if (township === '') addressErrors.township = [args.t('townshipRequired')];
     if (fullAddress === '') {
-      addressErrors.full_address = [
-        'Enter the full address, or the address parts needed to compose it.',
-      ];
+      addressErrors.full_address = [args.t('fullAddressRequired')];
     }
 
     if (Object.keys(addressErrors).length === 0) {

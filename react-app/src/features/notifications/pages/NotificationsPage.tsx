@@ -21,6 +21,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import type { PaginationMeta } from '../../../api/query';
+import { useI18n } from '../../../lib/i18n-context';
 import { useAuth } from '../../../lib/auth-context';
 import {
   listNotifications,
@@ -33,14 +34,14 @@ import { useNotifications } from '../notification-context';
 
 const PER_PAGE = 15;
 
-function formatWhen(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
-}
-
 export default function NotificationsPage() {
   const { userType } = useAuth();
   const { refresh } = useNotifications();
+  const { t, locale } = useI18n();
+  const formatWhenForLocale = (value: string): string => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US');
+  };
 
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
@@ -90,7 +91,7 @@ export default function NotificationsPage() {
     const response = await markNotificationRead(notification.id);
 
     if (!response.success) {
-      setActionError(response.message ?? 'Could not mark the notification as read.');
+      setActionError(response.message ?? t('notificationMarkReadError'));
       return;
     }
 
@@ -105,7 +106,7 @@ export default function NotificationsPage() {
     setIsMarkingAll(false);
 
     if (!response.success) {
-      setActionError(response.message ?? 'Could not mark notifications as read.');
+      setActionError(response.message ?? t('notificationMarkAllReadError'));
       return;
     }
 
@@ -117,8 +118,8 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Notifications"
-        description="Quotation, order and payment updates for your account."
+        title={t('notifications')}
+        description={t('notificationUpdates')}
         action={
           <div className="flex items-center gap-2">
             <button
@@ -128,7 +129,7 @@ export default function NotificationsPage() {
               className={secondaryButtonClass}
             >
               <FiCheck aria-hidden="true" className="mr-1 h-4 w-4" />
-              {isMarkingAll ? 'Marking…' : 'Mark all read'}
+              {isMarkingAll ? t('marking') : t('markAllRead')}
             </button>
           </div>
         }
@@ -137,7 +138,7 @@ export default function NotificationsPage() {
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-rule bg-plate p-4">
         <div>
           <label htmlFor="notification-unread-filter" className="block text-sm font-medium text-ink">
-            Show
+            {t('show')}
           </label>
           <select
             id="notification-unread-filter"
@@ -148,22 +149,22 @@ export default function NotificationsPage() {
             }}
             className={`${inputClass(false)} mt-1 w-full sm:w-56`}
           >
-            <option value="all">All notifications</option>
-            <option value="unread">Unread only</option>
+            <option value="all">{t('allNotifications')}</option>
+            <option value="unread">{t('unreadOnly')}</option>
           </select>
         </div>
       </div>
 
       {actionError ? <Alert>{actionError}</Alert> : null}
 
-      {isLoading && items === null ? <LoadingPanel label="Loading notifications" /> : null}
+      {isLoading && items === null ? <LoadingPanel label={t('loadingNotifications')} /> : null}
 
       {loadError ? (
         <Alert>
           <p>{loadError.message}</p>
           {loadError.needsLogin ? (
             <Link to={userType === 'admin' ? '/admin/login' : '/login'} className={`${linkClass} mt-2`}>
-              Sign in
+              {t('signIn')}
             </Link>
           ) : (
             <button
@@ -171,7 +172,7 @@ export default function NotificationsPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={`${secondaryButtonClass} mt-3`}
             >
-              Try again
+              {t('tryAgain')}
             </button>
           )}
         </Alert>
@@ -179,11 +180,11 @@ export default function NotificationsPage() {
 
       {!isLoading && !loadError && items !== null && items.length === 0 ? (
         <EmptyState
-          title="No notifications"
+          title={t('noNotifications')}
           hint={
             unreadOnly
-              ? 'You have read every notification.'
-              : 'Updates about your quotations, orders and payments will appear here.'
+              ? t('notificationsRead')
+              : t('notificationEmptyHint')
           }
         />
       ) : null}
@@ -208,12 +209,12 @@ export default function NotificationsPage() {
                         </span>
                         {!notification.is_read ? (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                            Unread
+                            {t('unread')}
                           </span>
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-gray-700">{notification.message}</p>
-                      <p className="mt-1 text-xs text-gray-500">{formatWhen(notification.created_at)}</p>
+                      <p className="mt-1 text-xs text-gray-500">{formatWhenForLocale(notification.created_at)}</p>
                     </div>
 
                     <div className="flex flex-none items-center gap-3">
@@ -223,7 +224,7 @@ export default function NotificationsPage() {
                           onClick={() => void markOne(notification)}
                           className="text-xs font-medium text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
                         >
-                          Mark read
+                          {t('markRead')}
                         </button>
                       ) : null}
                       {href ? (
@@ -232,7 +233,7 @@ export default function NotificationsPage() {
                           onClick={() => void markOne(notification)}
                           className={linkClass}
                         >
-                          Open
+                          {t('open')}
                           <FiExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
                       ) : null}

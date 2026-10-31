@@ -7,6 +7,8 @@
  * responses here and become structured values in the version builder.
  */
 import { useState, type FormEvent } from 'react';
+import { useI18n } from '../../../lib/i18n-context';
+import { formatLocalDate } from '../../../lib/localization';
 import {
   Alert,
   inputClass,
@@ -24,24 +26,15 @@ import {
 } from '../api/quotationAdminApi';
 import { saveDownloadedFile } from '../../../lib/downloadFile';
 
-const CONTACT_METHODS: Array<{ value: SupplierContactMethod; label: string }> = [
-  { value: 'VIBER', label: 'Viber' },
-  { value: 'PHONE', label: 'Phone' },
-  { value: 'EMAIL', label: 'Email' },
-  { value: 'TELEGRAM', label: 'Telegram' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-function formatDateTime(value: string | null): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+function formatDateTime(value: string | null, locale: 'en' | 'my', fallback: string): string {
+  return formatLocalDate(value, locale, { dateStyle: 'medium', timeStyle: 'short' }) ?? fallback;
 }
 
-function formatMethod(value: string): string {
-  return CONTACT_METHODS.find((method) => method.value === value)?.label ?? value;
+function formatMethod(value: string, t: ReturnType<typeof useI18n>['t']): string {
+  const keys: Record<SupplierContactMethod, Parameters<typeof t>[0]> = {
+    VIBER: 'viber', PHONE: 'phone', EMAIL: 'email', TELEGRAM: 'telegram', OTHER: 'other',
+  };
+  return value in keys ? t(keys[value as SupplierContactMethod]) : value;
 }
 
 interface SupplierCommunicationPanelProps {
@@ -57,7 +50,12 @@ export default function SupplierCommunicationPanel({
   onLogged,
   onError,
 }: SupplierCommunicationPanelProps) {
+  const { locale, t } = useI18n();
   const [open, setOpen] = useState(false);
+  const contactMethods: Array<{ value: SupplierContactMethod; label: string }> = [
+    { value: 'VIBER', label: t('viber') }, { value: 'PHONE', label: t('phone') },
+    { value: 'EMAIL', label: t('email') }, { value: 'TELEGRAM', label: t('telegram') }, { value: 'OTHER', label: t('other') },
+  ];
   const [method, setMethod] = useState<SupplierContactMethod>('VIBER');
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState('');
@@ -70,7 +68,7 @@ export default function SupplierCommunicationPanel({
   const contactBits = [
     supplier.contact_person,
     supplier.phone,
-    supplier.viber_phone ? `Viber ${supplier.viber_phone}` : null,
+    supplier.viber_phone ? `${t('viber')} ${supplier.viber_phone}` : null,
     supplier.email,
   ].filter(Boolean);
 
@@ -87,7 +85,7 @@ export default function SupplierCommunicationPanel({
     setFormError(null);
 
     if (message.trim() === '' && response.trim() === '') {
-      setFormError('Add the message sent or the supplier response.');
+      setFormError(t('supplierContactRequired'));
       return;
     }
 
@@ -102,7 +100,7 @@ export default function SupplierCommunicationPanel({
     setSubmitting(false);
 
     if (!result.success) {
-      setFormError(result.message ?? 'The supplier contact could not be saved.');
+      setFormError(result.message ?? t('supplierContactSaveFailed'));
       return;
     }
 
@@ -121,7 +119,7 @@ export default function SupplierCommunicationPanel({
     setDownloadingId(null);
 
     if (!result.success || !result.data) {
-      onError(result.message ?? 'The attachment could not be downloaded.');
+      onError(result.message ?? t('attachmentDownloadFailed'));
       return;
     }
 
@@ -133,10 +131,10 @@ export default function SupplierCommunicationPanel({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-rule bg-gray-50 px-4 py-3">
         <div>
           <h2 className="text-base font-semibold text-ink">
-            {supplier.shop_name ?? `Supplier #${supplier.id}`}
+            {supplier.shop_name ?? t('supplierNumber', { id: supplier.id })}
           </h2>
           <p className="mt-1 text-xs text-gray-600">
-            {contactBits.length > 0 ? contactBits.join(' · ') : 'No supplier contact details on file'}
+            {contactBits.length > 0 ? contactBits.join(' · ') : t('noSupplierContactDetails')}
           </p>
           {supplier.delivery_time || supplier.warranty_policy ? (
             <p className="mt-1 text-xs text-gray-500">
@@ -146,7 +144,10 @@ export default function SupplierCommunicationPanel({
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-rule">
-            {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
+            {t('itemCount', {
+              count: group.items.length,
+              noun: group.items.length === 1 ? t('item') : t('itemsPlural'),
+            })}
           </span>
           <button
             type="button"
@@ -156,7 +157,7 @@ export default function SupplierCommunicationPanel({
               setFormError(null);
             }}
           >
-            {open ? 'Close log form' : 'Log contact'}
+            {open ? t('closeLogForm') : t('logContact')}
           </button>
         </div>
       </header>
@@ -165,10 +166,10 @@ export default function SupplierCommunicationPanel({
         <table className="min-w-full divide-y divide-rule text-sm">
           <thead className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-2">Requested item</th>
-              <th className="px-4 py-2">Qty</th>
-              <th className="px-4 py-2">Display price</th>
-              <th className="px-4 py-2">Stock snapshot</th>
+              <th className="px-4 py-2">{t('requestedItem')}</th>
+              <th className="px-4 py-2">{t('qty')}</th>
+              <th className="px-4 py-2">{t('displayPrice')}</th>
+              <th className="px-4 py-2">{t('stockSnapshot')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-rule">
@@ -177,14 +178,14 @@ export default function SupplierCommunicationPanel({
                 <td className="px-4 py-2">
                   <p className="font-medium text-ink">{item.product_name_snapshot}</p>
                   <p className="text-xs text-gray-500">
-                    {[item.sku, item.specification_snapshot].filter(Boolean).join(' · ') || 'No SKU'}
+                    {[item.sku, item.specification_snapshot].filter(Boolean).join(' · ') || t('noSku')}
                   </p>
                 </td>
                 <td className="px-4 py-2 tabular-nums text-gray-700">{item.quantity}</td>
                 <td className="px-4 py-2 tabular-nums text-gray-700">
-                  {item.display_price !== null ? formatMMK(item.display_price) : 'Confirm'}
+                  {item.display_price !== null ? formatMMK(item.display_price) : t('confirm')}
                 </td>
-                <td className="px-4 py-2 text-gray-600">{item.stock_status ?? '—'}</td>
+                <td className="px-4 py-2 text-gray-600">{item.stock_status ?? t('noData')}</td>
               </tr>
             ))}
           </tbody>
@@ -193,23 +194,23 @@ export default function SupplierCommunicationPanel({
 
       <div className="border-t border-rule px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Contact history
+          {t('contactHistory')}
         </h3>
         {group.communications.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">No supplier contact has been logged yet.</p>
+          <p className="mt-2 text-sm text-gray-500">{t('noSupplierContact')}</p>
         ) : (
           <ol className="mt-2 space-y-3">
             {group.communications.map((communication) => (
               <li key={communication.id} className="rounded-md border border-rule bg-white p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-ink">
-                    {formatMethod(communication.contact_method)}
+                    {formatMethod(communication.contact_method, t)}
                     {communication.admin ? (
                       <span className="font-normal text-gray-500"> · {communication.admin.name}</span>
                     ) : null}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {formatDateTime(communication.contacted_at)}
+                    {formatDateTime(communication.contacted_at, locale, t('noData'))}
                   </p>
                 </div>
                 {communication.message_text ? (
@@ -220,11 +221,11 @@ export default function SupplierCommunicationPanel({
                 {communication.supplier_response ? (
                   <div className="mt-2 rounded bg-green-50 px-3 py-2 text-sm text-green-900">
                     <p className="text-xs font-semibold uppercase tracking-wide text-green-800">
-                      Supplier response
+                      {t('supplierResponse')}
                     </p>
                     <p className="mt-1 whitespace-pre-line">{communication.supplier_response}</p>
                     <p className="mt-1 text-xs text-green-800">
-                      {formatDateTime(communication.responded_at)}
+                      {formatDateTime(communication.responded_at, locale, t('noData'))}
                     </p>
                   </div>
                 ) : null}
@@ -235,7 +236,7 @@ export default function SupplierCommunicationPanel({
                     onClick={() => void downloadAttachment(communication)}
                     className={`${smallButtonClass} mt-2`}
                   >
-                    {downloadingId === communication.id ? 'Downloading…' : 'Download attachment'}
+                    {downloadingId === communication.id ? t('downloading') : t('downloadAttachment')}
                   </button>
                 ) : null}
               </li>
@@ -251,7 +252,7 @@ export default function SupplierCommunicationPanel({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor={`method-${supplier.id}`} className="block text-sm font-medium text-gray-900">
-                Contact method
+                {t('contactMethod')}
               </label>
               <select
                 id={`method-${supplier.id}`}
@@ -259,7 +260,7 @@ export default function SupplierCommunicationPanel({
                 onChange={(event) => setMethod(event.target.value as SupplierContactMethod)}
                 className={`${inputClass(false)} mt-1`}
               >
-                {CONTACT_METHODS.map((option) => (
+                {contactMethods.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -269,7 +270,7 @@ export default function SupplierCommunicationPanel({
 
             <div>
               <label htmlFor={`attachment-${supplier.id}`} className="block text-sm font-medium text-gray-900">
-                Attachment <span className="font-normal text-gray-500">(optional)</span>
+                {t('attachment')} <span className="font-normal text-gray-500">({t('optional')})</span>
               </label>
               <input
                 id={`attachment-${supplier.id}`}
@@ -278,20 +279,20 @@ export default function SupplierCommunicationPanel({
                 onChange={(event) => setAttachment(event.target.files?.[0] ?? null)}
                 className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700"
               />
-              <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG or WebP up to 5 MB.</p>
+              <p className="mt-1 text-xs text-gray-500">{t('attachmentHint')}</p>
             </div>
           </div>
 
           <div>
             <label htmlFor={`message-${supplier.id}`} className="block text-sm font-medium text-gray-900">
-              Message sent to supplier
+              {t('messageSupplier')}
             </label>
             <textarea
               id={`message-${supplier.id}`}
               rows={3}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="Items requested, quantity, delivery deadline…"
+              placeholder={t('supplierMessagePlaceholder')}
               maxLength={5000}
               className={`${inputClass(false)} mt-1`}
             />
@@ -299,17 +300,17 @@ export default function SupplierCommunicationPanel({
 
           <div>
             <label htmlFor={`response-${supplier.id}`} className="block text-sm font-medium text-gray-900">
-              Supplier response
+              {t('supplierResponse')}
             </label>
             <p className="text-xs text-gray-500">
-              Record confirmed price, stock availability, delivery time, or warranty details.
+              {t('supplierResponseHint')}
             </p>
             <textarea
               id={`response-${supplier.id}`}
               rows={3}
               value={response}
               onChange={(event) => setResponse(event.target.value)}
-              placeholder="Example: confirmed 12 pcs at 45,000 MMK each; delivery in 5 days."
+              placeholder={t('supplierResponsePlaceholder')}
               maxLength={5000}
               className={`${inputClass(false)} mt-1`}
             />
@@ -317,7 +318,7 @@ export default function SupplierCommunicationPanel({
 
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={submitting} className={primaryButtonClass}>
-              {submitting ? 'Saving…' : 'Save contact log'}
+              {submitting ? t('savingChanges') : t('saveContactLog')}
             </button>
             <button
               type="button"
@@ -328,7 +329,7 @@ export default function SupplierCommunicationPanel({
               }}
               className={secondaryButtonClass}
             >
-              Cancel
+              {t('cancel')}
             </button>
           </div>
         </form>

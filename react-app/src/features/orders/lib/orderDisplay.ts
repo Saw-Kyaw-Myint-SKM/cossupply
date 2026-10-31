@@ -4,42 +4,84 @@
  * The order payload is a frozen snapshot: these helpers only format what the
  * server already calculated. No money value is ever derived in the browser.
  */
+import { translate } from '../../../lib/i18n-context';
+import type { Locale, TranslationKey, Translator } from '../../../lib/i18n-context';
 
-export function formatOrderDate(value: string | null | undefined): string {
-  if (!value) return '—';
+const DATE_LOCALES: Record<Locale, string> = {
+  en: 'en-US',
+  my: 'my-MM',
+};
+
+const ORDER_STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
+  SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired',
+  ORDER_CONFIRMED: 'statusOrderConfirmed',
+  PREPARING: 'statusPreparing',
+  READY_TO_SHIP: 'statusReadyToShip',
+  OUT_FOR_DELIVERY: 'statusOutForDelivery',
+  DELIVERED: 'statusDelivered',
+  COMPLETED: 'statusCompleted',
+  SUPPLIER_UNAVAILABLE: 'statusSupplierUnavailable',
+  DELIVERY_FAILED: 'statusDeliveryFailed',
+  RETURNED: 'statusReturned',
+  CANCELLED: 'statusCancelled',
+};
+
+const englishTranslator: Translator = (key, values) => translate('en', key, values);
+
+function unknownStatusLabel(status: string): string {
+  const spaced = status.replace(/_/g, ' ').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+export function formatOrderDate(
+  value: string | null | undefined,
+  locale: Locale = 'en',
+  t: Translator = englishTranslator,
+): string {
+  if (!value) return t('statusNoValue');
 
   // A date-only value (YYYY-MM-DD) is parsed as local time so the displayed
   // day never shifts because of a UTC offset.
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split('-').map(Number);
 
-    return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    return new Date(year, month - 1, day).toLocaleDateString(DATE_LOCALES[locale], {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     });
   }
 
-  return new Date(value).toLocaleDateString(undefined, {
+  return new Date(value).toLocaleDateString(DATE_LOCALES[locale], {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
 }
 
-export function formatOrderDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
+export function formatOrderDateTime(
+  value: string | null | undefined,
+  locale: Locale = 'en',
+  t: Translator = englishTranslator,
+): string {
+  if (!value) return t('statusNoValue');
 
-  return new Date(value).toLocaleString(undefined, {
+  return new Date(value).toLocaleString(DATE_LOCALES[locale], {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 }
 
-export function paymentMethodLabel(value: string | null): string {
-  if (!value) return '—';
+export function paymentMethodLabel(value: string | null, t: Translator = englishTranslator): string {
+  if (!value) return t('statusNoValue');
 
-  return value === 'CASH_ON_DELIVERY' ? 'Cash on delivery' : value.replace(/_/g, ' ');
+  if (value === 'CASH_ON_DELIVERY') return t('cashOnDelivery');
+  return t('statusUnknown', { status: unknownStatusLabel(value) });
+}
+
+export function orderStatusLabel(status: string, t: Translator = englishTranslator): string {
+  const key = ORDER_STATUS_LABEL_KEYS[status];
+  return key ? t(key) : t('statusUnknown', { status: unknownStatusLabel(status) });
 }
 
 /** Statuses an admin may cancel from (mirrors the server transition map). */
@@ -59,32 +101,32 @@ export function canCancelOrder(status: string): boolean {
  * Plain-language explanation of what the current order status means for the
  * customer. Unknown values fall back to a neutral sentence.
  */
-export function orderStatusHint(status: string): string {
+export function orderStatusHint(status: string, t: Translator = englishTranslator): string {
   switch (status) {
     case 'SUPPLIER_CONFIRMATION_REQUIRED':
-      return 'We are confirming stock, quantity and the delivery date with the supplier.';
+      return t('orderStatusSupplierConfirmation');
     case 'ORDER_CONFIRMED':
-      return 'The supplier confirmed your order. We are moving it into preparation.';
+      return t('orderStatusConfirmed');
     case 'PREPARING':
-      return 'Your items are being prepared for delivery.';
+      return t('orderStatusPreparing');
     case 'READY_TO_SHIP':
-      return 'Your order is packed and waiting for the delivery partner.';
+      return t('orderStatusReadyToShip');
     case 'OUT_FOR_DELIVERY':
-      return 'Your order is on the way. Please prepare the cash payment.';
+      return t('orderStatusOutForDelivery');
     case 'DELIVERED':
-      return 'Your order was delivered. Cash payment is collected on delivery.';
+      return t('orderStatusDelivered');
     case 'COMPLETED':
-      return 'This order is complete. Thank you for ordering with CoSupply.';
+      return t('orderStatusCompleted');
     case 'SUPPLIER_UNAVAILABLE':
-      return 'The supplier could not fulfil this order. The supplier team will contact you.';
+      return t('orderStatusSupplierUnavailable');
     case 'DELIVERY_FAILED':
-      return 'The delivery could not be completed. The supplier team will follow up with you.';
+      return t('orderStatusDeliveryFailed');
     case 'RETURNED':
-      return 'This order was returned.';
+      return t('orderStatusReturned');
     case 'CANCELLED':
-      return 'This order was cancelled.';
+      return t('orderStatusCancelled');
     default:
-      return 'The supplier team is handling this order.';
+      return t('orderStatusDefault');
   }
 }
 

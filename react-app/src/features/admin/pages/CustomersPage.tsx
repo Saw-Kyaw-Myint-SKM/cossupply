@@ -6,6 +6,8 @@
  * belong to the customer, and the backend exposes no admin write route.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { useI18n } from '../../../lib/i18n-context';
+import { formatLocalDate } from '../../../lib/localization';
 import {
   Alert,
   EmptyState,
@@ -30,12 +32,12 @@ import {
 
 const PER_PAGE = 20;
 
-function formatWhen(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+function formatWhen(value: string, locale: 'en' | 'my', fallback: string): string {
+  return formatLocalDate(value, locale) ?? fallback;
 }
 
 export default function AdminCustomersPage() {
+  const { locale, t } = useI18n();
   const [customers, setCustomers] = useState<DirectoryCustomer[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
 
@@ -70,7 +72,7 @@ export default function AdminCustomersPage() {
         setCustomers(response.data.customers);
         setMeta(response.data.meta);
       } else {
-        setLoadError(describeLoadError(response, 'the customer directory'));
+        setLoadError(describeLoadError(response, t('customersTitle'), t));
       }
 
       setIsLoading(false);
@@ -102,20 +104,20 @@ export default function AdminCustomersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Customers"
-        description="Read-only directory of registered buyers, with their quotation and order history. Customer accounts are created and edited by the customer, not by Admin."
+        title={t('customersTitle')}
+        description={t('customersDescription')}
       />
 
       <div className="rounded-lg border border-rule bg-plate p-4">
         <form
           onSubmit={submitSearch}
           role="search"
-          aria-label="Filter customers"
+          aria-label={t('filterCustomers')}
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
           <div className="lg:col-span-2">
             <label htmlFor="customer-search" className="block text-sm font-medium text-ink">
-              Search name, phone, email or company
+              {t('searchCustomer')}
             </label>
             <div className="mt-1 flex gap-2">
               <input
@@ -128,14 +130,14 @@ export default function AdminCustomersPage() {
                 placeholder="09123456789"
               />
               <button type="submit" className={secondaryButtonClass}>
-                Search
+                {t('search')}
               </button>
             </div>
           </div>
 
           <div>
             <label htmlFor="customer-status-filter" className="block text-sm font-medium text-ink">
-              Status
+              {t('status')}
             </label>
             <select
               id="customer-status-filter"
@@ -146,16 +148,16 @@ export default function AdminCustomersPage() {
               }}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
+              <option value="">{t('allStatuses')}</option>
+              <option value="active">{t('active')}</option>
+              <option value="inactive">{t('inactive')}</option>
+              <option value="suspended">{t('suspended')}</option>
             </select>
           </div>
 
           <div>
             <label htmlFor="customer-type-filter" className="block text-sm font-medium text-ink">
-              Account type
+              {t('accountType')}
             </label>
             <select
               id="customer-type-filter"
@@ -166,9 +168,9 @@ export default function AdminCustomersPage() {
               }}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All types</option>
-              <option value="individual">Individual</option>
-              <option value="business">Business</option>
+              <option value="">{t('allTypes')}</option>
+              <option value="individual">{t('individual')}</option>
+              <option value="business">{t('business')}</option>
             </select>
           </div>
 
@@ -179,13 +181,13 @@ export default function AdminCustomersPage() {
               className={secondaryButtonClass}
               disabled={!hasFilters}
             >
-              Clear filters
+              {t('clearFilters')}
             </button>
           </div>
         </form>
       </div>
 
-      {isLoading && customers === null ? <LoadingPanel label="Loading customers" /> : null}
+      {isLoading && customers === null ? <LoadingPanel label={t('loadingCustomers')} /> : null}
 
       {loadError ? (
         <Alert>
@@ -196,7 +198,7 @@ export default function AdminCustomersPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={`${primaryButtonClass} mt-3`}
             >
-              Try again
+              {t('tryAgain')}
             </button>
           )}
         </Alert>
@@ -204,12 +206,8 @@ export default function AdminCustomersPage() {
 
       {!isLoading && !loadError && customers !== null && customers.length === 0 ? (
         <EmptyState
-          title={hasFilters ? 'No customers match your filters' : 'No customers yet'}
-          hint={
-            hasFilters
-              ? 'Try a different search term or clear the filters.'
-              : 'Buyers appear here after they register an account.'
-          }
+          title={hasFilters ? t('noCustomersMatch') : t('noCustomersYet')}
+          hint={hasFilters ? t('customerFilterHint') : t('customerEmptyHint')}
         />
       ) : null}
 
@@ -219,13 +217,13 @@ export default function AdminCustomersPage() {
             <table className="min-w-full divide-y divide-rule text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">Customer</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Contact</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Type</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Quotations</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Orders</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Joined</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('customer')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('contact')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('type')}</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">{t('quotations')}</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">{t('orders')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('joined')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -240,7 +238,7 @@ export default function AdminCustomersPage() {
                     <td className="px-4 py-3">
                       <p className="whitespace-nowrap text-ink">{customer.phone}</p>
                       <p className="whitespace-nowrap text-xs text-gray-500">
-                        {customer.email ?? 'No email'}
+                        {customer.email ?? t('noEmail')}
                       </p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink">
@@ -253,7 +251,7 @@ export default function AdminCustomersPage() {
                       {customer.orders_count}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
-                      {formatWhen(customer.created_at)}
+                      {formatWhen(customer.created_at, locale, t('noData'))}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={customer.status.toUpperCase()} />
@@ -265,8 +263,7 @@ export default function AdminCustomersPage() {
           </div>
 
           <p className="border-t border-rule px-4 py-3 text-xs text-gray-500">
-            This directory is read-only. Customers manage their own profile and addresses; Admin
-            cannot reset passwords or edit customer accounts.
+            {t('customersReadOnlyHint')}
           </p>
 
           {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}

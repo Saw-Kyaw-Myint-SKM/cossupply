@@ -10,6 +10,7 @@
  * touching storage here, so the "preserved on failure / cleared on success"
  * behavior is a pure unit-testable decision.
  */
+import type { Translator } from '../../../lib/i18n-context';
 import type { ApiResponse } from '../../../api/client';
 import type { CustomerAddress, CustomerAddressInput } from '../../customer/api/addressesApi';
 import { createCustomerAddress } from '../../customer/api/addressesApi';
@@ -32,6 +33,7 @@ export interface QuotationSubmitContext {
   payload: QuotationRequestInput;
   /** When set, this address is saved first, then the request is submitted. */
   addressInput?: CustomerAddressInput | null;
+  t: Translator;
   /** Invoked from the cart context after — and only after — a 201. */
   clearCart: () => void;
 }
@@ -80,7 +82,7 @@ export async function submitQuotationRequest(
     const addressResponse = await createAddress(context.addressInput);
 
     if (!addressResponse.success) {
-      return asFailure(addressResponse, 'address', 'Could not save the new address. Try again.');
+      return asFailure(addressResponse, 'address', context.t('addressSaveFailed'));
     }
   }
 
@@ -90,7 +92,7 @@ export async function submitQuotationRequest(
     const result = asFailure(
       response,
       'request',
-      'Could not submit the quotation request. Try again.',
+      context.t('quotationSubmitFailed'),
     );
 
     return result;

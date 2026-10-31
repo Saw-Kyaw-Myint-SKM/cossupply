@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth-context';
+import { useI18n } from '../../../lib/i18n-context';
 
 interface FormData {
   name: string;
@@ -17,6 +18,7 @@ interface FormData {
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { t } = useI18n();
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -55,7 +57,7 @@ export default function RegisterPage() {
     if (response.success) {
       navigate('/dashboard');
     } else {
-      setError(response.message || 'Registration failed');
+      setError(response.message || t('registrationFailed'));
       if (response.errors) {
         setFieldErrors(response.errors);
       }
@@ -66,7 +68,7 @@ export default function RegisterPage() {
     <div className="max-w-md mx-auto">
       <div className="glass-card p-8">
         <h1 className="text-2xl font-bold text-ink mb-6 text-center">
-          Create Account
+          {t('registerTitle')}
         </h1>
 
         {error && (
@@ -78,7 +80,7 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-ink mb-1">
-              Full Name <span className="text-red-500">*</span>
+              {t('fullName')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -96,7 +98,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-ink mb-1">
-              Phone Number <span className="text-red-500">*</span>
+              {t('phoneNumber')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -117,7 +119,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">
-              Email <span className="text-red-500">*</span>
+              {t('email')} <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
@@ -137,7 +139,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="company_name" className="block text-sm font-medium text-ink mb-1">
-              Company Name (Optional)
+              {t('companyNameOptional')}
             </label>
             <input
               type="text"
@@ -154,7 +156,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">
-              Password <span className="text-red-500">*</span>
+              {t('password')} <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
@@ -173,7 +175,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="password_confirmation" className="block text-sm font-medium text-ink mb-1">
-              Confirm Password <span className="text-red-500">*</span>
+              {t('confirmPassword')} <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
@@ -191,15 +193,15 @@ export default function RegisterPage() {
             disabled={isLoading}
             className="w-full py-1.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Creating Account...' : 'Register'}
+            {isLoading ? t('creatingAccount') : t('register')}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-muted">
-            Already have an account?{' '}
+            {t('alreadyAccount')}{' '}
             <Link to="/login" className="font-medium text-accent hover:text-accent/80">
-              Login here
+              {t('loginHere')}
             </Link>
           </p>
         </div>

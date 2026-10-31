@@ -6,6 +6,8 @@
  * exactly which fields changed and their old → new values.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { useI18n } from '../../../lib/i18n-context';
+import { formatLocalDate } from '../../../lib/localization';
 import {
   Alert,
   EmptyState,
@@ -29,10 +31,8 @@ import {
 
 const PER_PAGE = 20;
 
-function formatWhen(value: string | null): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+function formatWhen(value: string | null, locale: 'en' | 'my', fallback: string): string {
+  return formatLocalDate(value, locale, { dateStyle: 'medium', timeStyle: 'short' }) ?? fallback;
 }
 
 function formatAction(action: string): string {
@@ -40,9 +40,9 @@ function formatAction(action: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string') return value === '' ? '""' : value;
+function formatValue(value: unknown, fallback: string, emptyValue: string): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value === '' ? emptyValue : value;
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
@@ -52,6 +52,7 @@ function emptyToUndefined(value: string): string | undefined {
 }
 
 export default function AdminAuditLogsPage() {
+  const { locale, t } = useI18n();
   const [logs, setLogs] = useState<AuditLogEntry[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [actions, setActions] = useState<string[]>([]);
@@ -99,7 +100,7 @@ export default function AdminAuditLogsPage() {
         setEntityTypes(response.data.entity_types);
         setAdmins(response.data.admins);
       } else {
-        setLoadError(describeLoadError(response, 'the audit trail'));
+        setLoadError(describeLoadError(response, t('auditTrail'), t));
       }
 
       setIsLoading(false);
@@ -135,20 +136,20 @@ export default function AdminAuditLogsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Audit trail"
-        description="Append-only record of admin actions, with the old and new values for every change. Entries are never edited or deleted."
+        title={t('auditTrail')}
+        description={t('auditDescription')}
       />
 
       <div className="rounded-lg border border-rule bg-plate p-4">
         <form
           onSubmit={submitSearch}
           role="search"
-          aria-label="Filter audit entries"
+          aria-label={t('filterAuditEntries')}
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
           <div>
             <label htmlFor="audit-action" className="block text-sm font-medium text-ink">
-              Action
+              {t('action')}
             </label>
             <select
               id="audit-action"
@@ -159,7 +160,7 @@ export default function AdminAuditLogsPage() {
               }}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All actions</option>
+              <option value="">{t('allActions')}</option>
               {actions.map((option) => (
                 <option key={option} value={option}>
                   {formatAction(option)}
@@ -170,7 +171,7 @@ export default function AdminAuditLogsPage() {
 
           <div>
             <label htmlFor="audit-entity" className="block text-sm font-medium text-ink">
-              Entity
+              {t('entity')}
             </label>
             <select
               id="audit-entity"
@@ -181,7 +182,7 @@ export default function AdminAuditLogsPage() {
               }}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All entities</option>
+              <option value="">{t('allEntities')}</option>
               {entityTypes.map((option) => (
                 <option key={option} value={option}>
                   {formatAction(option)}
@@ -192,7 +193,7 @@ export default function AdminAuditLogsPage() {
 
           <div>
             <label htmlFor="audit-admin" className="block text-sm font-medium text-ink">
-              Admin
+              {t('admin')}
             </label>
             <select
               id="audit-admin"
@@ -203,7 +204,7 @@ export default function AdminAuditLogsPage() {
               }}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All admins</option>
+              <option value="">{t('allAdmins')}</option>
               {admins.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.name}
@@ -214,7 +215,7 @@ export default function AdminAuditLogsPage() {
 
           <div>
             <label htmlFor="audit-search" className="block text-sm font-medium text-ink">
-              Search action, entity id or IP
+              {t('searchAudit')}
             </label>
             <div className="mt-1 flex gap-2">
               <input
@@ -224,17 +225,17 @@ export default function AdminAuditLogsPage() {
                 onChange={(event) => setSearchInput(event.target.value)}
                 maxLength={100}
                 className={`${inputClass(false)} min-w-0 flex-1`}
-                placeholder="product.price_updated"
+                placeholder={t('auditSearchPlaceholder')}
               />
               <button type="submit" className={secondaryButtonClass}>
-                Search
+                {t('search')}
               </button>
             </div>
           </div>
 
           <div>
             <label htmlFor="audit-from" className="block text-sm font-medium text-ink">
-              From
+              {t('from')}
             </label>
             <input
               id="audit-from"
@@ -250,7 +251,7 @@ export default function AdminAuditLogsPage() {
 
           <div>
             <label htmlFor="audit-to" className="block text-sm font-medium text-ink">
-              To
+              {t('to')}
             </label>
             <input
               id="audit-to"
@@ -266,13 +267,13 @@ export default function AdminAuditLogsPage() {
 
           <div className="flex items-end">
             <button type="button" onClick={clearFilters} className={secondaryButtonClass} disabled={!hasFilters}>
-              Clear filters
+              {t('clearFilters')}
             </button>
           </div>
         </form>
       </div>
 
-      {isLoading && logs === null ? <LoadingPanel label="Loading audit trail" /> : null}
+      {isLoading && logs === null ? <LoadingPanel label={t('loadingAuditTrail')} /> : null}
 
       {loadError ? (
         <Alert>
@@ -283,7 +284,7 @@ export default function AdminAuditLogsPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={`${primaryButtonClass} mt-3`}
             >
-              Try again
+              {t('tryAgain')}
             </button>
           )}
         </Alert>
@@ -291,12 +292,8 @@ export default function AdminAuditLogsPage() {
 
       {!isLoading && !loadError && logs !== null && logs.length === 0 ? (
         <EmptyState
-          title={hasFilters ? 'No audit entries match your filters' : 'No audit entries yet'}
-          hint={
-            hasFilters
-              ? 'Try a different action, entity or date range.'
-              : 'Admin actions appear here as products, quotations, orders and settings change.'
-          }
+          title={hasFilters ? t('noAuditEntriesMatch') : t('noAuditEntriesYet')}
+          hint={hasFilters ? t('auditFilterHint') : t('auditEmptyHint')}
         />
       ) : null}
 
@@ -306,12 +303,12 @@ export default function AdminAuditLogsPage() {
             <table className="min-w-full divide-y divide-rule text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">When</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Action</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Entity</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Admin</th>
-                  <th scope="col" className="px-4 py-3 font-medium">IP</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Changes</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('when')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('action')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('entity')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('admin')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('ipAddress')}</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">{t('changes')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -322,7 +319,7 @@ export default function AdminAuditLogsPage() {
                   return (
                     <tr key={entry.id} className="align-top">
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
-                        {formatWhen(entry.created_at)}
+                        {formatWhen(entry.created_at, locale, t('noData'))}
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-ink">{formatAction(entry.action)}</p>
@@ -339,11 +336,11 @@ export default function AdminAuditLogsPage() {
                             <p className="text-xs text-gray-500">{entry.admin.email}</p>
                           </>
                         ) : (
-                          <span className="text-xs text-gray-400">System</span>
+                          <span className="text-xs text-gray-400">{t('system')}</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
-                        {entry.ip_address ?? '—'}
+                        {entry.ip_address ?? t('noData')}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         {fields.length > 0 || entry.old_data || entry.new_data ? (
@@ -354,10 +351,10 @@ export default function AdminAuditLogsPage() {
                             aria-expanded={expanded}
                             aria-controls={`audit-changes-${entry.id}`}
                           >
-                            {expanded ? 'Hide' : `Show ${fields.length || 'snapshot'}`}
+                            {expanded ? t('hide') : fields.length > 0 ? t('showCount', { count: fields.length }) : t('showCount', { count: t('snapshot') })}
                           </button>
                         ) : (
-                          <span className="text-xs text-gray-400">No data</span>
+                          <span className="text-xs text-gray-400">{t('noDataAvailable')}</span>
                         )}
                       </td>
                     </tr>
@@ -370,6 +367,7 @@ export default function AdminAuditLogsPage() {
           {expandedId !== null ? (
             <AuditChanges
               entry={logs.find((entry) => entry.id === expandedId) ?? null}
+              t={t}
             />
           ) : null}
 
@@ -381,7 +379,13 @@ export default function AdminAuditLogsPage() {
 }
 
 /** The before/after snapshot for the expanded audit row. */
-function AuditChanges({ entry }: { entry: AuditLogEntry | null }) {
+function AuditChanges({
+  entry,
+  t,
+}: {
+  entry: AuditLogEntry | null;
+  t: ReturnType<typeof useI18n>['t'];
+}) {
   if (entry === null) return null;
 
   const fields = changedFields(entry);
@@ -398,33 +402,41 @@ function AuditChanges({ entry }: { entry: AuditLogEntry | null }) {
             <div key={field} className="rounded-md border border-rule bg-white p-2">
               <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{field}</dt>
               <dd className="mt-1 break-words text-xs text-gray-700">
-                <span className="text-red-700 line-through">{formatValue(entry.old_data?.[field])}</span>
+                <span className="text-red-700 line-through">{formatValue(entry.old_data?.[field], t('noData'), t('emptyValue'))}</span>
                 <span aria-hidden="true" className="px-1 text-gray-400">
                   →
                 </span>
-                <span className="text-green-700">{formatValue(entry.new_data?.[field])}</span>
+                <span className="text-green-700">{formatValue(entry.new_data?.[field], t('noData'), t('emptyValue'))}</span>
               </dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p className="mt-2 text-sm text-gray-600">This entry has no field-level changes.</p>
+        <p className="mt-2 text-sm text-gray-600">{t('noFieldChanges')}</p>
       )}
 
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Snapshot label="Old data" value={entry.old_data} />
-        <Snapshot label="New data" value={entry.new_data} />
+        <Snapshot label={t('oldData')} value={entry.old_data} fallback={t('noData')} />
+        <Snapshot label={t('newData')} value={entry.new_data} fallback={t('noData')} />
       </div>
     </div>
   );
 }
 
-function Snapshot({ label, value }: { label: string; value: Record<string, unknown> | null }) {
+function Snapshot({
+  label,
+  value,
+  fallback,
+}: {
+  label: string;
+  value: Record<string, unknown> | null;
+  fallback: string;
+}) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
       <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-rule bg-white p-2 text-xs text-gray-700">
-        {value === null ? '—' : JSON.stringify(value, null, 2)}
+        {value === null ? fallback : JSON.stringify(value, null, 2)}
       </pre>
     </div>
   );

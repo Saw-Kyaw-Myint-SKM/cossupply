@@ -62,13 +62,30 @@ import {
   CustomerProtectedRoute,
   GuestRoute,
 } from './guards';
+import { useI18n } from '../lib/i18n-context';
 
 // Loading fallback
-const PageLoader = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ink"></div>
-  </div>
-);
+const PageLoader = () => {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center justify-center min-h-screen" role="status">
+      <span className="sr-only">{t('loading')}</span>
+      <div aria-hidden="true" className="animate-spin rounded-full h-12 w-12 border-b-2 border-ink"></div>
+    </div>
+  );
+};
+
+const NotFoundPage = () => {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900">404</h1>
+        <p className="mt-2 text-gray-600">{t('pageNotFound')}</p>
+      </div>
+    </div>
+  );
+};
 
 export const router = createBrowserRouter([
   // Admin routes with AdminLayout
@@ -349,14 +366,7 @@ export const router = createBrowserRouter([
       // 404
       {
         path: '*',
-        element: (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900">404</h1>
-              <p className="mt-2 text-gray-600">Page not found</p>
-            </div>
-          </div>
-        ),
+        element: <NotFoundPage />,
       },
     ],
   },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useI18n } from '../../../lib/i18n-context';
 import { listSuppliers, type Supplier, type SupplierStatus } from '../api/suppliersApi';
 import type { PaginationMeta } from '../api/catalogApiUtils';
 import {
@@ -28,6 +29,7 @@ type StatusFilter = '' | SupplierStatus;
  * deactivated by changing `status` Inactive/Suspended on the edit page.
  */
 export default function SupplierListPage() {
+  const { t } = useI18n();
   const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
 
@@ -60,7 +62,7 @@ export default function SupplierListPage() {
         setSuppliers(response.data.suppliers);
         setMeta(response.data.meta);
       } else {
-        setLoadError(describeLoadError(response, 'suppliers'));
+        setLoadError(describeLoadError(response, t('suppliers'), t));
       }
 
       setIsLoading(false);
@@ -95,11 +97,11 @@ export default function SupplierListPage() {
 
   const header = (
     <PageHeader
-      title="Suppliers"
-      description="Supplier contacts, terms, and status. Suppliers are never deleted — set a supplier to Inactive or Suspended to deactivate it."
+      title={t('suppliers')}
+      description={t('supplierDescription')}
       action={
         <Link to="/admin/suppliers/new" className={primaryButtonClass}>
-          New supplier
+          {t('newSupplier')}
         </Link>
       }
     />
@@ -110,7 +112,7 @@ export default function SupplierListPage() {
       <div className="space-y-6">
         {header}
         <div className="rounded-lg border border-red-200 bg-red-50 p-6" role="alert">
-          <h2 className="text-lg font-semibold text-red-800">Suppliers are unavailable</h2>
+          <h2 className="text-lg font-semibold text-red-800">{t('suppliersUnavailable')}</h2>
           <p className="mt-1 text-sm text-red-700">{loadError.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
@@ -122,7 +124,7 @@ export default function SupplierListPage() {
             </button>
             {loadError.needsLogin ? (
               <Link to="/admin/login" className={linkClass}>
-                Go to admin login
+                {t('goToAdminLogin')}
               </Link>
             ) : null}
           </div>
@@ -135,7 +137,7 @@ export default function SupplierListPage() {
     return (
       <div className="space-y-6">
         {header}
-        <LoadingPanel label="Loading suppliers…" />
+        <LoadingPanel label={t('loadingSuppliers')} />
       </div>
     );
   }
@@ -149,11 +151,11 @@ export default function SupplierListPage() {
           onSubmit={handleSearchSubmit}
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
           role="search"
-          aria-label="Filter suppliers"
+          aria-label={t('filterSuppliers')}
         >
           <div className="lg:col-span-3">
             <label htmlFor="supplier-search" className="block text-sm font-medium text-gray-700">
-              Search
+              {t('search')}
             </label>
             <div className="mt-1 flex gap-2">
               <input
@@ -161,11 +163,11 @@ export default function SupplierListPage() {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Shop, company, or phone"
+                placeholder={t('supplierSearchPlaceholder')}
                 className={`${inputClass(false)} min-w-0 flex-1`}
               />
               <button type="submit" className={secondaryButtonClass}>
-                Search
+                {t('search')}
               </button>
             </div>
           </div>
@@ -175,7 +177,7 @@ export default function SupplierListPage() {
               htmlFor="supplier-status-filter"
               className="block text-sm font-medium text-gray-700"
             >
-              Status
+              {t('status')}
             </label>
             <select
               id="supplier-status-filter"
@@ -183,10 +185,10 @@ export default function SupplierListPage() {
               onChange={(event) => handleStatusChange(event.target.value)}
               className={`${inputClass(false)} mt-1`}
             >
-              <option value="">All statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="SUSPENDED">Suspended</option>
+              <option value="">{t('allStatuses')}</option>
+              <option value="ACTIVE">{t('active')}</option>
+              <option value="INACTIVE">{t('inactive')}</option>
+              <option value="SUSPENDED">{t('suspended')}</option>
             </select>
           </div>
         </form>
@@ -202,7 +204,7 @@ export default function SupplierListPage() {
                 onClick={() => setReloadToken((token) => token + 1)}
                 className={secondaryButtonClass}
               >
-                Try again
+                {t('tryAgain')}
               </button>
             </div>
           </Alert>
@@ -217,28 +219,26 @@ export default function SupplierListPage() {
               className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 motion-reduce:animate-none"
               aria-hidden="true"
             />
-            Updating list…
+            {t('updatingList')}
           </div>
         ) : null}
 
         {suppliers !== null && suppliers.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <h2 className="text-base font-semibold text-gray-900">
-              {hasFilters ? 'No suppliers match your filters' : 'No suppliers yet'}
+              {hasFilters ? t('noSuppliersMatch') : t('noSuppliersYet')}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              {hasFilters
-                ? 'Try a different search term or clear the filters.'
-                : 'Add the first supplier to start creating products for the catalog.'}
+              {hasFilters ? t('supplierFilterHint') : t('supplierEmptyHint')}
             </p>
             <div className="mt-4">
               {hasFilters ? (
                 <button type="button" onClick={clearFilters} className={secondaryButtonClass}>
-                  Clear filters
+                  {t('clearFilters')}
                 </button>
               ) : (
                 <Link to="/admin/suppliers/new" className={primaryButtonClass}>
-                  New supplier
+                  {t('newSupplier')}
                 </Link>
               )}
             </div>
@@ -252,22 +252,22 @@ export default function SupplierListPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Supplier
+                      {t('supplier')}
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Contact
+                      {t('contact')}
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Location
+                      {t('location')}
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Products
+                      {t('products')}
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Status
+                      {t('status')}
                     </th>
                     <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
-                      Actions
+                      {t('actions')}
                     </th>
                   </tr>
                 </thead>
@@ -295,7 +295,7 @@ export default function SupplierListPage() {
                             <Link
                               to={`/admin/suppliers/${supplier.id}/edit`}
                               className="truncate text-sm font-medium text-accent hover:text-accent/80"
-                              aria-label={`Edit ${supplierLabel(supplier)}`}
+                              aria-label={t('editSupplierAria', { supplier: supplierLabel(supplier, t) })}
                             >
                               {supplier.shop_name}
                             </Link>
@@ -314,11 +314,11 @@ export default function SupplierListPage() {
                         <p className="whitespace-nowrap text-sm text-gray-500">{supplier.phone}</p>
                         {supplier.viber_phone ? (
                           <p className="whitespace-nowrap text-xs text-gray-400">
-                            Viber {supplier.viber_phone}
+                            {t('viber')} {supplier.viber_phone}
                           </p>
                         ) : (
                           <p className="whitespace-nowrap text-xs font-medium text-amber-700">
-                            No Viber number
+                            {t('noViberNumber')}
                           </p>
                         )}
                       </td>
@@ -329,13 +329,13 @@ export default function SupplierListPage() {
                         ) : null}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                        {supplier.products_count !== undefined ? supplier.products_count : '—'}
+                        {supplier.products_count !== undefined ? supplier.products_count : t('noData')}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <StatusBadge status={supplier.status} />
                         {supplier.verified ? (
                           <span className="mt-1 block w-fit rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-inset ring-accent/40">
-                            Verified
+                            {t('verifiedSupplier')}
                           </span>
                         ) : null}
                       </td>
@@ -343,9 +343,9 @@ export default function SupplierListPage() {
                         <Link
                           to={`/admin/suppliers/${supplier.id}/edit`}
                           className={linkClass}
-                          aria-label={`Edit ${supplierLabel(supplier)}`}
+                          aria-label={t('editSupplierAria', { supplier: supplierLabel(supplier, t) })}
                         >
-                          Edit
+                          {t('edit')}
                         </Link>
                       </td>
                     </tr>
@@ -355,8 +355,7 @@ export default function SupplierListPage() {
             </div>
 
             <p className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
-              To deactivate a supplier, open Edit and set Status to Inactive or Suspended.
-              Suppliers are never deleted.
+              {t('supplierListDeactivationHint')}
             </p>
 
             {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
@@ -367,6 +366,6 @@ export default function SupplierListPage() {
   );
 }
 
-function supplierLabel(supplier: Supplier): string {
-  return supplier.shop_name || supplier.company_name || `Supplier #${supplier.id}`;
+function supplierLabel(supplier: Supplier, t: ReturnType<typeof useI18n>['t']): string {
+  return supplier.shop_name || supplier.company_name || t('supplierNumber', { id: supplier.id });
 }

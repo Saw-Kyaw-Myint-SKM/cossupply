@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth-context';
+import { useI18n } from '../../../lib/i18n-context';
 
 /**
  * Admin Login Page
@@ -8,6 +9,7 @@ import { useAuth } from '../../../lib/auth-context';
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const { adminLogin } = useAuth();
+  const { t } = useI18n();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -30,7 +32,7 @@ export default function AdminLoginPage() {
     if (response.success) {
       navigate('/admin/dashboard');
     } else {
-      setError(response.message || 'Login failed');
+      setError(response.message || t('loginFailed'));
       if (response.errors) {
         setFieldErrors(response.errors);
       }
@@ -41,7 +43,7 @@ export default function AdminLoginPage() {
     <div className="max-w-md mx-auto">
       <div className="glass-card p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-          Admin Login
+          {t('adminLoginTitle')}
         </h1>
 
         {error && (
@@ -53,7 +55,7 @@ export default function AdminLoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              {t('email')}
             </label>
             <input
               type="email"
@@ -61,7 +63,7 @@ export default function AdminLoginPage() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
-              placeholder="admin@example.com"
+              placeholder={t('adminEmailPlaceholder')}
               required
             />
             {fieldErrors.email && (
@@ -71,7 +73,7 @@ export default function AdminLoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+              {t('password')}
             </label>
             <input
               type="password"
@@ -91,15 +93,15 @@ export default function AdminLoginPage() {
             disabled={isLoading}
             className="w-full py-1.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? t('loggingIn') : t('login')}
           </button>
         </form>
 
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-500 text-center">
-            Customer?{' '}
+            {t('customerQuestion')}{' '}
             <Link to="/login" className="font-medium text-gray-700 hover:text-gray-900">
-              Login here
+              {t('loginHere')}
             </Link>
           </p>
         </div>

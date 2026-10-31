@@ -28,6 +28,7 @@ import {
   secondaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { useI18n, type Translator } from '../../../lib/i18n-context';
 import type { ApiResponse } from '../../../api/client';
 import QuotationStatusBadge from '../components/QuotationStatusBadge';
 import {
@@ -73,15 +74,15 @@ interface ActionNotice {
 const dangerButtonClass =
   'inline-flex items-center justify-center rounded-md border border-transparent bg-red-700 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-800 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
-function QuotationDetailSkeleton() {
+function QuotationDetailSkeleton({ label }: { label: string }) {
   return (
     <div
       className="space-y-4"
       role="status"
       aria-live="polite"
-      aria-label="Loading your quotation"
+      aria-label={label}
     >
-      <span className="sr-only">Loading your quotation…</span>
+      <span className="sr-only">{label}</span>
       <div aria-hidden="true" className="space-y-4">
         <div className="h-36 animate-pulse rounded-lg border border-rule bg-plate motion-reduce:animate-none" />
         <div className="h-16 animate-pulse rounded-lg border border-rule bg-plate motion-reduce:animate-none" />
@@ -97,8 +98,8 @@ function QuotationDetailSkeleton() {
 }
 
 /** COD terms fallback matches the MVP's only payment mode. */
-function codTermsFor(version: CustomerQuotationVersion | null): string {
-  return version?.cod_terms?.trim() || 'Full cash payment on delivery (COD).';
+function codTermsFor(version: CustomerQuotationVersion | null, t: Translator): string {
+  return version?.cod_terms?.trim() || t('codTermsDefault');
 }
 
 function deliveryDateFor(version: CustomerQuotationVersion): string | null {
@@ -108,6 +109,7 @@ function deliveryDateFor(version: CustomerQuotationVersion): string | null {
 }
 
 export default function QuotationDetailPage() {
+  const { t, locale } = useI18n();
   const { id: idParam } = useParams<{ id: string }>();
   const id = Number(idParam);
   const navigate = useNavigate();
@@ -142,7 +144,7 @@ export default function QuotationDetailPage() {
 
     if (!Number.isInteger(id) || id <= 0) {
       setIsLoading(false);
-      setLoadError({ message: 'That quotation number is not valid.', needsLogin: false });
+      setLoadError({ message: t('invalidQuotationLink'), needsLogin: false });
       return;
     }
 
@@ -207,11 +209,10 @@ export default function QuotationDetailPage() {
       const error =
         response.status === 404
           ? {
-              message:
-                'That quotation was not found, or it is not linked to your account.',
+              message: t('quotationNotFound'),
               needsLogin: false,
             }
-          : describeCustomerLoadError(response, 'this quotation');
+          : describeCustomerLoadError(response, t('quotationLoadSubject'));
 
       if (loadedIdRef.current === id) {
         setRefreshError(error.message);
@@ -227,7 +228,7 @@ export default function QuotationDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, reloadToken, navigate]);
+  }, [id, reloadToken, navigate, t]);
 
   // Inline panels are simpler than a modal and keep the quotation visible
   // behind the confirmation; focus still moves to the first field on open.
@@ -270,7 +271,7 @@ export default function QuotationDetailPage() {
       setPanel(null);
       setConflict(
         response.message ??
-          'This quotation changed while you were reviewing it. The latest version has been loaded.',
+          t('quotationChanged'),
       );
       refresh();
       return;
@@ -286,7 +287,7 @@ export default function QuotationDetailPage() {
 
     setActionError(null);
     setActionFieldErrors({});
-    const built = buildAcceptPayload(acceptAck);
+    const built = buildAcceptPayload(acceptAck, t);
     if (!built.ok) {
       setActionFieldErrors(built.fieldErrors);
       return;
@@ -297,7 +298,7 @@ export default function QuotationDetailPage() {
     setActionBusy(false);
 
     if (!response.success || !response.data) {
-      handleActionFailure(response, 'The quotation could not be accepted.');
+      handleActionFailure(response, t('quotationAcceptFailed'));
       return;
     }
 
@@ -316,7 +317,7 @@ export default function QuotationDetailPage() {
 
     setActionError(null);
     setActionFieldErrors({});
-    const built = buildRejectPayload(rejectNote);
+    const built = buildRejectPayload(rejectNote, t);
     if (!built.ok) {
       setActionFieldErrors(built.fieldErrors);
       return;
@@ -327,7 +328,7 @@ export default function QuotationDetailPage() {
     setActionBusy(false);
 
     if (!response.success || !response.data) {
-      handleActionFailure(response, 'The quotation could not be rejected.');
+      handleActionFailure(response, t('quotationRejectFailed'));
       return;
     }
 
@@ -338,7 +339,7 @@ export default function QuotationDetailPage() {
     setConflict(null);
     setNotice({
       tone: 'warning',
-      text: 'Quotation rejected. The sales team has been notified.',
+      text: t('quotationRejectedNotice'),
     });
     refresh();
   };
@@ -349,7 +350,7 @@ export default function QuotationDetailPage() {
 
     setActionError(null);
     setActionFieldErrors({});
-    const built = buildChangeRequestPayload(changeNote);
+    const built = buildChangeRequestPayload(changeNote, t);
     if (!built.ok) {
       setActionFieldErrors(built.fieldErrors);
       return;
@@ -360,7 +361,7 @@ export default function QuotationDetailPage() {
     setActionBusy(false);
 
     if (!response.success || !response.data) {
-      handleActionFailure(response, 'The change request could not be sent.');
+      handleActionFailure(response, t('changeRequestFailed'));
       return;
     }
 
@@ -371,7 +372,7 @@ export default function QuotationDetailPage() {
     setConflict(null);
     setNotice({
       tone: 'success',
-      text: 'Change requested. The sales team will review it and send a new version.',
+      text: t('changeRequestedNotice'),
     });
     refresh();
   };
@@ -382,14 +383,14 @@ export default function QuotationDetailPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Quotation"
+          title={t('quotation')}
           action={
             <Link to="/quotations" className={linkClass}>
-              Back to my quotations
+              {t('backToMyQuotations')}
             </Link>
           }
         />
-        <QuotationDetailSkeleton />
+        <QuotationDetailSkeleton label={t('loadingQuotation')} />
       </div>
     );
   }
@@ -398,28 +399,28 @@ export default function QuotationDetailPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Quotation"
+          title={t('quotation')}
           action={
             <Link to="/quotations" className={linkClass}>
-              Back to my quotations
+              {t('backToMyQuotations')}
             </Link>
           }
         />
         <Alert tone="error">
-          <p className="font-semibold">This quotation could not be opened</p>
+          <p className="font-semibold">{t('quotationOpenFailed')}</p>
           <p className="mt-1">
-            {loadError?.message ?? 'The quotation could not be loaded.'}
+            {loadError?.message ?? t('quotationLoadFailed')}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" onClick={refresh} className={secondaryButtonClass}>
-              Try again
+              {t('tryAgain')}
             </button>
             <Link to="/quotations" className={secondaryButtonClass}>
-              Back to my quotations
+              {t('backToMyQuotations')}
             </Link>
             {loadError?.needsLogin ? (
               <Link to="/login" className={linkClass}>
-                Go to login
+                {t('goToLogin')}
               </Link>
             ) : null}
           </div>
@@ -456,14 +457,14 @@ export default function QuotationDetailPage() {
     : false;
 
   const expiryLabel = currentVersion?.valid_until
-    ? ` on ${formatQuotationDate(currentVersion.valid_until)}`
+    ? t('quotationExpired', { date: ` ${formatQuotationDate(currentVersion.valid_until, locale, t)}` })
     : '';
 
   const summaryDeliverTo = [
     request.delivery_address,
     request.city,
     request.township,
-    request.landmark ? `Near ${request.landmark}` : null,
+    request.landmark ? t('nearLandmark', { landmark: request.landmark }) : null,
   ]
     .filter((part): part is string => Boolean(part))
     .join(', ');
@@ -477,11 +478,11 @@ export default function QuotationDetailPage() {
     <div className="space-y-6">
       <PageHeader
         title={request.quotation_number}
-        description={`Requested ${formatQuotationDateTime(request.created_at)}${
+        description={t('requested', { date: formatQuotationDateTime(request.created_at, locale, t) }) + (
           request.required_delivery_date
-            ? ` · Required delivery ${formatQuotationDate(request.required_delivery_date)}`
+            ? ` · ${t('requestedDelivery', { date: formatQuotationDate(request.required_delivery_date, locale, t) })}`
             : ''
-        }`}
+        )}
         action={
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <div className="flex flex-wrap items-center gap-2">
@@ -489,14 +490,14 @@ export default function QuotationDetailPage() {
               {currentVersion ? (
                 <>
                   <span className="text-xs text-gray-500">
-                    Version {currentVersion.version}
+                    {t('version', { version: currentVersion.version })}
                   </span>
                   <QuotationStatusBadge status={currentVersion.status} />
                 </>
               ) : null}
             </div>
             <Link to="/quotations" className={linkClass}>
-              Back to my quotations
+              {t('backToMyQuotations')}
             </Link>
           </div>
         }
@@ -504,7 +505,7 @@ export default function QuotationDetailPage() {
 
       {isRefreshing ? (
         <p className="text-xs text-gray-500" aria-live="polite">
-          Refreshing quotation…
+          {t('refreshingQuotation')}
         </p>
       ) : null}
 
@@ -512,7 +513,7 @@ export default function QuotationDetailPage() {
         <Alert tone="error">
           {refreshError}{' '}
           <button type="button" onClick={refresh} className={`${linkClass} font-semibold`}>
-            Try again
+            {t('tryAgain')}
           </button>
         </Alert>
       ) : null}
@@ -522,11 +523,11 @@ export default function QuotationDetailPage() {
       {acceptedJustNow || request.status === 'ACCEPTED' ? (
         <div className="space-y-3">
           <Alert tone="success">
-            <p className="font-semibold">Quotation accepted</p>
+            <p className="font-semibold">{t('quotationAccepted')}</p>
             <p className="mt-1">
               {orderSummary
-                ? 'Your order has been created and is waiting for supplier confirmation. Your accepted version stays locked in.'
-                : 'Your accepted quotation is locked in. The sales team will confirm supplier availability next.'}
+                ? t('acceptedOrderCreated')
+                : t('acceptedLocked')}
             </p>
           </Alert>
 
@@ -538,11 +539,10 @@ export default function QuotationDetailPage() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 id="accepted-order-title" className="text-base font-semibold text-ink">
-                    Order created
+                    {t('orderCreated')}
                   </h2>
                   <p className="mt-1 text-sm text-gray-600">
-                    Supplier confirmation is next. Nothing is charged now — you pay the full
-                    amount in cash on delivery.
+                    {t('orderCreatedHint')}
                   </p>
                 </div>
                 <StatusBadge status={orderSummary.order_status} />
@@ -550,31 +550,31 @@ export default function QuotationDetailPage() {
 
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <dt className="text-xs text-gray-500">Order number</dt>
+                  <dt className="text-xs text-gray-500">{t('orderNumber')}</dt>
                   <dd className="mt-0.5 font-semibold tabular-nums text-ink">
                     {orderSummary.order_number}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Total</dt>
+                  <dt className="text-xs text-gray-500">{t('total')}</dt>
                   <dd className="mt-0.5 font-semibold tabular-nums text-ink">
-                    {formatQuotationAmount(orderSummary.total_amount)} MMK
+                    {formatQuotationAmount(orderSummary.total_amount, t)} {t('mmk')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Created</dt>
+                  <dt className="text-xs text-gray-500">{t('created')}</dt>
                   <dd className="mt-0.5 text-gray-700">
-                    {formatQuotationDateTime(orderSummary.created_at)}
+                    {formatQuotationDateTime(orderSummary.created_at, locale, t)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Payment</dt>
+                  <dt className="text-xs text-gray-500">{t('payment')}</dt>
                   <dd className="mt-0.5">
                     <StatusBadge status={orderSummary.payment_status} />
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Delivery</dt>
+                  <dt className="text-xs text-gray-500">{t('delivery')}</dt>
                   <dd className="mt-0.5">
                     <StatusBadge status={orderSummary.delivery_status} />
                   </dd>
@@ -590,34 +590,33 @@ export default function QuotationDetailPage() {
 
       {overallExpired && request.status !== 'ACCEPTED' ? (
         <Alert tone="warning">
-          <p className="font-semibold">This quotation has expired{expiryLabel}.</p>
+          <p className="font-semibold">{t('quotationExpired', { date: expiryLabel })}</p>
           <p className="mt-1">
-            Accept is disabled because the validity date has passed. Reject and change
-            requests are closed too. Contact the sales team if you still need these items.
+            {t('quotationExpiredHint')}
           </p>
         </Alert>
       ) : null}
 
       <section
         className="rounded-lg border border-rule bg-plate p-4 sm:p-6"
-        aria-label="Request and delivery details"
+        aria-label={t('requestDetails')}
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-ink">Request details</h2>
+            <h2 className="text-base font-semibold text-ink">{t('requestDetails')}</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Snapshot saved with this request — later profile edits do not change it.
+              {t('requestDetailsHint')}
             </p>
           </div>
           <p className="text-xs text-gray-500">
-            {request.items.length} {request.items.length === 1 ? 'item' : 'items'}
+            {t('itemCount', { count: request.items.length, noun: t(request.items.length === 1 ? 'item' : 'itemsPlural') })}
           </p>
         </div>
 
         <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Contact
+              {t('contact')}
             </dt>
             <dd className="mt-1 text-gray-800">
               {request.customer_name}
@@ -630,19 +629,19 @@ export default function QuotationDetailPage() {
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Deliver to
+              {t('deliverTo')}
             </dt>
             <dd className="mt-1 whitespace-pre-line text-gray-800">{summaryDeliverTo}</dd>
             {request.required_delivery_date ? (
               <dd className="mt-1 text-xs text-gray-500">
-                Required by {formatQuotationDate(request.required_delivery_date)}
+                {t('requiredBy', { date: formatQuotationDate(request.required_delivery_date, locale, t) })}
               </dd>
             ) : null}
           </div>
           {request.customer_note ? (
             <div className="sm:col-span-2">
               <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Your note
+                {t('yourNote')}
               </dt>
               <dd className="mt-1 whitespace-pre-line rounded bg-gray-50 px-3 py-2 text-gray-700">
                 {request.customer_note}
@@ -654,22 +653,22 @@ export default function QuotationDetailPage() {
 
       {versions.length === 0 ? (
         <EmptyState
-          title="No quotation sent yet"
-          hint="The sales team is preparing your quotation. Versions, confirmed prices, and terms will appear here once one is sent."
+          title={t('noQuotationSent')}
+          hint={t('noQuotationSentHint')}
         />
       ) : (
         <>
-          <section className="space-y-2" aria-label="Quotation versions">
+          <section className="space-y-2" aria-label={t('quotationVersions')}>
             <div className="flex flex-wrap items-end justify-between gap-2">
-              <h2 className="text-lg font-semibold text-ink">Quotation versions</h2>
+              <h2 className="text-lg font-semibold text-ink">{t('quotationVersions')}</h2>
               <p className="text-xs text-gray-500">
-                Newest first. Choose a version to review its prices and terms.
+                {t('quotationVersionsHint')}
               </p>
             </div>
             <div
               className="flex flex-wrap gap-2"
               role="group"
-              aria-label="Choose a quotation version"
+              aria-label={t('chooseQuotationVersion')}
             >
               {versions.map((version) => {
                 const selected = selectedVersion?.id === version.id;
@@ -687,10 +686,10 @@ export default function QuotationDetailPage() {
                     }`}
                   >
                     <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-ink">
-                      Version {version.version}
+                      {t('version', { version: version.version })}
                       {version.is_current ? (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">
-                          Current
+                          {t('current')}
                         </span>
                       ) : null}
                     </span>
@@ -706,12 +705,12 @@ export default function QuotationDetailPage() {
               <header className="border-b border-rule bg-gray-50 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-ink">
-                    Version {selectedVersion.version}
+                    {t('version', { version: selectedVersion.version })}
                   </h3>
                   <QuotationStatusBadge status={selectedVersion.status} />
                   {selectedVersion.is_current ? (
                     <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-                      Current
+                      {t('current')}
                     </span>
                   ) : null}
                 </div>
@@ -719,77 +718,79 @@ export default function QuotationDetailPage() {
                   {formatValidity(
                     selectedVersion.valid_until,
                     Boolean(selectedVersion.is_expired),
+                    locale,
+                    t,
                   )}
                   {deliveryDateFor(selectedVersion)
-                    ? ` · Delivery ${formatQuotationDate(deliveryDateFor(selectedVersion))}`
+                    ? ` · ${t('deliveryOn', { date: formatQuotationDate(deliveryDateFor(selectedVersion), locale, t) })}`
                     : ''}
                   {selectedVersion.sent_at
-                    ? ` · Sent ${formatQuotationDateTime(selectedVersion.sent_at)}`
+                    ? ` · ${t('sentOn', { date: formatQuotationDateTime(selectedVersion.sent_at, locale, t) })}`
                     : ''}
                 </p>
               </header>
 
               <dl className="grid gap-3 border-b border-rule px-4 py-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
                 <div>
-                  <dt className="text-xs text-gray-500">Subtotal</dt>
+                  <dt className="text-xs text-gray-500">{t('subtotal')}</dt>
                   <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                    {formatQuotationAmount(selectedVersion.subtotal)} MMK
+                    {formatQuotationAmount(selectedVersion.subtotal, t)} {t('mmk')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Discount</dt>
+                  <dt className="text-xs text-gray-500">{t('discount')}</dt>
                   <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                    {formatQuotationAmount(selectedVersion.discount_amount)} MMK
+                    {formatQuotationAmount(selectedVersion.discount_amount, t)} {t('mmk')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Delivery fee</dt>
+                  <dt className="text-xs text-gray-500">{t('deliveryFee')}</dt>
                   <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                    {formatQuotationAmount(selectedVersion.delivery_fee)} MMK
+                    {formatQuotationAmount(selectedVersion.delivery_fee, t)} {t('mmk')}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-gray-500">
-                    Service fee ({selectedVersion.service_fee_percentage}%)
+                    {t('serviceFee', { percent: selectedVersion.service_fee_percentage })}
                   </dt>
                   <dd className="mt-0.5 font-medium tabular-nums text-ink">
-                    {formatQuotationAmount(selectedVersion.service_fee)} MMK
+                    {formatQuotationAmount(selectedVersion.service_fee, t)} {t('mmk')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Total</dt>
+                  <dt className="text-xs text-gray-500">{t('total')}</dt>
                   <dd className="mt-0.5 font-semibold tabular-nums text-ink">
-                    {formatQuotationAmount(selectedVersion.total_amount)} MMK
+                    {formatQuotationAmount(selectedVersion.total_amount, t)} {t('mmk')}
                   </dd>
                 </div>
               </dl>
 
               {selectedVersion.items.length === 0 ? (
                 <p className="border-b border-rule px-4 py-3 text-sm text-gray-500">
-                  No priced items are attached to this version.
+                  {t('noPricedItems')}
                 </p>
               ) : (
                 <div className="overflow-x-auto border-b border-rule">
                   <table className="min-w-full divide-y divide-rule text-sm">
                     <caption className="sr-only">
-                      Items in quotation version {selectedVersion.version}
+                      {t('quotationVersionItems', { version: selectedVersion.version })}
                     </caption>
                     <thead className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <tr>
                         <th scope="col" className="px-4 py-2">
-                          Item
+                          {t('itemLabel')}
                         </th>
                         <th scope="col" className="px-4 py-2">
-                          Qty
+                          {t('qty')}
                         </th>
                         <th scope="col" className="px-4 py-2">
-                          Unit price
+                          {t('unitPrice')}
                         </th>
                         <th scope="col" className="px-4 py-2">
-                          Discount
+                          {t('discount')}
                         </th>
                         <th scope="col" className="px-4 py-2">
-                          Line total
+                          {t('lineTotal')}
                         </th>
                       </tr>
                     </thead>
@@ -822,15 +823,16 @@ export default function QuotationDetailPage() {
                               {item.quantity}
                             </td>
                             <td className="px-4 py-2 tabular-nums text-gray-700">
-                              {formatQuotationAmount(item.unit_price)}
+                              {formatQuotationAmount(item.unit_price, t)}
                             </td>
                             <td className="px-4 py-2 tabular-nums text-gray-700">
                               {formatQuotationAmount(
                                 item.line_discount ?? item.discount ?? 0,
+                                t,
                               )}
                             </td>
                             <td className="px-4 py-2 tabular-nums font-medium text-ink">
-                              {formatQuotationAmount(quotationLineTotal(item))}
+                              {formatQuotationAmount(quotationLineTotal(item), t)}
                             </td>
                           </tr>
                         );
@@ -843,42 +845,42 @@ export default function QuotationDetailPage() {
               <div className="grid gap-4 border-b border-rule px-4 py-4 text-sm md:grid-cols-2">
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Cash on Delivery terms
+                    {t('cashOnDeliveryTerms')}
                   </h4>
                   <p className="mt-1 whitespace-pre-line text-gray-700">
-                    {codTermsFor(selectedVersion)}
+                    {codTermsFor(selectedVersion, t)}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Note from the sales team
+                    {t('salesTeamNote')}
                   </h4>
                   <p className="mt-1 whitespace-pre-line text-gray-700">
-                    {selectedVersion.admin_note?.trim() || '—'}
+                    {selectedVersion.admin_note?.trim() || t('statusNoValue')}
                   </p>
                 </div>
               </div>
 
               <section
                 className="px-4 py-4"
-                aria-label={`Action history for version ${selectedVersion.version}`}
+                aria-label={t('actionHistoryVersion', { version: selectedVersion.version })}
               >
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Action history
+                  {t('actionHistory')}
                 </h4>
                 {selectedVersion.actions.length === 0 ? (
-                  <p className="mt-2 text-sm text-gray-500">No actions recorded yet.</p>
+                  <p className="mt-2 text-sm text-gray-500">{t('noActionsYet')}</p>
                 ) : (
                   <ol className="mt-3 space-y-3 border-l border-rule pl-4">
                     {selectedVersion.actions.map((action, index) => {
-                      const actor = quotationActorLabel(action.actor_type);
+                      const actor = quotationActorLabel(action.actor_type, t);
                       return (
                         <li key={`${action.action}-${action.created_at}-${index}`}>
                           <p className="text-sm font-medium text-ink">
-                            {quotationActionLabel(action.action)}
+                            {quotationActionLabel(action.action, t)}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {formatQuotationDateTime(action.created_at)}
+                            {formatQuotationDateTime(action.created_at, locale, t)}
                             {actor ? ` · ${actor}` : ''}
                           </p>
                           {action.customer_note ? (
@@ -896,12 +898,11 @@ export default function QuotationDetailPage() {
               {showActionBar && actionVersion ? (
                 <section
                   className="border-t border-rule bg-gray-50/70 px-4 py-4"
-                  aria-label="Quotation actions"
+                  aria-label={t('quotationActions')}
                 >
                   {expiredForActions ? (
                     <Alert tone="warning" className="mb-3">
-                      This version expired{expiryLabel || ''}; Accept is disabled and no
-                      further changes can be requested.
+                      {t('versionExpiredAction', { date: expiryLabel })}
                     </Alert>
                   ) : null}
 
@@ -912,14 +913,14 @@ export default function QuotationDetailPage() {
                       disabled={!acceptEnabled || actionBusy}
                       title={
                         expiredForActions
-                          ? 'Accept is disabled because this quotation has expired.'
+                          ? t('acceptDisabledExpired')
                           : !request.can_accept
-                            ? 'This quotation can no longer be accepted.'
+                            ? t('acceptDisabled')
                             : undefined
                       }
                       className={primaryButtonClass}
                     >
-                      Accept quotation
+                      {t('acceptQuotation')}
                     </button>
                     <button
                       type="button"
@@ -927,12 +928,12 @@ export default function QuotationDetailPage() {
                       disabled={!rejectEnabled || actionBusy}
                       title={
                         !request.can_reject
-                          ? 'This quotation can no longer be rejected.'
+                          ? t('rejectDisabled')
                           : undefined
                       }
                       className={secondaryButtonClass}
                     >
-                      Reject
+                      {t('reject')}
                     </button>
                     <button
                       type="button"
@@ -940,18 +941,18 @@ export default function QuotationDetailPage() {
                       disabled={!changeEnabled || actionBusy}
                       title={
                         !request.can_request_change
-                          ? 'A change can no longer be requested for this quotation.'
+                          ? t('changeDisabled')
                           : undefined
                       }
                       className={secondaryButtonClass}
                     >
-                      Request a change
+                      {t('requestChange')}
                     </button>
                   </div>
 
                   {expiredForActions ? (
                     <p className="mt-2 text-xs text-amber-800">
-                      Accept is disabled because the validity date has passed.
+                      {t('acceptDisabledExpired')}
                     </p>
                   ) : null}
 
@@ -963,32 +964,31 @@ export default function QuotationDetailPage() {
                       aria-labelledby="accept-panel-title"
                     >
                       <h4 id="accept-panel-title" className="text-base font-semibold text-ink">
-                        Accept version {actionVersion.version}
+                        {t('acceptVersion', { version: actionVersion.version })}
                       </h4>
                       <p className="mt-1 text-sm text-gray-600">
-                        This locks the version, total, and terms below. Nothing is charged
-                        now — you pay in cash when the order is delivered.
+                        {t('acceptVersionHint')}
                       </p>
 
                       <dl className="mt-3 grid gap-2 rounded border border-rule bg-gray-50 px-3 py-2 text-sm sm:grid-cols-2">
                         <div>
-                          <dt className="text-xs text-gray-500">Total</dt>
+                          <dt className="text-xs text-gray-500">{t('total')}</dt>
                           <dd className="font-semibold tabular-nums text-ink">
-                            {formatQuotationAmount(actionVersion.total_amount)} MMK
+                            {formatQuotationAmount(actionVersion.total_amount, t)} {t('mmk')}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-gray-500">Payment</dt>
-                          <dd className="font-medium text-ink">Cash on Delivery</dd>
+                          <dt className="text-xs text-gray-500">{t('payment')}</dt>
+                          <dd className="font-medium text-ink">{t('cashOnDelivery')}</dd>
                         </div>
                       </dl>
 
                       <div className="mt-3 rounded border border-rule bg-gray-50 px-3 py-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          COD terms
+                          {t('codTerms')}
                         </p>
                         <p className="mt-1 whitespace-pre-line text-sm text-gray-700">
-                          {codTermsFor(actionVersion)}
+                          {codTermsFor(actionVersion, t)}
                         </p>
                       </div>
 
@@ -1011,11 +1011,9 @@ export default function QuotationDetailPage() {
                             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-accent"
                           />
                           <span>
-                            I confirm I will pay the full{' '}
-                            <strong className="tabular-nums">
-                              {formatQuotationAmount(actionVersion.total_amount)} MMK
-                            </strong>{' '}
-                            in cash on delivery.
+                            {t('acceptCodAcknowledgement', {
+                              total: formatQuotationAmount(actionVersion.total_amount, t),
+                            })}
                           </span>
                         </label>
                         {acceptFieldError ? (
@@ -1027,7 +1025,7 @@ export default function QuotationDetailPage() {
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="submit" disabled={actionBusy} className={primaryButtonClass}>
-                          {actionBusy ? 'Accepting…' : 'Accept quotation'}
+                          {actionBusy ? t('accepting') : t('acceptQuotation')}
                         </button>
                         <button
                           type="button"
@@ -1035,7 +1033,7 @@ export default function QuotationDetailPage() {
                           disabled={actionBusy}
                           className={secondaryButtonClass}
                         >
-                          Cancel
+                          {t('cancel')}
                         </button>
                       </div>
                     </form>
@@ -1049,19 +1047,21 @@ export default function QuotationDetailPage() {
                       aria-labelledby="reject-panel-title"
                     >
                       <h4 id="reject-panel-title" className="text-base font-semibold text-ink">
-                        Reject version {actionVersion.version}
+                        {t('rejectVersion', { version: actionVersion.version })}
                       </h4>
                       <Alert tone="warning" className="mt-3">
-                        Rejecting closes this quotation and cannot be undone. If you only
-                        need different prices or quantities, request a change instead.
+                        {t('rejectWarning')}
                       </Alert>
 
                       <div className="mt-3">
                         <Field
-                          label="Reason (optional)"
+                          label={t('reasonOptional')}
                           htmlFor="reject-note"
                           error={rejectError ? [rejectError] : null}
-                          hint={`${rejectNote.length.toLocaleString('en-US')} / ${CUSTOMER_NOTE_MAX_LENGTH.toLocaleString('en-US')} characters`}
+                          hint={t('characterCount', {
+                            count: rejectNote.length.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US'),
+                            max: CUSTOMER_NOTE_MAX_LENGTH.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US'),
+                          })}
                           hintId="reject-note-hint"
                         >
                           <textarea
@@ -1084,7 +1084,7 @@ export default function QuotationDetailPage() {
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="submit" disabled={actionBusy} className={dangerButtonClass}>
-                          {actionBusy ? 'Rejecting…' : 'Reject quotation'}
+                          {actionBusy ? t('rejecting') : t('reject')}
                         </button>
                         <button
                           type="button"
@@ -1092,7 +1092,7 @@ export default function QuotationDetailPage() {
                           disabled={actionBusy}
                           className={secondaryButtonClass}
                         >
-                          Keep reviewing
+                          {t('keepReviewing')}
                         </button>
                       </div>
                     </form>
@@ -1106,20 +1106,22 @@ export default function QuotationDetailPage() {
                       aria-labelledby="change-panel-title"
                     >
                       <h4 id="change-panel-title" className="text-base font-semibold text-ink">
-                        Request a change to version {actionVersion.version}
+                        {t('requestChangeVersion', { version: actionVersion.version })}
                       </h4>
                       <p className="mt-1 text-sm text-gray-600">
-                        Tell the sales team what should change — quantities, products,
-                        prices, or delivery timing. They will send a new version.
+                        {t('requestChangeHint')}
                       </p>
 
                       <div className="mt-3">
                         <Field
-                          label="What should be changed?"
+                          label={t('whatChanged')}
                           htmlFor="change-note"
                           required
                           error={changeError ? [changeError] : null}
-                          hint={`Required · ${changeNote.length.toLocaleString('en-US')} / ${CUSTOMER_NOTE_MAX_LENGTH.toLocaleString('en-US')} characters`}
+                          hint={t('requiredCharacterCount', {
+                            count: changeNote.length.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US'),
+                            max: CUSTOMER_NOTE_MAX_LENGTH.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US'),
+                          })}
                           hintId="change-note-hint"
                         >
                           <textarea
@@ -1142,7 +1144,7 @@ export default function QuotationDetailPage() {
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="submit" disabled={actionBusy} className={primaryButtonClass}>
-                          {actionBusy ? 'Sending…' : 'Send change request'}
+                          {actionBusy ? t('sending') : t('sendChangeRequest')}
                         </button>
                         <button
                           type="button"
@@ -1150,7 +1152,7 @@ export default function QuotationDetailPage() {
                           disabled={actionBusy}
                           className={secondaryButtonClass}
                         >
-                          Cancel
+                          {t('cancel')}
                         </button>
                       </div>
                     </form>

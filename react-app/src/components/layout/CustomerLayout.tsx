@@ -14,29 +14,32 @@ import { useAuth } from '../../lib/auth-context';
 import logo from '../../assets/logo.png';
 import { AccountMenu } from './AccountMenu';
 import { AreaSwitch } from './AreaSwitch';
+import { LanguageSwitcher } from '../ui/LanguageSwitcher';
+import { useI18n, type TranslationKey } from '../../lib/i18n-context';
 
 interface NavItem {
   to: string;
   icon: ReactNode;
-  label: string;
+  label: TranslationKey;
 }
 
 const NAV_LINKS: NavItem[] = [
-  { to: '/dashboard', icon: <FiHome />, label: 'Dashboard' },
-  { to: '/quotations', icon: <FiFileText />, label: 'Quotations' },
-  { to: '/orders', icon: <FiShoppingBag />, label: 'Orders' },
+  { to: '/dashboard', icon: <FiHome />, label: 'dashboard' },
+  { to: '/quotations', icon: <FiFileText />, label: 'quotations' },
+  { to: '/orders', icon: <FiShoppingBag />, label: 'orders' },
 ];
 
 /** One-tap mobile navigation; the sidebar stays for profile and logout. */
 const MOBILE_LINKS: NavItem[] = [
   ...NAV_LINKS,
-  { to: '/', icon: <FiShoppingCart />, label: 'Shop' },
+  { to: '/', icon: <FiShoppingCart />, label: 'shop' },
 ];
 
 export function CustomerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isActive = (path: string) => {
@@ -47,10 +50,10 @@ export function CustomerLayout() {
   };
 
   const pageTitle = location.pathname.startsWith('/quotations')
-    ? 'Quotations'
+    ? t('quotations')
     : location.pathname.startsWith('/orders')
-      ? 'Orders'
-      : 'Dashboard';
+      ? t('orders')
+      : t('dashboard');
 
   const handleLogout = () => {
     logout();
@@ -88,14 +91,14 @@ export function CustomerLayout() {
               type="button"
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Close sidebar"
+              aria-label={t('closeSidebar')}
             >
               <FiX className="h-5 w-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Customer navigation">
+          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label={t('customerNavigation')}>
             <ul className="space-y-1">
               {NAV_LINKS.map((link) => {
                 const active = isActive(link.to);
@@ -114,7 +117,7 @@ export function CustomerLayout() {
                       <span className={active ? 'text-primary' : 'text-gray-400'}>
                         {link.icon}
                       </span>
-                      {link.label}
+                      {t(link.label)}
                     </Link>
                   </li>
                 );
@@ -139,7 +142,7 @@ export function CustomerLayout() {
               className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
             >
               <FiLogOut className="h-4 w-4" aria-hidden="true" />
-              Log out
+              {t('signOut')}
             </button>
           </div>
         </div>
@@ -155,7 +158,7 @@ export function CustomerLayout() {
             type="button"
             onClick={() => setSidebarOpen(true)}
             className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
-            aria-label="Open sidebar"
+            aria-label={t('openSidebar')}
           >
             <FiMenu className="h-5 w-5" />
           </button>
@@ -166,16 +169,17 @@ export function CustomerLayout() {
             <p className="truncate text-xs text-gray-500 md:hidden">{user?.name}</p>
           </div>
           <AccountMenu
-            name={user?.name ?? 'Account'}
+            name={user?.name ?? t('account')}
             detail={user?.phone}
             onLogout={handleLogout}
             className="hidden md:block"
           />
+          <LanguageSwitcher />
           <AreaSwitch
             to="/"
-            label="Shop"
+            label={t('shop')}
             icon={<FiShoppingCart />}
-            description="Go to the shop"
+            description={t('goToShop')}
           />
         </header>
 
@@ -189,7 +193,7 @@ export function CustomerLayout() {
       {/* Mobile quick navigation: the three customer destinations plus a
           direct way back to the shop, always within thumb reach. */}
       <nav
-        aria-label="Customer quick navigation"
+        aria-label={t('customerQuickNavigation')}
         className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
       >
         <ul className="grid grid-cols-4">
@@ -207,7 +211,7 @@ export function CustomerLayout() {
                   <span aria-hidden="true" className="text-xl">
                     {link.icon}
                   </span>
-                  {link.label}
+                  {t(link.label)}
                 </Link>
               </li>
             );

@@ -1,13 +1,4 @@
-/**
- * Pure presentation/action helpers for the customer quotation review screen
- * (Task 08).
- *
- * The server owns every status transition, every total, and the
- * `can_accept` / `can_reject` / `can_request_change` flags. These helpers only
- * translate that response into stable labels, tones, formatted dates, and
- * validated request payloads so the detail page and the list/dashboard stay
- * consistent. Nothing here touches React or the network.
- */
+import type { Locale, TranslationKey, Translator } from '../../../lib/i18n-context';
 import { formatMMK } from '../../../lib/money';
 import type {
   CustomerQuotationVersion,
@@ -27,24 +18,24 @@ export type QuotationStatusTone =
   | 'warning'
   | 'danger';
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<string, TranslationKey> = {
   // Quotation request statuses.
-  NEW: 'New',
-  CONTACTING_SUPPLIER: 'Contacting supplier',
-  SUPPLIER_RESPONSE_PENDING: 'Awaiting supplier',
-  PREPARING_QUOTATION: 'Preparing quotation',
-  QUOTATION_SENT: 'Quotation sent',
-  CUSTOMER_REVIEWING: 'Reviewing',
-  CHANGE_REQUESTED: 'Change requested',
-  ACCEPTED: 'Accepted',
-  REJECTED: 'Rejected',
-  EXPIRED: 'Expired',
-  CANCELLED: 'Cancelled',
+  NEW: 'statusNew',
+  CONTACTING_SUPPLIER: 'statusContactingSupplier',
+  SUPPLIER_RESPONSE_PENDING: 'statusAwaitingSupplier',
+  PREPARING_QUOTATION: 'statusPreparingQuotation',
+  QUOTATION_SENT: 'statusQuotationSent',
+  CUSTOMER_REVIEWING: 'statusReviewing',
+  CHANGE_REQUESTED: 'statusChangeRequested',
+  ACCEPTED: 'statusAccepted',
+  REJECTED: 'statusRejected',
+  EXPIRED: 'statusExpired',
+  CANCELLED: 'statusCancelled',
   // Quotation version statuses.
-  DRAFT: 'Draft',
-  SENT: 'Sent',
-  VIEWED: 'Viewed',
-  SUPERSEDED: 'Superseded',
+  DRAFT: 'statusDraft',
+  SENT: 'statusSent',
+  VIEWED: 'statusViewed',
+  SUPERSEDED: 'statusSuperseded',
 };
 
 const STATUS_TONES: Record<string, QuotationStatusTone> = {
@@ -80,9 +71,13 @@ function formatWords(value: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-export function quotationStatusLabel(status: string | null | undefined): string {
-  if (!status) return '—';
-  return STATUS_LABELS[status] ?? formatWords(status);
+export function quotationStatusLabel(
+  status: string | null | undefined,
+  t: Translator,
+): string {
+  if (!status) return t('statusNoValue');
+  const key = STATUS_LABELS[status];
+  return key ? t(key) : t('statusUnknown', { status: formatWords(status) });
 }
 
 export function quotationStatusTone(status: string | null | undefined): QuotationStatusTone {
@@ -108,12 +103,16 @@ function parseQuotationDate(value: string): Date | null {
 }
 
 /** "Oct 31, 2026" for both date-only and ISO datetime values. */
-export function formatQuotationDate(value: string | null | undefined): string {
-  if (!value) return '—';
+export function formatQuotationDate(
+  value: string | null | undefined,
+  locale: Locale,
+  t: Translator,
+): string {
+  if (!value) return t('statusNoValue');
   const date = parseQuotationDate(value);
-  if (!date) return '—';
+  if (!date) return t('statusNoValue');
 
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(locale === 'my' ? 'my-MM' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -121,12 +120,16 @@ export function formatQuotationDate(value: string | null | undefined): string {
 }
 
 /** "Oct 19, 2026, 2:45 PM" for audit stamps. */
-export function formatQuotationDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
+export function formatQuotationDateTime(
+  value: string | null | undefined,
+  locale: Locale,
+  t: Translator,
+): string {
+  if (!value) return t('statusNoValue');
   const date = parseQuotationDate(value);
-  if (!date) return '—';
+  if (!date) return t('statusNoValue');
 
-  return date.toLocaleString('en-US', {
+  return date.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -138,15 +141,18 @@ export function formatQuotationDateTime(value: string | null | undefined): strin
 /** Validity wording that makes an expired version unmistakable. */
 export function formatValidity(
   validUntil: string | null | undefined,
-  isExpired = false,
+  isExpired: boolean,
+  locale: Locale,
+  t: Translator,
 ): string {
-  if (!validUntil) return 'No validity date';
-  return `${isExpired ? 'Expired' : 'Valid until'} ${formatQuotationDate(validUntil)}`;
+  if (!validUntil) return t('noValidityDate');
+  const date = formatQuotationDate(validUntil, locale, t);
+  return isExpired ? `${t('expired')} ${date}` : t('validUntil', { date });
 }
 
 /** Integer MMK formatting; malformed amounts render as an em dash, never NaN. */
-export function formatQuotationAmount(amount: number | null | undefined): string {
-  if (typeof amount !== 'number' || !Number.isFinite(amount)) return '—';
+export function formatQuotationAmount(amount: number | null | undefined, t: Translator): string {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return t('statusNoValue');
   return formatMMK(amount);
 }
 
@@ -264,7 +270,11 @@ type QuotationListMarkerSource = Pick<
 >;
 
 /** Map the additive list fields into stable labels for the ledger row. */
-export function buildQuotationListMarkers(row: QuotationListMarkerSource): QuotationListMarkers {
+export function buildQuotationListMarkers(
+  row: QuotationListMarkerSource,
+  locale: Locale,
+  t: Translator,
+): QuotationListMarkers {
   const hasCurrentVersion =
     row.current_quotation_id !== null && row.current_quotation_id !== undefined
       ? true
@@ -274,20 +284,20 @@ export function buildQuotationListMarkers(row: QuotationListMarkerSource): Quota
 
   const expired = Boolean(row.is_expired) || row.current_status === 'EXPIRED';
   const validityLabel = row.valid_until
-    ? formatValidity(row.valid_until, expired)
+    ? formatValidity(row.valid_until, expired, locale, t)
     : expired
-      ? 'Expired'
+      ? t('expired')
       : null;
 
   return {
     hasCurrentVersion,
     currentVersionLabel:
       row.current_version !== null && row.current_version !== undefined
-        ? `Version ${row.current_version}`
+        ? t('version', { version: row.current_version })
         : hasCurrentVersion
-          ? 'Quotation ready'
+          ? t('quotationReady')
           : null,
-    currentStatusLabel: row.current_status ? quotationStatusLabel(row.current_status) : null,
+    currentStatusLabel: row.current_status ? quotationStatusLabel(row.current_status, t) : null,
     validityLabel,
     actionNeeded: isActionable(row.current_status, row.is_expired),
     expired,
@@ -312,35 +322,32 @@ export function quotationItemSupplier(item: CustomerQuotationVersionItem): strin
   return item.supplier_name_snapshot ?? item.supplier?.shop_name ?? null;
 }
 
-export function quotationActionLabel(action: string): string {
-  switch (action) {
-    case 'VIEWED':
-      return 'Viewed by customer';
-    case 'ACCEPTED':
-      return 'Accepted by customer';
-    case 'REJECTED':
-      return 'Rejected by customer';
-    case 'REQUESTED_CHANGE':
-    case 'CHANGE_REQUESTED':
-      return 'Change requested by customer';
-    default:
-      return quotationStatusLabel(action);
-  }
+const ACTION_LABEL_KEYS: Record<string, TranslationKey> = {
+  VIEWED: 'viewedByCustomer',
+  ACCEPTED: 'acceptedByCustomer',
+  REJECTED: 'rejectedByCustomer',
+  REQUESTED_CHANGE: 'changeRequestedByCustomer',
+  CHANGE_REQUESTED: 'changeRequestedByCustomer',
+};
+
+export function quotationActionLabel(action: string, t: Translator): string {
+  const key = ACTION_LABEL_KEYS[action];
+  return key ? t(key) : quotationStatusLabel(action, t);
 }
 
-export function quotationActorLabel(actorType: string | null | undefined): string | null {
-  if (!actorType) return null;
+const ACTOR_LABEL_KEYS: Record<string, TranslationKey> = {
+  CUSTOMER: 'customer',
+  ADMIN: 'adminUser',
+  SYSTEM: 'system',
+};
 
-  switch (actorType) {
-    case 'CUSTOMER':
-      return 'Customer';
-    case 'ADMIN':
-      return 'Admin';
-    case 'SYSTEM':
-      return 'System';
-    default:
-      return formatWords(actorType);
-  }
+export function quotationActorLabel(
+  actorType: string | null | undefined,
+  t: Translator,
+): string | null {
+  if (!actorType) return null;
+  const key = ACTOR_LABEL_KEYS[actorType];
+  return key ? t(key) : t('statusUnknown', { status: formatWords(actorType) });
 }
 
 export interface BuiltQuotationPayload<T> {
@@ -362,78 +369,51 @@ export interface ChangeQuotationPayload {
   customer_note: string;
 }
 
-function noteError(note: string, required: boolean): string | null {
-  if (required && note.trim() === '') {
-    return 'Describe the change you need before sending this request.';
-  }
-
+function noteError(note: string, required: boolean, t: Translator): string | null {
+  if (required && note.trim() === '') return t('changeNoteRequired');
   if (note.length > CUSTOMER_NOTE_MAX_LENGTH) {
-    return `Keep the note to ${CUSTOMER_NOTE_MAX_LENGTH.toLocaleString('en-US')} characters or fewer.`;
+    return t('noteTooLong', { max: CUSTOMER_NOTE_MAX_LENGTH.toLocaleString('en-US') });
   }
-
   return null;
 }
 
 /** Accept is gated on the explicit COD acknowledgement checkbox. */
-export function buildAcceptPayload(acknowledged: boolean): BuiltQuotationPayload<AcceptQuotationPayload> {
+export function buildAcceptPayload(
+  acknowledged: boolean,
+  t: Translator,
+): BuiltQuotationPayload<AcceptQuotationPayload> {
   if (!acknowledged) {
-    return {
-      ok: false,
-      payload: null,
-      error: 'Confirm that you accept the Cash on Delivery terms.',
-      fieldErrors: {
-        cod_terms_accepted: ['Confirm that you accept the Cash on Delivery terms.'],
-      },
-    };
-  }
-
-  return {
-    ok: true,
-    payload: { cod_terms_accepted: true },
-    error: null,
-    fieldErrors: {},
-  };
-}
-
-/** Optional rejection reason; blank notes are omitted from the body. */
-export function buildRejectPayload(note: string): BuiltQuotationPayload<RejectQuotationPayload> {
-  const error = noteError(note, false);
-  if (error) {
+    const error = t('acceptCodError');
     return {
       ok: false,
       payload: null,
       error,
-      fieldErrors: { customer_note: [error] },
+      fieldErrors: { cod_terms_accepted: [error] },
     };
   }
 
+  return { ok: true, payload: { cod_terms_accepted: true }, error: null, fieldErrors: {} };
+}
+
+/** Optional rejection reason; blank notes are omitted from the body. */
+export function buildRejectPayload(
+  note: string,
+  t: Translator,
+): BuiltQuotationPayload<RejectQuotationPayload> {
+  const error = noteError(note, false, t);
+  if (error) return { ok: false, payload: null, error, fieldErrors: { customer_note: [error] } };
+
   const trimmed = note.trim();
-  return {
-    ok: true,
-    payload: trimmed !== '' ? { customer_note: trimmed } : {},
-    error: null,
-    fieldErrors: {},
-  };
+  return { ok: true, payload: trimmed !== '' ? { customer_note: trimmed } : {}, error: null, fieldErrors: {} };
 }
 
 /** Required change-request note, trimmed before it is sent. */
 export function buildChangeRequestPayload(
   note: string,
+  t: Translator,
 ): BuiltQuotationPayload<ChangeQuotationPayload> {
-  const error = noteError(note, true);
-  if (error) {
-    return {
-      ok: false,
-      payload: null,
-      error,
-      fieldErrors: { customer_note: [error] },
-    };
-  }
+  const error = noteError(note, true, t);
+  if (error) return { ok: false, payload: null, error, fieldErrors: { customer_note: [error] } };
 
-  return {
-    ok: true,
-    payload: { customer_note: note.trim() },
-    error: null,
-    fieldErrors: {},
-  };
+  return { ok: true, payload: { customer_note: note.trim() }, error: null, fieldErrors: {} };
 }

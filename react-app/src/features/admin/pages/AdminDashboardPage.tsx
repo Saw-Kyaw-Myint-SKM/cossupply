@@ -19,6 +19,8 @@ import { listAdminQuotationRequests, type QuotationRequestStatus } from '../api/
 import { listProducts, type ProductStatus } from '../api/productsApi';
 import { listSuppliers, type SupplierStatus } from '../api/suppliersApi';
 import { useAuth } from '../../../lib/auth-context';
+import { formatLocalDate, formatLocalNumber } from '../../../lib/localization';
+import { useI18n } from '../../../lib/i18n-context';
 
 interface StatCardProps {
   title: string;
@@ -45,6 +47,7 @@ function StatCard({
   error,
   onRetry,
 }: StatCardProps) {
+  const { locale, t } = useI18n();
   return (
     <div className="rounded-2xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-4 shadow-sm hover:shadow-md transition-shadow">
       {/* Main row: Icon | Title | Count */}
@@ -54,7 +57,7 @@ function StatCard({
         </div>
         <span className="text-sm font-medium text-slate-600 flex-1">{title}</span>
         <span className="text-xl font-bold text-slate-800">
-          {total === null ? (error ? '—' : '…') : total.toLocaleString('en-US')}
+          {total === null ? (error ? t('noData') : t('loadingValue')) : formatLocalNumber(total, locale)}
         </span>
       </div>
 
@@ -67,7 +70,7 @@ function StatCard({
           >
             <FiAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
             <span>
-              {actionableCount.toLocaleString('en-US')} {actionableLabel}
+              {formatLocalNumber(actionableCount, locale)} {actionableLabel}
             </span>
             <span aria-hidden="true" className="group-hover:translate-x-0.5 transition-transform">
               →
@@ -78,7 +81,7 @@ function StatCard({
         <div className="mt-3 pt-3 border-t border-slate-100">
           <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
             <FiTrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-            All caught up
+            {t('allCaughtUp')}
           </span>
         </div>
       ) : null}
@@ -92,7 +95,7 @@ function StatCard({
             className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
           >
             <FiRefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            Retry
+            {t('retry')}
           </button>
         </div>
       ) : null}
@@ -129,6 +132,7 @@ function QuickLink({ to, icon, label, description }: QuickLinkProps) {
  */
 export default function AdminDashboardPage() {
   const { admin } = useAuth();
+  const { locale, t } = useI18n();
 
   // Order stats
   const [orderTotal, setOrderTotal] = useState<number | null>(null);
@@ -315,19 +319,19 @@ export default function AdminDashboardPage() {
     };
   }, [supplierReload]);
 
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = formatLocalDate(new Date(), locale, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-  });
+  }) ?? t('noData');
 
   return (
     <div className="space-y-6">
       {/* Context bar */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold text-slate-900">
-          Welcome back, {admin?.name?.split(' ')[0] ?? 'Admin'}
+          {t('adminWelcome', { name: admin?.name?.split(' ')[0] ?? t('admin') })}
         </h1>
         <p className="text-sm text-slate-500">{today}</p>
       </div>
@@ -335,53 +339,53 @@ export default function AdminDashboardPage() {
       {/* Statistics Cards - 4 in one row */}
       <section>
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-base font-semibold text-slate-900">Overview</h2>
+          <h2 className="text-base font-semibold text-slate-900">{t('adminOverview')}</h2>
         </div>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Orders"
+            title={t('orders')}
             icon={<FiTruck className="h-5 w-5 text-white" aria-hidden="true" />}
             iconBg="bg-gradient-to-br from-emerald-400 to-teal-500"
             total={orderTotal}
             totalLabel="total"
             actionableCount={orderActionable}
-            actionableLabel="need confirmation"
+            actionableLabel={t('ordersNeedConfirmation')}
             actionableHref="/admin/orders?status=SUPPLIER_CONFIRMATION_REQUIRED"
             error={orderError}
             onRetry={() => setOrderReload((n) => n + 1)}
           />
           <StatCard
-            title="Quotations"
+            title={t('quotations')}
             icon={<FiClipboard className="h-5 w-5 text-white" aria-hidden="true" />}
             iconBg="bg-gradient-to-br from-indigo-400 to-purple-500"
             total={quotationTotal}
             totalLabel="total"
             actionableCount={quotationActionable}
-            actionableLabel="in progress"
+            actionableLabel={t('quotationsInProgress')}
             actionableHref="/admin/quotation-requests"
             error={quotationError}
             onRetry={() => setQuotationReload((n) => n + 1)}
           />
           <StatCard
-            title="Products"
+            title={t('products')}
             icon={<FiBox className="h-5 w-5 text-white" aria-hidden="true" />}
             iconBg="bg-gradient-to-br from-violet-400 to-purple-500"
             total={productTotal}
             totalLabel="total"
             actionableCount={productOutOfStock}
-            actionableLabel="out of stock"
+            actionableLabel={t('productsOutOfStock')}
             actionableHref="/admin/products?status=OUT_OF_STOCK"
             error={productError}
             onRetry={() => setProductReload((n) => n + 1)}
           />
           <StatCard
-            title="Suppliers"
+            title={t('suppliers')}
             icon={<FiUsers className="h-5 w-5 text-white" aria-hidden="true" />}
             iconBg="bg-gradient-to-br from-amber-400 to-orange-500"
             total={supplierTotal}
             totalLabel="total"
             actionableCount={supplierActive}
-            actionableLabel="active"
+            actionableLabel={t('suppliersActive')}
             error={supplierError}
             onRetry={() => setSupplierReload((n) => n + 1)}
           />
@@ -391,68 +395,68 @@ export default function AdminDashboardPage() {
       {/* Quick Links Section */}
       <section>
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-base font-semibold text-slate-900">Quick Links</h2>
+          <h2 className="text-base font-semibold text-slate-900">{t('quickLinks')}</h2>
         </div>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
           <QuickLink
             to="/admin/quotation-requests"
             icon={<FiClipboard aria-hidden="true" />}
-            label="Quotation Requests"
-            description="Manage customer requests"
+            label={t('quotationRequests')}
+            description={t('manageCustomerRequests')}
           />
           <QuickLink
             to="/admin/orders"
             icon={<FiTruck aria-hidden="true" />}
-            label="Orders"
-            description="Confirm and track orders"
+            label={t('orders')}
+            description={t('confirmAndTrackOrders')}
           />
           <QuickLink
             to="/admin/products"
             icon={<FiBox aria-hidden="true" />}
-            label="Products"
-            description="Manage product catalog"
+            label={t('products')}
+            description={t('manageProductCatalog')}
           />
           <QuickLink
             to="/admin/suppliers"
             icon={<FiUsers aria-hidden="true" />}
-            label="Suppliers"
-            description="Manage supplier partners"
+            label={t('suppliers')}
+            description={t('manageSupplierPartners')}
           />
           <QuickLink
             to="/admin/categories"
             icon={<FiGrid aria-hidden="true" />}
-            label="Categories"
-            description="Organize product categories"
+            label={t('categories')}
+            description={t('organizeProductCategories')}
           />
           <QuickLink
             to="/admin/customers"
             icon={<FiUsers aria-hidden="true" />}
-            label="Customers"
-            description="Read-only customer directory"
+            label={t('customersTitle')}
+            description={t('readOnlyCustomerDirectory')}
           />
           <QuickLink
             to="/admin/email-logs"
             icon={<FiMail aria-hidden="true" />}
-            label="Email Logs"
-            description="Delivery errors and resend"
+            label={t('emailDeliveryLog')}
+            description={t('deliveryErrorsAndResend')}
           />
           <QuickLink
             to="/admin/audit-logs"
             icon={<FiActivity aria-hidden="true" />}
-            label="Audit Trail"
-            description="Admin action history"
+            label={t('auditTrail')}
+            description={t('adminActionHistory')}
           />
           <QuickLink
             to="/notifications"
             icon={<FiBell aria-hidden="true" />}
-            label="Notifications"
-            description="Your notification center"
+            label={t('notifications')}
+            description={t('notificationCenter')}
           />
           <QuickLink
             to="/admin/settings"
             icon={<FiSettings aria-hidden="true" />}
-            label="Settings"
-            description="Configure master settings"
+            label={t('settings')}
+            description={t('configureMasterSettings')}
           />        </div>
       </section>
     </div>

@@ -6,6 +6,8 @@
  * attempt is never overwritten.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { useI18n } from '../../../lib/i18n-context';
+import { formatLocalDate } from '../../../lib/localization';
 import {
   Alert,
   EmptyState,
@@ -34,13 +36,12 @@ const PER_PAGE = 15;
 
 const STATUS_OPTIONS: EmailLogStatus[] = ['SENT', 'FAILED'];
 
-function formatWhen(value: string | null): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+function formatWhen(value: string | null, locale: 'en' | 'my', fallback: string): string {
+  return formatLocalDate(value, locale, { dateStyle: 'medium', timeStyle: 'short' }) ?? fallback;
 }
 
 export default function AdminEmailLogsPage() {
+  const { locale, t } = useI18n();
   const [logs, setLogs] = useState<EmailLog[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -76,7 +77,7 @@ export default function AdminEmailLogsPage() {
         setLogs(response.data.email_logs);
         setMeta(response.data.meta);
       } else {
-        setLoadError(describeLoadError(response, 'the email delivery log'));
+        setLoadError(describeLoadError(response, t('emailDeliveryLog'), t));
       }
 
       setIsLoading(false);
@@ -106,28 +107,29 @@ export default function AdminEmailLogsPage() {
 
     if (response.success && response.data) {
       setNotice(
-        `Email resent to ${response.data.email.recipient_email} — ${formatStatusLabel(
-          response.data.email.status,
-        )}.`,
+        t('emailResent', {
+          email: response.data.email.recipient_email,
+          status: response.data.email.status === 'SENT' ? t('statusSent') : t('statusFailed'),
+        }),
       );
       setReloadToken((token) => token + 1);
       return;
     }
 
-    setActionError(describeRequestError(response, 'Could not resend that email.'));
+    setActionError(describeRequestError(response, t('resendEmailFailed'), t));
   };
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Email delivery log"
-        description="Synchronous email attempts, their errors, and resend actions."
+        title={t('emailDeliveryLog')}
+        description={t('emailDeliveryDescription')}
       />
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-rule bg-plate p-4">
         <div>
           <label htmlFor="email-log-status" className="block text-sm font-medium text-ink">
-            Status
+            {t('status')}
           </label>
           <select
             id="email-log-status"
@@ -138,10 +140,10 @@ export default function AdminEmailLogsPage() {
             }}
             className={`${inputClass(false)} mt-1 w-full sm:w-48`}
           >
-            <option value="">All statuses</option>
+            <option value="">{t('allStatuses')}</option>
             {STATUS_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {formatStatusLabel(option)}
+                {option === 'SENT' ? t('statusSent') : t('statusFailed')}
               </option>
             ))}
           </select>
@@ -150,7 +152,7 @@ export default function AdminEmailLogsPage() {
         <form onSubmit={submitSearch} className="flex flex-1 flex-wrap items-end gap-2">
           <div className="min-w-48 flex-1">
             <label htmlFor="email-log-search" className="block text-sm font-medium text-ink">
-              Recipient or subject
+              {t('recipientOrSubject')}
             </label>
             <input
               id="email-log-search"
@@ -159,11 +161,11 @@ export default function AdminEmailLogsPage() {
               onChange={(event) => setSearch(event.target.value)}
               maxLength={100}
               className={`${inputClass(false)} mt-1`}
-              placeholder="buyer@example.com"
+              placeholder={t('emailLogSearchPlaceholder')}
             />
           </div>
           <button type="submit" className={primaryButtonClass}>
-            Search
+            {t('search')}
           </button>
           {searchTerm ? (
             <button
@@ -175,7 +177,7 @@ export default function AdminEmailLogsPage() {
               }}
               className={secondaryButtonClass}
             >
-              Clear
+              {t('clearFilters')}
             </button>
           ) : null}
         </form>
@@ -184,7 +186,7 @@ export default function AdminEmailLogsPage() {
       {notice ? <Alert tone="success">{notice}</Alert> : null}
       {actionError ? <Alert>{actionError}</Alert> : null}
 
-      {isLoading && logs === null ? <LoadingPanel label="Loading email log" /> : null}
+      {isLoading && logs === null ? <LoadingPanel label={t('loadingEmailLog')} /> : null}
 
       {loadError ? (
         <Alert>
@@ -195,7 +197,7 @@ export default function AdminEmailLogsPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={`${secondaryButtonClass} mt-3`}
             >
-              Try again
+              {t('tryAgain')}
             </button>
           )}
         </Alert>
@@ -203,8 +205,8 @@ export default function AdminEmailLogsPage() {
 
       {!isLoading && !loadError && logs !== null && logs.length === 0 ? (
         <EmptyState
-          title="No email attempts"
-          hint="Sent and failed emails will appear here as quotations and orders progress."
+          title={t('noEmailAttempts')}
+          hint={t('emailEmptyHint')}
         />
       ) : null}
 
@@ -214,11 +216,11 @@ export default function AdminEmailLogsPage() {
             <table className="min-w-full divide-y divide-rule text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">Recipient</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Email</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Status</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Attempted</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Action</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('recipient')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('email')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('status')}</th>
+                  <th scope="col" className="px-4 py-3 font-medium">{t('attempted')}</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">{t('action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -241,7 +243,7 @@ export default function AdminEmailLogsPage() {
                     <td className="px-4 py-3">
                       <StatusBadge status={log.status} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{formatWhen(log.created_at)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{formatWhen(log.created_at, locale, t('noData'))}</td>
                     <td className="px-4 py-3 text-right">
                       {log.resendable ? (
                         <button
@@ -250,10 +252,10 @@ export default function AdminEmailLogsPage() {
                           disabled={resendingId === log.id}
                           className={smallButtonClass}
                         >
-                          {resendingId === log.id ? 'Resending…' : 'Resend'}
+                          {resendingId === log.id ? t('resending') : t('resendEmail')}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400">Not resendable</span>
+                        <span className="text-xs text-gray-400">{t('notResendable')}</span>
                       )}
                     </td>
                   </tr>

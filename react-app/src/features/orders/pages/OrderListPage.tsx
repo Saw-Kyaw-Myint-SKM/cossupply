@@ -17,13 +17,13 @@ import {
   Pagination,
   StatusBadge,
   describeCustomerLoadError,
-  formatStatusLabel,
   inputClass,
   linkClass,
   primaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import type { PaginationMeta } from '../../../api/query';
+import { useI18n } from '../../../lib/i18n-context';
 import { formatMMK } from '../../../lib/money';
 import {
   ORDER_STATUSES,
@@ -31,11 +31,12 @@ import {
   type OrderStatus,
   type OrderSummary,
 } from '../api/ordersApi';
-import { formatOrderDate } from '../lib/orderDisplay';
+import { formatOrderDate, orderStatusLabel } from '../lib/orderDisplay';
 
 const PER_PAGE = 10;
 
 export default function OrderListPage() {
+  const { locale, t } = useI18n();
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
@@ -64,7 +65,7 @@ export default function OrderListPage() {
         setOrders(response.data.orders);
         setMeta(response.data.meta);
       } else {
-        setLoadError(describeCustomerLoadError(response, 'your orders'));
+        setLoadError(describeCustomerLoadError(response, t('ordersLoadSubject')));
       }
 
       setIsLoading(false);
@@ -75,20 +76,17 @@ export default function OrderListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, statusFilter, reloadToken]);
+  }, [page, reloadToken, statusFilter, t]);
 
   const header = (
-    <PageHeader
-      title="My orders"
-      description="Orders created from your accepted quotations. Prices, items and the delivery address are fixed when you accept."
-    />
+    <PageHeader title={t('myOrders')} description={t('ordersDescription')} />
   );
 
   const filter = (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-rule bg-plate p-4">
       <div>
         <label htmlFor="order-status-filter" className="block text-sm font-medium text-ink">
-          Status
+          {t('status')}
         </label>
         <select
           id="order-status-filter"
@@ -99,10 +97,10 @@ export default function OrderListPage() {
           }}
           className={`${inputClass(false)} mt-1 w-full sm:w-64`}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('allStatuses')}</option>
           {ORDER_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {formatStatusLabel(status)}
+              {orderStatusLabel(status, t)}
             </option>
           ))}
         </select>
@@ -116,7 +114,7 @@ export default function OrderListPage() {
           }}
           className={linkClass}
         >
-          Clear filter
+          {t('clearFilter')}
         </button>
       ) : null}
     </div>
@@ -128,7 +126,7 @@ export default function OrderListPage() {
         {header}
         <Alert tone="error">
           <div>
-            <p className="font-semibold">Orders are unavailable</p>
+            <p className="font-semibold">{t('ordersUnavailable')}</p>
             <p className="mt-1">{loadError.message}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
@@ -136,11 +134,11 @@ export default function OrderListPage() {
                 onClick={() => setReloadToken((token) => token + 1)}
                 className={primaryButtonClass}
               >
-                Try again
+                {t('tryAgain')}
               </button>
               {loadError.needsLogin ? (
                 <Link to="/login" className={linkClass}>
-                  Go to login
+                  {t('goToLogin')}
                 </Link>
               ) : null}
             </div>
@@ -154,7 +152,7 @@ export default function OrderListPage() {
     return (
       <div className="space-y-6">
         {header}
-        <LoadingPanel label="Loading your orders…" />
+        <LoadingPanel label={t('loadingOrders')} />
       </div>
     );
   }
@@ -168,7 +166,7 @@ export default function OrderListPage() {
 
       {isLoading ? (
         <p className="px-1 text-xs text-gray-500" aria-live="polite">
-          Refreshing orders…
+          {t('refreshingOrders')}
         </p>
       ) : null}
 
@@ -181,7 +179,7 @@ export default function OrderListPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={`${primaryButtonClass} mt-3`}
             >
-              Reload orders
+              {t('reloadOrders')}
             </button>
           </div>
         </Alert>
@@ -189,12 +187,8 @@ export default function OrderListPage() {
 
       {!loadError && rows.length === 0 ? (
         <EmptyState
-          title={statusFilter ? 'No orders with this status' : 'No orders yet'}
-          hint={
-            statusFilter
-              ? 'Choose another status or clear the filter to see all of your orders.'
-              : 'Accept a quotation and the order appears here automatically.'
-          }
+          title={statusFilter ? t('noOrdersForStatus') : t('noOrdersYet')}
+          hint={statusFilter ? t('noOrdersForStatusHint') : t('noOrdersYetHint')}
         />
       ) : null}
 
@@ -202,7 +196,7 @@ export default function OrderListPage() {
         <section
           className="overflow-hidden rounded-lg border border-rule bg-plate"
           aria-busy={isLoading}
-          aria-label="Your orders"
+          aria-label={t('yourOrders')}
         >
           <ul className="divide-y divide-rule">
             {rows.map((order) => (
@@ -220,12 +214,15 @@ export default function OrderListPage() {
                     </div>
                     <p className="mt-1 text-sm text-gray-600">
                       {typeof order.item_count === 'number'
-                        ? `${order.item_count} ${order.item_count === 1 ? 'line' : 'lines'}`
-                        : 'Order'}{' '}
-                      · placed {formatOrderDate(order.created_at)}
+                        ? t('itemCount', {
+                            count: order.item_count,
+                            noun: order.item_count === 1 ? t('line') : t('lines'),
+                          })
+                        : t('order')}{' '}
+                      · {t('placedOn', { date: formatOrderDate(order.created_at, locale, t) })}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      Deliver to {order.city}
+                      {t('deliverToCity', { city: order.city })}
                       {order.township ? `, ${order.township}` : ''}
                     </p>
                   </div>
@@ -233,7 +230,7 @@ export default function OrderListPage() {
                   <div className="flex items-center justify-between gap-4 sm:flex-none sm:justify-end">
                     <div className="text-left sm:text-right">
                       <p className="font-mono text-sm font-semibold tabular-nums text-ink">
-                        {formatMMK(order.total_amount)} MMK
+                        {formatMMK(order.total_amount)} {t('mmk')}
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:justify-end">
                         <StatusBadge status={order.payment_status} />

@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../../lib/auth-context';
 import { useCart } from '../../../lib/cart-context';
+import { useI18n } from '../../../lib/i18n-context';
 import {
   listQuotationRequests,
   type QuotationRequestSummary,
@@ -72,6 +73,7 @@ function SummaryTile({
 export default function CustomerDashboardPage() {
   const { user } = useAuth();
   const { count: orderListCount } = useCart();
+  const { t, locale } = useI18n();
 
   const [latestQuotations, setLatestQuotations] = useState<QuotationRequestSummary[]>([]);
   const [quotationTotal, setQuotationTotal] = useState<number | null>(null);
@@ -99,7 +101,7 @@ export default function CustomerDashboardPage() {
       } else {
         const message = typeof response.errors?.[0] === 'string'
           ? response.errors[0]
-          : 'Failed to load quotations';
+          : t('loginFailed');
         setQuotationError(message);
         setQuotationNeedsLogin(response.status === 401);
       }
@@ -114,9 +116,9 @@ export default function CustomerDashboardPage() {
     };
   }, [quotationReload]);
 
-  const firstName = user?.name?.split(' ')[0] ?? 'there';
+  const firstName = user?.name?.split(' ')[0] ?? t('account');
 
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = new Date().toLocaleDateString(locale === 'my' ? 'my-MM' : 'en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -136,17 +138,17 @@ export default function CustomerDashboardPage() {
           <div className="min-w-0">
             <p className="text-[11px] font-medium text-cyan-200">{today}</p>
             <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-              Welcome back, {firstName}
+              {t('welcomeCustomer', { name: firstName })}
             </h1>
             <p className="mt-1 text-xs text-sky-100/80">
-              Your current quotation and order list, all in one place.
+              {t('dashboardWelcomeHint')}
             </p>
           </div>
           <Link
             to="/products"
             className="inline-flex flex-none items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-[0.98] motion-safe:transition-all"
           >
-            Continue shopping
+            {t('browseProducts')}
             <FiArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -154,7 +156,7 @@ export default function CustomerDashboardPage() {
 
       {/* Summary: two compact cards per row; the order-list row runs full
           width underneath so the 2-column rhythm stays intact. */}
-      <section className="glass-panel overflow-hidden" aria-label="Your account at a glance">
+      <section className="glass-panel overflow-hidden" aria-label={t('account')}>
         <div
           aria-hidden="true"
           className="h-0.5 w-full bg-gradient-to-r from-sky-400 via-amber-300 to-violet-400"
@@ -162,27 +164,27 @@ export default function CustomerDashboardPage() {
         <div className="grid grid-cols-2">
           <SummaryTile
             to="/quotations"
-            label="Quotations"
+            label={t('quotations')}
             value={quotationLoading ? '—' : quotationTotal ?? '—'}
-            hint="View all"
+            hint={t('viewAll')}
             icon={<FiFileText className="h-4 w-4" />}
             iconClass="bg-sky-100 text-sky-700 ring-sky-200/70"
             className="border-b border-r border-slate-200/60"
           />
           <SummaryTile
             to="/orders"
-            label="Orders"
+            label={t('orders')}
             value={0}
-            hint="View all"
+            hint={t('viewAll')}
             icon={<FiShoppingBag className="h-4 w-4" />}
             iconClass="bg-amber-100 text-amber-700 ring-amber-200/70"
             className="border-b border-slate-200/60"
           />
           <SummaryTile
             to="/cart"
-            label="Order list"
+            label={t('orderList')}
             value={orderListCount}
-            hint="Open list"
+            hint={t('openList')}
             icon={<FiClipboard className="h-4 w-4" />}
             iconClass="bg-violet-100 text-violet-700 ring-violet-200/70"
             className="col-span-2"
@@ -204,13 +206,13 @@ export default function CustomerDashboardPage() {
             >
               <FiFileText className="h-3.5 w-3.5" />
             </span>
-            <h2 className="truncate text-sm font-semibold text-ink">Latest quotations</h2>
+            <h2 className="truncate text-sm font-semibold text-ink">{t('latestQuotations')}</h2>
           </div>
           <Link
             to="/quotations"
             className="flex-none rounded text-[11px] font-semibold text-primary hover:text-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            View all
+            {t('viewAll')}
           </Link>
         </div>
 
@@ -237,14 +239,14 @@ export default function CustomerDashboardPage() {
                   onClick={() => setQuotationReload((n) => n + 1)}
                   className="rounded text-[11px] font-semibold text-red-700 underline hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                 >
-                  Try again
+                  {t('tryAgain')}
                 </button>
                 {quotationNeedsLogin && (
                   <Link
                     to="/login"
                     className="rounded text-[11px] font-semibold text-red-700 underline hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                   >
-                    Go to login
+                    {t('goToLogin')}
                   </Link>
                 )}
               </div>
@@ -258,20 +260,20 @@ export default function CustomerDashboardPage() {
                 <FiFileText className="h-4 w-4" />
               </span>
               <p className="mt-2 text-xs font-medium text-slate-700">
-                No quotation is waiting for you.
+                {t('noQuotationWaiting')}
               </p>
               <Link
                 to="/cart"
                 className="mt-2 inline-flex items-center gap-1 rounded text-[11px] font-semibold text-primary hover:text-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                Open order list
+                {t('openOrderList')}
                 <FiArrowRight aria-hidden="true" className="h-3 w-3" />
               </Link>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2.5">
               {latestQuotations.map((row) => {
-                const markers = buildQuotationListMarkers(row);
+                const markers = buildQuotationListMarkers(row, locale, t);
 
                 return (
                   <Link
@@ -292,7 +294,7 @@ export default function CustomerDashboardPage() {
                       </span>
                       {markers.actionNeeded && (
                         <span
-                          aria-label="Action needed"
+                          aria-label={t('actionNeeded')}
                           className="h-1.5 w-1.5 flex-none rounded-full bg-amber-500 ring-2 ring-amber-100"
                         />
                       )}
@@ -305,17 +307,17 @@ export default function CustomerDashboardPage() {
                       {markers.actionNeeded && (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
                           <FiAlertCircle aria-hidden="true" className="h-2.5 w-2.5" />
-                          Action
+                          {t('action')}
                         </span>
                       )}
                     </div>
 
                     <p className="mt-1.5 text-[10px] text-slate-500">
-                      {formatQuotationDate(row.created_at)}
+                      {formatQuotationDate(row.created_at, locale, t)}
                       <span aria-hidden="true" className="px-1 text-slate-300">
                         ·
                       </span>
-                      {row.item_count} {row.item_count === 1 ? 'line' : 'lines'}
+                      {row.item_count} {t(row.item_count === 1 ? 'line' : 'lines')}
                     </p>
 
                     <div className="mt-auto flex items-center justify-between gap-2 pt-2">
@@ -327,7 +329,7 @@ export default function CustomerDashboardPage() {
                         <span aria-hidden="true" />
                       )}
                       <span className="inline-flex flex-none items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary group-hover:bg-primary group-hover:text-white motion-safe:transition-colors">
-                        View
+                        {t('view')}
                         <FiArrowRight aria-hidden="true" className="h-2.5 w-2.5" />
                       </span>
                     </div>

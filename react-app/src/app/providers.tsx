@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AuthProvider } from '../lib/auth-context';
 import { CartProvider } from '../lib/cart-context';
 import { NotificationProvider } from '../features/notifications/notification-context';
+import { I18nProvider } from '../lib/i18n-context';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -9,10 +10,12 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <CartProvider>{children}</CartProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <CartProvider>{children}</CartProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </I18nProvider>
   );
 }

@@ -39,12 +39,14 @@ import {
   StockBadge,
   describeCatalogError,
 } from '../components/ProductUi';
+import { useI18n } from '../../../lib/i18n-context';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, userType } = useAuth();
   const { add, lastAdded } = useCart();
+  const { t, displayName: catalogName } = useI18n();
 
   const [product, setProduct] = useState<PublicProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -176,7 +178,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  const displayName = product.name_en ?? product.name_mm;
+  const displayName = catalogName(product);
 
   const addControl = (extraClass = '') => (
     <button
@@ -230,7 +232,7 @@ export default function ProductDetailPage() {
               to={`/products?category_id=${product.category.id}`}
               className="rounded hover:text-ink"
             >
-              {product.category.name_en}
+              {catalogName(product.category)}
             </Link>
           </>
         ) : null}
@@ -253,7 +255,7 @@ export default function ProductDetailPage() {
           {/* The 30-second pitch: everything needed to decide, in one run. */}
           <div id="product-pitch" className="glass-panel p-6">
             <p className="text-xs text-subtle">
-              {product.category?.name_en ?? 'Uncategorised'}
+              {product.category ? catalogName(product.category) : t('uncategorised')}
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">{displayName}</h1>
             <p className="mt-1 text-sm text-subtle">

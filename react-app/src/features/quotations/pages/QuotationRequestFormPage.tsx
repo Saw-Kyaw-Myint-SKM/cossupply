@@ -35,6 +35,7 @@ import {
 } from '../../customer/api/addressesApi';
 import { useAuth, type User } from '../../../lib/auth-context';
 import { useCart } from '../../../lib/cart-context';
+import { useI18n, type TranslationKey, type Translator } from '../../../lib/i18n-context';
 import { formatMMK } from '../../../lib/money';
 import { needsSupplierConfirmation } from '../../../lib/cart-storage';
 import type { QuotationRequest } from '../api/quotationsApi';
@@ -63,21 +64,22 @@ function contactFromUser(user: User | null): QuotationContactState {
 
 const MANUAL_FIELDS: Array<{
   key: keyof ManualAddressState;
-  label: string;
+  labelKey: TranslationKey;
   required: boolean;
   type?: string;
 }> = [
-  { key: 'contact_name', label: 'Contact person at delivery', required: true },
-  { key: 'phone', label: 'Delivery phone', required: true, type: 'tel' },
-  { key: 'city', label: 'City', required: true },
-  { key: 'township', label: 'Township', required: false },
-  { key: 'ward', label: 'Ward', required: false },
-  { key: 'street', label: 'Street', required: false },
-  { key: 'building_no', label: 'Building / No.', required: false },
-  { key: 'landmark', label: 'Landmark', required: false },
+  { key: 'contact_name', labelKey: 'contactDelivery', required: true },
+  { key: 'phone', labelKey: 'deliveryPhone', required: true, type: 'tel' },
+  { key: 'city', labelKey: 'city', required: true },
+  { key: 'township', labelKey: 'township', required: false },
+  { key: 'ward', labelKey: 'ward', required: false },
+  { key: 'street', labelKey: 'street', required: false },
+  { key: 'building_no', labelKey: 'buildingNumber', required: false },
+  { key: 'landmark', labelKey: 'landmark', required: false },
 ];
 
 export default function QuotationRequestFormPage() {
+  const { t, displayName } = useI18n();
   const { items, clear } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -149,7 +151,7 @@ export default function QuotationRequestFormPage() {
       }
 
       // The address book must be readable to submit; the profile is not.
-      setLoadError(describeCustomerLoadError(addressesResponse, 'your address book'));
+      setLoadError(describeCustomerLoadError(addressesResponse, t('addressBookLoadSubject')));
       setIsLoading(false);
     };
 
@@ -158,7 +160,7 @@ export default function QuotationRequestFormPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadToken]);
+  }, [reloadToken, t]);
 
   const selectedAddress =
     addresses?.find((address) => address.id === selectedAddressId) ?? null;
@@ -198,6 +200,7 @@ export default function QuotationRequestFormPage() {
       items,
       requiredDeliveryDate,
       customerNote,
+      t,
       saveToAddressBook: mode === 'manual' && saveToAddressBook,
     });
 
@@ -205,7 +208,7 @@ export default function QuotationRequestFormPage() {
       setFormErrors(built.fieldErrors);
       setAddressFieldErrors(built.addressErrors);
       setItemErrors(built.itemErrors);
-      setBanner(itemErrorsFallbackMessage(built, 'Fix the highlighted fields, then submit again.'));
+      setBanner(itemErrorsFallbackMessage(built, t('correctHighlighted'), t));
       window.scrollTo(0, 0);
       return;
     }
@@ -215,6 +218,7 @@ export default function QuotationRequestFormPage() {
     const result = await submitQuotationRequest({
       payload: built.payload,
       addressInput: built.addressInput,
+      t,
       // Cart clearing is isolated inside the helper and only fires on 201.
       clearCart: clear,
     });
@@ -248,20 +252,20 @@ export default function QuotationRequestFormPage() {
   // ---------- Early states ----------
 
   if (submitted) {
-    return <SubmittedView quotation={submitted} />;
+    return <SubmittedView quotation={submitted} t={t} />;
   }
 
   if (items.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Request quotation" />
+        <PageHeader title={t('requestQuotationTitle')} />
         <EmptyState
-          title="Your order list is empty"
-          hint="Add products to your order list first, then come back to request a quotation."
+          title={t('emptyOrderList')}
+          hint={t('emptyOrderListRequestHint')}
         />
         <div className="text-center">
           <Link to="/products" className={`${primaryButtonClass} inline-block`}>
-            Browse products
+            {t('browseProducts')}
           </Link>
         </div>
       </div>
@@ -271,10 +275,10 @@ export default function QuotationRequestFormPage() {
   if (loadError && (loadError.needsLogin || addresses === null)) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Request quotation" />
+        <PageHeader title={t('requestQuotationTitle')} />
         <div className="rounded-lg border border-red-200 bg-red-50 p-6" role="alert">
           <h2 className="text-lg font-semibold text-red-800">
-            The quotation request form is unavailable
+            {t('quotationFormUnavailable')}
           </h2>
           <p className="mt-1 text-sm text-red-700">{loadError.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -283,7 +287,7 @@ export default function QuotationRequestFormPage() {
               onClick={() => setReloadToken((token) => token + 1)}
               className={primaryButtonClass}
             >
-              Try again
+              {t('tryAgain')}
             </button>
             {loadError.needsLogin ? (
               <button
@@ -291,7 +295,7 @@ export default function QuotationRequestFormPage() {
                 onClick={() => navigate('/login')}
                 className={secondaryButtonClass}
               >
-                Go to login
+                {t('goToLogin')}
               </button>
             ) : null}
           </div>
@@ -303,8 +307,8 @@ export default function QuotationRequestFormPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Request quotation" />
-        <LoadingPanel label="Preparing your quotation request…" />
+        <PageHeader title={t('requestQuotationTitle')} />
+        <LoadingPanel label={t('preparingQuotationRequest')} />
       </div>
     );
   }
@@ -320,8 +324,8 @@ export default function QuotationRequestFormPage() {
   return (
     <form onSubmit={handleSubmit} className="pb-28 space-y-6 sm:pb-0" aria-busy={submitting}>
       <PageHeader
-        title="Request quotation"
-        description="Confirm your contact and delivery details. Everything below is saved as a snapshot on your request and is not linked back to your profile."
+        title={t('requestQuotationTitle')}
+        description={t('quotationRequestDescription')}
       />
 
       {banner ? (
@@ -338,30 +342,29 @@ export default function QuotationRequestFormPage() {
       ) : null}
 
       {/* Order summary derived from the cart snapshot lines. */}
-      <section className="rounded-lg border border-rule bg-plate" aria-label="Order list summary">
+      <section className="rounded-lg border border-rule bg-plate" aria-label={t('orderListSummary')}>
         <ul className="divide-y divide-rule">
           {items.map((item, index) => (
             <li key={item.product_id} className="flex items-start gap-4 p-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900">
-                  {item.name_en ?? item.name_mm}
+                  {displayName(item)}
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  {item.supplier_name ?? 'Supplier'}
-                  {item.sku ? ` · SKU ${item.sku}` : ''}
+                  {t('supplierDefault')}
+                  {item.sku ? ` · ${t('sku', { sku: item.sku })}` : ''}
                 </p>
                 <p className="mt-2 text-sm font-medium text-gray-900">
-                  {formatMMK(item.unit_price)} MMK / {item.unit} &times; {item.quantity} ={' '}
+                  {formatMMK(item.unit_price)} {t('mmk')} / {item.unit} × {item.quantity} ={' '}
                   <span className="tabular-nums">{formatMMK(item.unit_price * item.quantity)}</span>{' '}
-                  MMK
+                  {t('mmk')}
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
-                  Display price — final price confirmed in quotation.
+                  {t('displayPriceOnly')}
                 </p>
                 {needsSupplierConfirmation(item.stock_status) ? (
                   <p className="mt-2 inline-block rounded-md bg-purple-50 px-2 py-1 text-xs text-purple-800">
-                    Price and stock for this line will be confirmed by the supplier before
-                    quotation.
+                    {t('lineSupplierConfirmation')}
                   </p>
                 ) : null}
                 {itemErrors.some((error) => error.key === `items.${index}.quantity`) ? (
@@ -375,32 +378,34 @@ export default function QuotationRequestFormPage() {
         </ul>
         <div className="flex flex-wrap items-baseline justify-between gap-3 border-t border-rule">
           <p className="text-sm text-gray-600">
-            {itemCount} {itemCount === 1 ? 'unit' : 'units'} across {items.length}{' '}
-            {items.length === 1 ? 'line' : 'lines'} (display price)
+            {t('orderListSummaryCount', {
+              units: itemCount,
+              unitLabel: t(itemCount === 1 ? 'unit' : 'units'),
+              lines: items.length,
+              lineLabel: t(items.length === 1 ? 'line' : 'lines'),
+            })}
           </p>
-          <p className="text-lg font-semibold text-ink tabular-nums">{formatMMK(subtotal)} MMK</p>
+          <p className="text-lg font-semibold text-ink tabular-nums">{formatMMK(subtotal)} {t('mmk')}</p>
         </div>
         <p className="border-t border-rule px-4 py-3 text-xs text-gray-500">
-          Indicative only. Delivery, discounts and the service fee are calculated by the server
-          when the quotation is issued.
+          {t('orderListSummaryNotice')}
         </p>
         {hasSupplierConfirmationLines ? (
           <p className="border-t border-purple-100 bg-purple-50/60 px-4 py-2 text-xs text-purple-800">
-            Some lines need supplier confirmation — their price and stock are finalized in the
-            quotation.
+            {t('someLinesNeedSupplierConfirmation')}
           </p>
         ) : null}
       </section>
 
       {/* Contact details (request-time snapshot). */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label="Contact details">
-        <h2 className="text-base font-semibold text-ink">Contact details</h2>
+      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('contactDetails')}>
+        <h2 className="text-base font-semibold text-ink">{t('contactDetails')}</h2>
         <p className="mt-1 text-xs text-gray-500">
-          Prefilled from your profile — edit freely; the request keeps what you enter.
+          {t('contactDetailsHint')}
         </p>
 
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Your name" htmlFor="qt-name" required error={errorFor('name')}>
+          <Field label={t('yourName')} htmlFor="qt-name" required error={errorFor('name')}>
             <input
               id="qt-name"
               type="text"
@@ -415,7 +420,7 @@ export default function QuotationRequestFormPage() {
             />
           </Field>
 
-          <Field label="Phone number" htmlFor="qt-phone" required error={errorFor('phone')}>
+          <Field label={t('phoneNumber')} htmlFor="qt-phone" required error={errorFor('phone')}>
             <input
               id="qt-phone"
               type="tel"
@@ -430,7 +435,7 @@ export default function QuotationRequestFormPage() {
             />
           </Field>
 
-          <Field label="Company name" htmlFor="qt-company" error={errorFor('company_name')}>
+          <Field label={t('companyName')} htmlFor="qt-company" error={errorFor('company_name')}>
             <input
               id="qt-company"
               type="text"
@@ -446,10 +451,10 @@ export default function QuotationRequestFormPage() {
           </Field>
 
           <Field
-            label="Email"
+            label={t('email')}
             htmlFor="qt-email"
             error={errorFor('email')}
-            hint="Used on the quotation document when it is sent."
+            hint={t('emailQuotationHint')}
             hintId="qt-email-hint"
           >
             <input
@@ -472,12 +477,12 @@ export default function QuotationRequestFormPage() {
       </section>
 
       {/* Delivery address: saved entries or manual entry. */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label="Delivery address">
-        <h2 className="text-base font-semibold text-ink">Delivery address</h2>
+      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('deliveryAddress')}>
+        <h2 className="text-base font-semibold text-ink">{t('deliveryAddress')}</h2>
         <p className="mt-1 text-sm text-gray-600">
           {addresses && addresses.length > 0
-            ? 'Choose one of your saved addresses, or enter a different one.'
-            : 'Enter the delivery address where the quotation should be shipped.'}
+            ? t('deliveryAddressHintSaved')
+            : t('deliveryAddressHintManual')}
         </p>
         {errorFor('delivery_address') ? (
           <p role="alert" id="qt-delivery-address-error" className="mt-2 text-sm text-red-600">
@@ -486,7 +491,7 @@ export default function QuotationRequestFormPage() {
         ) : null}
 
         {addresses && addresses.length > 0 ? (
-          <div className="mt-4 grid gap-3" role="radiogroup" aria-label="Delivery address options">
+          <div className="mt-4 grid gap-3" role="radiogroup" aria-label={t('deliveryAddressOptions')}>
             {addresses.map((address) => (
               <label
                 key={address.id}
@@ -515,7 +520,7 @@ export default function QuotationRequestFormPage() {
                     </span>
                     {address.is_default ? (
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/20">
-                        Default
+                        {t('default')}
                       </span>
                     ) : null}
                   </span>
@@ -545,7 +550,7 @@ export default function QuotationRequestFormPage() {
                 className="mt-1 h-4 w-4 flex-none border-gray-300 text-primary focus:ring-accent"
               />
               <span className="text-sm font-semibold text-gray-900">
-                Use a different address
+                {t('useDifferentAddress')}
               </span>
             </label>
           </div>
@@ -566,7 +571,7 @@ export default function QuotationRequestFormPage() {
                 return (
                   <Field
                     key={field.key}
-                    label={field.label}
+                    label={t(field.labelKey)}
                     htmlFor={`qt-manual-${field.key}`}
                     required={isRequired}
                     error={addressError}
@@ -588,10 +593,10 @@ export default function QuotationRequestFormPage() {
               })}
 
               <Field
-                label="Full address (optional)"
+                label={t('fullAddressOptional')}
                 htmlFor="qt-manual-full_address"
                 error={errorFor('full_address')}
-                hint="Leave blank and we compose it from the parts above, or type the exact wording."
+                hint={t('fullAddressHint')}
                 hintId="qt-manual-full_address-hint"
               >
                 <textarea
@@ -619,17 +624,16 @@ export default function QuotationRequestFormPage() {
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-accent"
               />
               <span>
-                Save this address to my address book
+                {t('saveAddress')}
                 <span className="sr-only">
                   {' '}
-                  (contact person, phone, city, township, and full address are then required)
+                  {t('saveAddressRequired')}
                 </span>
               </span>
             </label>
             {saveToAddressBook ? (
               <p className="mt-1 text-xs text-gray-500">
-                The contact person, delivery phone, city, township, and full address become
-                required and are saved before the request is submitted.
+                {t('saveAddressHint')}
               </p>
             ) : null}
           </div>
@@ -637,15 +641,15 @@ export default function QuotationRequestFormPage() {
       </section>
 
       {/* Delivery preferences. */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label="Delivery preferences">
-        <h2 className="text-base font-semibold text-ink">Delivery preferences</h2>
+      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('deliveryPreferences')}>
+        <h2 className="text-base font-semibold text-ink">{t('deliveryPreferences')}</h2>
 
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
-            label="Required delivery date"
+            label={t('requiredDeliveryDate')}
             htmlFor="qt-date"
             error={errorFor('required_delivery_date')}
-            hint="Optional. Must be today or later."
+            hint={t('requiredDeliveryDateHint')}
             hintId="qt-date-hint"
           >
             <input
@@ -665,10 +669,10 @@ export default function QuotationRequestFormPage() {
           </Field>
 
           <Field
-            label="Note to the sales team"
+            label={t('noteSalesTeam')}
             htmlFor="qt-note"
             error={errorFor('customer_note')}
-            hint="Optional. Anything the supplier should know about this request."
+            hint={t('noteSalesTeamHint')}
             hintId="qt-note-hint"
           >
             <textarea
@@ -695,12 +699,12 @@ export default function QuotationRequestFormPage() {
           disabled={submitting}
           className={`${primaryButtonClass} w-full`}
         >
-          {submitting ? 'Submitting…' : 'Submit quotation request'}
+          {submitting ? t('submitting') : t('submitQuotationRequest')}
         </button>
         <p className="mt-2 text-xs text-gray-500">
           {submitting
-            ? 'Saving your address book entry first when requested, then submitting…'
-            : 'Your order list is cleared only after the request is saved successfully.'}
+            ? t('submittingRequestHint')
+            : t('cartClearAfterSubmit')}
         </p>
       </div>
     </form>
@@ -710,38 +714,39 @@ export default function QuotationRequestFormPage() {
 function itemErrorsFallbackMessage(
   built: ReturnType<typeof buildQuotationRequestPayload>,
   fallback: string,
+  t: Translator,
 ): string {
   return built.itemErrors.length > 0
-    ? 'Some order list quantities need attention before the request can be submitted.'
+    ? t('quantitiesNeedAttention')
     : fallback;
 }
 
 /** Post-submit success state (LogicFlow §5: show the quotation number). */
-function SubmittedView({ quotation }: { quotation: QuotationRequest }) {
+function SubmittedView({ quotation, t }: { quotation: QuotationRequest; t: Translator }) {
   return (
     <div className="space-y-6">
-      <Alert tone="success">Your quotation request was submitted successfully.</Alert>
+      <Alert tone="success">{t('quotationSubmitted')}</Alert>
 
       <section
         className="rounded-lg border border-rule bg-plate p-6"
-        aria-label="Quotation request confirmation"
+        aria-label={t('quotationRequestConfirmation')}
       >
         <h1 className="text-base font-medium text-gray-600">
-          Quotation Request ID: {quotation.quotation_number}
+          {t('quotationRequestId', { number: quotation.quotation_number })}
         </h1>
         <p className="mt-2 flex items-center gap-2 text-sm text-gray-700">
-          Status: <StatusBadge status={quotation.status} />
+          {t('status')}: <StatusBadge status={quotation.status} />
         </p>
 
         <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-rule pt-4 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-medium text-gray-500">Contact</dt>
+            <dt className="text-sm font-medium text-gray-500">{t('contact')}</dt>
             <dd className="mt-1 text-sm text-gray-900">
               {quotation.customer_name} · {quotation.phone}
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Deliver to</dt>
+            <dt className="text-sm font-medium text-gray-500">{t('deliverTo')}</dt>
             <dd className="mt-1 text-sm text-gray-900">
               {quotation.city}
               {quotation.township ? `, ${quotation.township}` : ''}
@@ -763,10 +768,10 @@ function SubmittedView({ quotation }: { quotation: QuotationRequest }) {
               </div>
               <div className="flex-none text-right">
                 <p className="text-sm font-medium text-ink tabular-nums">
-                  {item.quantity} &times; {formatMMK(item.display_price)} MMK
+                  {item.quantity} × {formatMMK(item.display_price)} {t('mmk')}
                 </p>
                 {item.stock_status === 'SUPPLIER_CONFIRMATION_REQUIRED' ? (
-                  <p className="mt-1 text-xs text-purple-700">Supplier confirmation required</p>
+                  <p className="mt-1 text-xs text-purple-700">{t('supplierConfirmationRequired')}</p>
                 ) : null}
               </div>
             </li>
@@ -774,16 +779,15 @@ function SubmittedView({ quotation }: { quotation: QuotationRequest }) {
         </ul>
 
         <p className="mt-6 border-t border-rule pt-4 text-sm text-gray-600">
-          Your order list has been cleared. The lines above were saved in this request, so nothing
-          was lost from your list.
+          {t('cartClearedSuccess')}
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link to="/quotations" className={primaryButtonClass}>
-            View my quotations
+            {t('viewMyQuotations')}
           </Link>
           <Link to="/products" className={secondaryButtonClass}>
-            Browse products
+            {t('browseProducts')}
           </Link>
         </div>
       </section>

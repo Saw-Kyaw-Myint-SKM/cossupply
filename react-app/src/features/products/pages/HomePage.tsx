@@ -34,6 +34,7 @@ import {
 } from '../../../components/catalog-ui/CatalogUi';
 import { displayUnitPrice } from '../../../lib/cart-storage';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
+import { useI18n } from '../../../lib/i18n-context';
 
 interface Slide {
   eyebrow: string;
@@ -107,6 +108,7 @@ function discountPercent(product: PublicProduct): number | null {
 }
 
 export default function HomePage() {
+  const { displayName } = useI18n();
   const [categories, setCategories] = useState<PublicCategory[]>([]);
   const [suppliers, setSuppliers] = useState<PublicSupplier[]>([]);
   const [products, setProducts] = useState<PublicProduct[] | null>(null);
@@ -330,14 +332,14 @@ export default function HomePage() {
                 <div className="relative flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-white/70 bg-white/60 p-2 shadow-glass backdrop-blur-md motion-safe:transition-colors group-hover:border-primary/40 group-hover:bg-white/85 sm:h-[132px] sm:w-[132px] sm:p-3">
                   <img
                     src={category.image_url ?? categoryFallbackImage(category.id)}
-                    alt={category.name_en}
+                    alt={displayName(category)}
                     loading="lazy"
                     decoding="async"
                     className="absolute h-full w-full object-cover"
                   />
                 </div>
                 <span className="text-center text-[11px] leading-snug text-ink group-hover:text-primary sm:text-[13px]">
-                  {category.name_en}
+                  {displayName(category)}
                 </span>
               </Link>
             ))}

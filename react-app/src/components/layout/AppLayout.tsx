@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   FiBox,
@@ -11,8 +11,8 @@ import {
   FiX,
 } from 'react-icons/fi';
 import logo from '../../assets/logo.png';
-import flagMM from '../../assets/flag-myanmar.png';
-import flagEN from '../../assets/flag-english.png';
+import { LanguageSwitcher } from '../ui/LanguageSwitcher';
+import { useI18n } from '../../lib/i18n-context';
 import { AccountMenu } from './AccountMenu';
 import { AreaSwitch } from './AreaSwitch';
 import { useAuth } from '../../lib/auth-context';
@@ -21,10 +21,11 @@ import { NotificationBell } from '../../features/notifications/components/Notifi
 
 /** The order-list badge: the one accent-inked spot, rolling on every unit. */
 function OrderListCount({ count, tone = 'solid' }: { count: number; tone?: 'solid' | 'soft' }) {
+  const { t } = useI18n();
   return (
     <span
       key={count}
-      aria-label={`${count} items in your order list`}
+      aria-label={t('itemsInOrderList', { count })}
       className={`animate-badge-pop motion-reduce:animate-none inline-flex min-w-5 items-center justify-center overflow-hidden rounded-full px-1.5 py-0.5 align-baseline text-[11px] font-bold ${
         tone === 'solid' ? 'bg-red-500 text-white shadow-lg shadow-amber-500/30' : 'bg-amber-100 text-amber-700'
       }`}
@@ -34,18 +35,18 @@ function OrderListCount({ count, tone = 'solid' }: { count: number; tone?: 'soli
   );
 }
 
-const MENU_LINKS: Array<{ to: string; icon: ReactNode; label: string }> = [
-  { to: '/', icon: <FiHome />, label: 'Home' },
-  { to: '/products', icon: <FiBox />, label: 'Products' },
-  { to: '/categories', icon: <FiGrid />, label: 'Categories' },
-];
+const MENU_LINKS = [
+  { to: '/', icon: <FiHome />, key: 'home' },
+  { to: '/products', icon: <FiBox />, key: 'products' },
+  { to: '/categories', icon: <FiGrid />, key: 'categories' },
+] as const;
 
 export function AppLayout() {
   const location = useLocation();
   const { user, admin, isAuthenticated, userType, logout, adminLogout } = useAuth();
   const { count } = useCart();
+  const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [lang, setLang] = useState<'en' | 'my'>('en');
 
   useEffect(() => {
     // Any navigation closes the drawer; keeping state across routes would
@@ -97,7 +98,7 @@ export function AppLayout() {
                 onClick={() => setMenuOpen((open) => !open)}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-menu"
-                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 active:scale-95 motion-safe:transition-all lg:hidden"
               >
                 {menuOpen ? (
@@ -110,18 +111,18 @@ export function AppLayout() {
               <Link
                 to="/"
                 className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-lg"
-                aria-label="CoSupply home"
+                aria-label={t('brandHome')}
               >
                 <img
                   src={logo}
-                  alt="CoSupply"
+                  alt={t('brandHome')}
                   className="h-10 w-auto sm:h-11"
                 />
               </Link>
             </div>
 
             {/* Center: Desktop nav links */}
-            <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+            <nav className="hidden items-center gap-1 lg:flex" aria-label={t('primaryNavigation')}>
               {MENU_LINKS.map((item) => {
                 const active =
                   item.to === '/'
@@ -138,7 +139,7 @@ export function AppLayout() {
                         : 'text-slate-600 hover:bg-white/60 hover:text-ink'
                     }`}
                   >
-                    {item.label}
+                    {t(item.key)}
                   </Link>
                 );
               })}
@@ -151,19 +152,19 @@ export function AppLayout() {
               {isAuthenticated ? (
                 <AreaSwitch
                   to={dashboardHref}
-                  label="Dashboard"
+                  label={t('dashboard')}
                   icon={<FiGrid />}
-                  description="Go to your dashboard"
+                  description={t('goToDashboard')}
                 />
               ) : null}
               {/* Order list - the hero accent moment */}
               <Link
                 to="/cart"
-                aria-label={`Order list${count > 0 ? `, ${count} items` : ''}`}
+                aria-label={`${t('orderList')}${count > 0 ? `, ${count}` : ''}`}
                 className="group relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-700 active:scale-95 motion-safe:transition-all lg:w-auto lg:gap-2.5 lg:px-4 lg:pr-5"
               >
                 <FiShoppingCart aria-hidden="true" className="h-5 w-5" />
-                <span className="hidden lg:inline text-sm font-medium">Order list</span>
+                <span className="hidden lg:inline text-sm font-medium">{t('orderList')}</span>
                 {count > 0 ? (
                   <span
                     aria-hidden="true"
@@ -174,20 +175,7 @@ export function AppLayout() {
                 ) : null}
               </Link>
 
-              {/* Language toggle — desktop only; mobile keeps the header
-                  clear for the signed-in customer's name. */}
-              <button
-                type="button"
-                onClick={() => setLang((l) => (l === 'en' ? 'my' : 'en'))}
-                className="relative hidden h-6 w-8 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm hover:border-gray-300 hover:shadow active:scale-95 motion-safe:transition-all sm:block lg:ml-1"
-                aria-label={`Switch to ${lang === 'en' ? 'Myanmar' : 'English'} language`}
-              >
-                <img
-                  src={lang === 'en' ? flagEN : flagMM}
-                  alt={lang === 'en' ? 'English flag' : 'Myanmar flag'}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-              </button>
+              <LanguageSwitcher className="lg:ml-1" />
 
               {/* Account: on desktop the customer's name opens a small
                   account popover with log-out; phones keep the compact avatar
@@ -196,7 +184,7 @@ export function AppLayout() {
                 <>
                   <NotificationBell />
                   <AccountMenu
-                    name={accountName ?? 'Account'}
+                    name={accountName ?? t('account')}
                     detail={accountDetail}
                     onLogout={handleLogout}
                     className="hidden md:block"
@@ -216,7 +204,7 @@ export function AppLayout() {
                   className="hidden items-center gap-2 rounded-lg bg-primary px-2 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-[0.98] motion-safe:transition-all md:inline-flex"
                 >
                   <FiUser aria-hidden="true" className="h-[18px] w-[18px]" />
-                  Sign in
+                  {t('signInButton')}
                 </Link>
               )}
             </div>
@@ -237,7 +225,7 @@ export function AppLayout() {
             id="mobile-menu"
             className="relative max-h-full overflow-y-auto rounded-b-2xl border-b border-gray-200 bg-white shadow-xl motion-safe:animate-drawer-in"
           >
-            <nav aria-label="Primary mobile" className="flex flex-col gap-1 px-4 py-4">
+            <nav aria-label={t('primaryNavigation')} className="flex flex-col gap-1 px-4 py-4">
               {MENU_LINKS.map((item) => {
                 const active =
                   item.to === '/'
@@ -257,7 +245,7 @@ export function AppLayout() {
                     <span aria-hidden="true" className={active ? 'text-primary' : 'text-gray-400'}>
                       {item.icon}
                     </span>
-                    {item.label}
+                    {t(item.key)}
                   </Link>
                 );
               })}
@@ -268,18 +256,19 @@ export function AppLayout() {
                 <span aria-hidden="true" className="text-gray-400">
                   <FiClipboard />
                 </span>
-                Order list
+                {t('orderList')}
                 {count > 0 ? <OrderListCount count={count} tone="soft" /> : null}
               </Link>
 
               <div className="mt-3 border-t border-gray-100 pt-4">
+                <LanguageSwitcher className="mb-3" />
                 {isAuthenticated ? (
                   <button
                     type="button"
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
                   >
-                    Log out ({accountName})
+                    {t('signOut')} ({accountName})
                   </button>
                 ) : (
                   <Link
@@ -289,7 +278,7 @@ export function AppLayout() {
                     <span aria-hidden="true" className="text-blue-200">
                       <FiUser />
                     </span>
-                    Sign in
+                    {t('signIn')}
                   </Link>
                 )}
               </div>

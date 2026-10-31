@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { FiChevronDown, FiLogOut, FiUser } from 'react-icons/fi';
+import { useI18n } from '../../lib/i18n-context';
 
 interface AccountMenuProps {
   name: string;
@@ -14,6 +15,7 @@ interface AccountMenuProps {
  * the static avatar; logging out stays in the drawer there.
  */
 export function AccountMenu({ name, detail, onLogout, className = '' }: AccountMenuProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -89,7 +91,7 @@ export function AccountMenu({ name, detail, onLogout, className = '' }: AccountM
           ref={menuRef}
           id={menuId}
           role="menu"
-          aria-label="Account menu"
+          aria-label={t('accountMenu')}
           tabIndex={-1}
           className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 p-1.5 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.4)] outline-none backdrop-blur-xl motion-safe:animate-rise-in"
         >
@@ -114,7 +116,7 @@ export function AccountMenu({ name, detail, onLogout, className = '' }: AccountM
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus-visible:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-400 motion-safe:transition-colors"
             >
               <FiLogOut aria-hidden="true" className="h-4 w-4" />
-              Log out
+              {t('signOut')}
             </button>
           </div>
         </div>

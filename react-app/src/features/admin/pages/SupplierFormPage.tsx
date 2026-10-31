@@ -11,6 +11,7 @@ import {
   type SupplierStatus,
 } from '../api/suppliersApi';
 import { mapValidationErrors } from '../api/catalogApiUtils';
+import { useI18n } from '../../../lib/i18n-context';
 import {
   Alert,
   Field,
@@ -105,6 +106,7 @@ function toFormState(supplier: Supplier): SupplierFormState {
  * Suppliers are never deleted; deactivation is done with the status field.
  */
 export default function SupplierFormPage() {
+  const { t } = useI18n();
   const params = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -149,7 +151,7 @@ export default function SupplierFormPage() {
 
       if (supplierId === null || !Number.isInteger(supplierId) || supplierId <= 0) {
         setLoadError({
-          message: 'That supplier link is not valid. Open a supplier from the list.',
+          message: t('supplierInvalidLink'),
           needsLogin: false,
         });
         setIsLoading(false);
@@ -168,11 +170,11 @@ export default function SupplierFormPage() {
         setForm(toFormState(response.data.supplier));
       } else if (response.status === 404) {
         setLoadError({
-          message: 'That supplier could not be found. It may have been removed.',
+          message: t('supplierNotFound'),
           needsLogin: false,
         });
       } else {
-        setLoadError(describeLoadError(response, 'this supplier'));
+        setLoadError(describeLoadError(response, t('supplier'), t));
       }
 
       setIsLoading(false);
@@ -226,7 +228,7 @@ export default function SupplierFormPage() {
       return;
     }
 
-    const message = validateImageFile(file);
+    const message = validateImageFile(file, t);
     if (message) {
       setForm((previous) => ({ ...previous, logo: null }));
       setFieldErrors((previous) => ({ ...previous, logo: [message] }));
@@ -293,34 +295,34 @@ export default function SupplierFormPage() {
       if (supplierId === null) {
         navigate(`/admin/suppliers/${supplier.id}/edit`, {
           replace: true,
-          state: { flash: 'Supplier created.' },
+          state: { flash: t('supplierCreated') },
         });
         return;
       }
 
       setCurrent(supplier);
       setForm(toFormState(supplier));
-      setSuccessMessage(response.message ?? 'Supplier updated.');
+      setSuccessMessage(response.message ?? t('supplierUpdated'));
       return;
     }
 
     const mapped = mapValidationErrors(response.errors, SUPPLIER_FIELDS);
     setFieldErrors(mapped.fieldErrors);
     setFormError(
-      mapped.formErrors[0] ?? describeRequestError(response, 'The supplier could not be saved.'),
+      mapped.formErrors[0] ?? describeRequestError(response, t('supplierSaveFailed'), t),
     );
     focusFirstError(mapped.fieldErrors);
   };
 
   const header = (
     <PageHeader
-      title={isEdit ? 'Edit supplier' : 'New supplier'}
+      title={isEdit ? t('editSupplier') : t('newSupplier')}
       description={
         isEdit
           ? current
-            ? `Updating “${current.shop_name}”.`
-            : 'Update this supplier.'
-          : 'Add a supplier to the catalog. Suppliers can be deactivated later with the status field.'
+            ? t('updatingSupplier', { supplier: current.shop_name })
+            : t('updateSupplierDescription')
+          : t('supplierCreateDescription')
       }
       action={
         <Link to="/admin/suppliers" className={secondaryButtonClass}>
@@ -335,12 +337,12 @@ export default function SupplierFormPage() {
       <div className="space-y-6">
         {header}
         <div className="rounded-lg border border-red-200 bg-red-50 p-6" role="alert">
-          <h2 className="text-lg font-semibold text-red-800">Supplier is unavailable</h2>
+          <h2 className="text-lg font-semibold text-red-800">{t('supplierUnavailable')}</h2>
           <p className="mt-1 text-sm text-red-700">{loadError.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {loadError.needsLogin ? (
               <Link to="/admin/login" className={linkClass}>
-                Go to admin login
+                {t('goToAdminLogin')}
               </Link>
             ) : (
               <button
@@ -348,11 +350,11 @@ export default function SupplierFormPage() {
                 onClick={() => setReloadToken((token) => token + 1)}
                 className={primaryButtonClass}
               >
-                Try again
+                {t('tryAgain')}
               </button>
             )}
             <Link to="/admin/suppliers" className={linkClass}>
-              Back to suppliers
+              {t('backToSuppliers')}
             </Link>
           </div>
         </div>
@@ -364,7 +366,7 @@ export default function SupplierFormPage() {
     return (
       <div className="space-y-6">
         {header}
-        <LoadingPanel label="Loading supplier…" />
+        <LoadingPanel label={t('loadingSupplier')} />
       </div>
     );
   }
@@ -395,15 +397,15 @@ export default function SupplierFormPage() {
       <form onSubmit={handleSubmit} className="space-y-6" aria-busy={isSaving || undefined}>
         <section className="rounded-lg bg-white shadow">
           <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Shop details</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('shopDetails')}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Contact information the admin team uses to reach the supplier.
+              {t('supplierContactHint')}
             </p>
           </div>
           <div className="space-y-5 px-6 py-5">
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field
-                label="Shop name"
+                label={t('shopName')}
                 htmlFor={fieldId('shop_name')}
                 required
                 error={fieldErrors.shop_name}
@@ -425,7 +427,7 @@ export default function SupplierFormPage() {
               </Field>
 
               <Field
-                label="Company name"
+                label={t('companyName')}
                 htmlFor={fieldId('company_name')}
                 error={fieldErrors.company_name}
               >
@@ -445,7 +447,7 @@ export default function SupplierFormPage() {
               </Field>
 
               <Field
-                label="Contact person"
+                label={t('contactPerson')}
                 htmlFor={fieldId('contact_person')}
                 required
                 error={fieldErrors.contact_person}
@@ -466,7 +468,7 @@ export default function SupplierFormPage() {
                 />
               </Field>
 
-              <Field label="Phone" htmlFor={fieldId('phone')} required error={fieldErrors.phone}>
+              <Field label={t('phone')} htmlFor={fieldId('phone')} required error={fieldErrors.phone}>
                 <input
                   id={fieldId('phone')}
                   type="tel"
@@ -482,16 +484,16 @@ export default function SupplierFormPage() {
               </Field>
 
               <Field
-                label="Viber phone"
+                label={t('viberPhone')}
                 htmlFor={fieldId('viber_phone')}
                 error={fieldErrors.viber_phone}
                 hint={
                   viberMissing ? (
                     <span className="font-medium text-amber-700">
-                      No Viber number — you will not be able to contact this supplier on Viber.
+                      {t('viberUnavailableHint')}
                     </span>
                   ) : (
-                    'Alternate number used to contact this supplier on Viber.'
+                                        t('viberAlternateHint')
                   )
                 }
                 hintId={`${fieldId('viber_phone')}-hint`}
@@ -512,7 +514,7 @@ export default function SupplierFormPage() {
                 />
               </Field>
 
-              <Field label="Email" htmlFor={fieldId('email')} error={fieldErrors.email}>
+              <Field label={t('email')} htmlFor={fieldId('email')} error={fieldErrors.email}>
                 <input
                   id={fieldId('email')}
                   type="email"
@@ -528,10 +530,10 @@ export default function SupplierFormPage() {
             </div>
 
             <Field
-              label="Logo"
+              label={t('logo')}
               htmlFor={fieldId('logo')}
               error={fieldErrors.logo}
-              hint="JPEG, PNG, or WebP, up to 2 MB. A new upload replaces the current logo."
+              hint={t('logoHint')}
               hintId={`${fieldId('logo')}-hint`}
             >
               <div className="flex flex-wrap items-start gap-4">
@@ -539,18 +541,18 @@ export default function SupplierFormPage() {
                   {logoPreviewUrl ? (
                     <img
                       src={logoPreviewUrl}
-                      alt="Selected logo preview"
+                      alt={t('selectedLogoPreview')}
                       className="h-full w-full object-cover"
                     />
                   ) : current?.logo_url ? (
                     <img
                       src={current.logo_url}
-                      alt={current.shop_name ? `Current logo for ${current.shop_name}` : 'Current logo'}
+                      alt={current.shop_name ? t('currentLogoForSupplier', { supplier: current.shop_name }) : t('currentLogo')}
                       className="h-full w-full object-cover"
                     />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-xs text-gray-400">
-                      No logo
+                      {t('noLogo')}
                     </span>
                   )}
                 </div>
@@ -574,10 +576,10 @@ export default function SupplierFormPage() {
 
         <section className="rounded-lg bg-white shadow">
           <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Location</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('location')}</h2>
           </div>
           <div className="space-y-5 px-6 py-5">
-            <Field label="Address" htmlFor={fieldId('address')} required error={fieldErrors.address}>
+            <Field label={t('address')} htmlFor={fieldId('address')} required error={fieldErrors.address}>
               <textarea
                 id={fieldId('address')}
                 rows={2}
@@ -593,7 +595,7 @@ export default function SupplierFormPage() {
             </Field>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <Field label="City" htmlFor={fieldId('city')} required error={fieldErrors.city}>
+              <Field label={t('city')} htmlFor={fieldId('city')} required error={fieldErrors.city}>
                 <input
                   id={fieldId('city')}
                   type="text"
@@ -608,7 +610,7 @@ export default function SupplierFormPage() {
                 />
               </Field>
 
-              <Field label="Township" htmlFor={fieldId('township')} error={fieldErrors.township}>
+              <Field label={t('township')} htmlFor={fieldId('township')} error={fieldErrors.township}>
                 <input
                   id={fieldId('township')}
                   type="text"
@@ -629,14 +631,14 @@ export default function SupplierFormPage() {
 
         <section className="rounded-lg bg-white shadow">
           <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Supplier terms</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('supplierTerms')}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Used for quotations and delivery expectations. Leave empty when not agreed yet.
+              {t('supplierTermsHint')}
             </p>
           </div>
           <div className="space-y-5 px-6 py-5">
             <Field
-              label="Business description"
+              label={t('businessDescription')}
               htmlFor={fieldId('business_description')}
               error={fieldErrors.business_description}
             >
@@ -658,7 +660,7 @@ export default function SupplierFormPage() {
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field
-                label="Delivery area"
+                label={t('deliveryArea')}
                 htmlFor={fieldId('delivery_area')}
                 error={fieldErrors.delivery_area}
               >
@@ -678,7 +680,7 @@ export default function SupplierFormPage() {
               </Field>
 
               <Field
-                label="Delivery time"
+                label={t('deliveryTime')}
                 htmlFor={fieldId('delivery_time')}
                 error={fieldErrors.delivery_time}
               >
@@ -699,7 +701,7 @@ export default function SupplierFormPage() {
             </div>
 
             <Field
-              label="Warranty policy"
+              label={t('warrantyPolicy')}
               htmlFor={fieldId('warranty_policy')}
               error={fieldErrors.warranty_policy}
             >
@@ -719,7 +721,7 @@ export default function SupplierFormPage() {
             </Field>
 
             <Field
-              label="Return policy"
+              label={t('returnPolicy')}
               htmlFor={fieldId('return_policy')}
               error={fieldErrors.return_policy}
             >
@@ -742,15 +744,15 @@ export default function SupplierFormPage() {
 
         <section className="rounded-lg bg-white shadow">
           <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Status</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('status')}</h2>
           </div>
           <div className="space-y-5 px-6 py-5">
             <Field
-              label="Status"
+              label={t('status')}
               htmlFor={fieldId('status')}
               required
               error={fieldErrors.status}
-              hint="Inactive or suspended suppliers cannot publish new products."
+              hint={t('inactiveSupplierHint')}
               hintId={`${fieldId('status')}-hint`}
             >
               <select
@@ -766,9 +768,9 @@ export default function SupplierFormPage() {
                 onChange={(event) => updateField('status', event.target.value as SupplierStatus)}
                 className={`${inputClass(Boolean(fieldErrors.status))} max-w-xs`}
               >
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="SUSPENDED">Suspended</option>
+                <option value="ACTIVE">{t('active')}</option>
+                <option value="INACTIVE">{t('inactive')}</option>
+                <option value="SUSPENDED">{t('suspended')}</option>
               </select>
             </Field>
 
@@ -788,9 +790,9 @@ export default function SupplierFormPage() {
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 text-accent focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <label htmlFor={fieldId('verified')} className="text-sm">
-                  <span className="block font-medium text-gray-900">Verified supplier</span>
+                  <span className="block font-medium text-gray-900">{t('verifiedSupplier')}</span>
                   <span id={`${fieldId('verified')}-hint`} className="block text-xs text-gray-500">
-                    Mark this supplier as verified once their details have been checked.
+                    {t('verifySupplierHint')}
                   </span>
                 </label>
               </div>
@@ -806,17 +808,17 @@ export default function SupplierFormPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow">
           <p className="text-sm text-gray-600" aria-live="polite">
             {isSaving
-              ? 'Saving changes…'
+              ? t('savingChanges')
               : isEdit
-                ? 'Save to apply your changes.'
-                : 'The supplier is created once you save.'}
+                ? t('saveSupplierChangesHint')
+                : t('createSupplierHint')}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Link to="/admin/suppliers" className={secondaryButtonClass}>
-              Cancel
+              {t('cancel')}
             </Link>
             <button type="submit" disabled={isSaving} className={primaryButtonClass}>
-              {isSaving ? 'Saving…' : isEdit ? 'Save changes' : 'Create supplier'}
+              {isSaving ? t('savingChanges') : isEdit ? t('saveChanges') : t('createSupplier')}
             </button>
           </div>
         </div>

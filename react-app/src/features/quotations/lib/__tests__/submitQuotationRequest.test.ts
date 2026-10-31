@@ -6,8 +6,11 @@
  * must preserve the buyer's order list.
  */
 import { describe, expect, it, vi } from 'vitest';
+import type { Translator } from '../../../../lib/i18n-context';
 import { submitQuotationRequest, type QuotationSubmitContext } from '../submitQuotationRequest';
 import type { QuotationRequest } from '../../api/quotationsApi';
+
+const englishT: Translator = (key) => key;
 
 const quotationRequest: QuotationRequest = {
   id: 42,
@@ -30,6 +33,7 @@ function context(overrides: Partial<QuotationSubmitContext> = {}): QuotationSubm
       city: 'Yangon',
       delivery_address: 'No. 12, Merchant St',
     },
+    t: englishT,
     clearCart: vi.fn(),
     ...overrides,
   };

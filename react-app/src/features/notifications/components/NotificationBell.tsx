@@ -9,11 +9,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FiBell, FiCheck } from 'react-icons/fi';
 import { useAuth } from '../../../lib/auth-context';
 import { useNotifications } from '../notification-context';
+import { useI18n } from '../../../lib/i18n-context';
 import { notificationHref, type AppNotification } from '../api/notificationsApi';
 
-function itemTime(value: string): string {
+function itemTime(value: string, locale: 'en' | 'my'): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US');
 }
 
 export function NotificationBell() {
@@ -23,6 +24,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +67,7 @@ export function NotificationBell() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={
-          unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+          unreadCount > 0 ? t('unreadCount', { count: unreadCount }) : t('notifications')
         }
         className="relative inline-flex h-10 w-10 items-center justify-center rounded-md text-ink hover:bg-gray-50 active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 motion-safe:transition-colors"
       >
@@ -83,14 +85,14 @@ export function NotificationBell() {
       {open ? (
         <div
           role="dialog"
-          aria-label="Notifications"
+          aria-label={t('notifications')}
           className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-rule bg-plate shadow-lg"
         >
           <div className="flex items-center justify-between gap-2 border-b border-rule px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-ink">Notifications</p>
+              <p className="text-sm font-semibold text-ink">{t('notifications')}</p>
               <p className="text-xs text-gray-500">
-                {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                {unreadCount > 0 ? t('unreadCount', { count: unreadCount }) : t('allCaughtUp')}
               </p>
             </div>
             {unreadCount > 0 ? (
@@ -100,7 +102,7 @@ export function NotificationBell() {
                 className="inline-flex items-center gap-1 rounded text-xs font-medium text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
               >
                 <FiCheck aria-hidden="true" className="h-3.5 w-3.5" />
-                Mark all read
+                {t('markAllRead')}
               </button>
             ) : null}
           </div>
@@ -113,12 +115,12 @@ export function NotificationBell() {
 
           {isLoading && notifications.length === 0 ? (
             <p className="px-4 py-6 text-sm text-gray-500" role="status">
-              Loading notifications…
+              {t('loadingNotifications')}
             </p>
           ) : null}
 
           {!isLoading && notifications.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-gray-500">No notifications yet.</p>
+            <p className="px-4 py-6 text-sm text-gray-500">{t('noNotificationsYet')}</p>
           ) : null}
 
           {notifications.length > 0 ? (
@@ -136,7 +138,7 @@ export function NotificationBell() {
                       <span className="text-sm font-medium text-ink">{notification.title}</span>
                       {!notification.is_read ? (
                         <span
-                          aria-label="Unread"
+                          aria-label={t('unread')}
                           className="mt-1 h-2 w-2 flex-none rounded-full bg-accent"
                         />
                       ) : null}
@@ -145,7 +147,7 @@ export function NotificationBell() {
                       {notification.message}
                     </span>
                     <span className="mt-1 block text-[11px] text-gray-400">
-                      {itemTime(notification.created_at)}
+                      {itemTime(notification.created_at, locale)}
                     </span>
                   </button>
                 </li>
@@ -159,7 +161,7 @@ export function NotificationBell() {
               onClick={() => setOpen(false)}
               className="text-xs font-medium text-ink hover:text-accent"
             >
-              View all notifications
+              {t('viewAllNotifications')}
             </Link>
           </div>
         </div>
