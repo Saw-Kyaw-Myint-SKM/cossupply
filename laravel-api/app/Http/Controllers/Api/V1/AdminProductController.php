@@ -33,6 +33,8 @@ class AdminProductController extends Controller
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
             'search' => ['nullable', 'string', 'max:100'],
+            'sort_by' => ['nullable', Rule::in(['created_at'])],
+            'sort_direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -68,7 +70,7 @@ class AdminProductController extends Controller
      */
     public function show(Product $product): JsonResponse
     {
-        $product->load(['category', 'supplier', 'prices', 'stock']);
+        $product->load(['category', 'supplier', 'prices', 'stock', 'variants.product']);
 
         return $this->successResponse(['product' => new ProductResource($product)]);
     }

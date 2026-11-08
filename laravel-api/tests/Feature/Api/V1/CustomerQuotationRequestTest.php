@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\Supplier;
@@ -314,6 +315,173 @@ class CustomerQuotationRequestTest extends TestCase
 
         $this->assertDatabaseCount('quotation_requests', 0);
         $this->assertDatabaseCount('quotation_items', 0);
+    }
+
+    public function test_variant_line_uses_variant_price_stock_and_specification(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct(
+            ['retail_price' => 10000, 'discount_price' => null],
+            ['stock_status' => 'IN_STOCK'],
+        );
+
+        $variant = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Red',
+            'variant_attributes' => ['Color' => 'red'],
+            'retail_price' => 5500,
+            'discount_price' => 5000,
+            'minimum_order_quantity' => 2,
+            'stock_status' => 'LOW_STOCK',
+            'stock_quantity' => 8,
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([[
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'quantity' => 2,
+            ]]),
+        )->assertCreated();
+
+        $item = QuotationItem::query()->sole();
+
+        $this->assertSame(5000, $item->display_price);
+        $this->assertSame('LOW_STOCK', $item->stock_status->value);
+        $this->assertStringContainsString('Variant: Red', (string) $item->specification_snapshot);
+        $this->assertSame(2, $item->quantity);
+    }
+
+    public function test_same_product_can_appear_once_per_variant(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+
+        $red = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Red',
+            'variant_attributes' => ['Color' => 'Red'],
+            'retail_price' => 10000,
+        ]);
+
+        $blue = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Blue',
+            'variant_attributes' => ['Color' => 'Blue'],
+            'retail_price' => 11000,
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([
+                ['product_id' => $product->id, 'variant_id' => $red->id, 'quantity' => 1],
+                ['product_id' => $product->id, 'variant_id' => $blue->id, 'quantity' => 2],
+            ]),
+        )->assertCreated();
+
+        $this->assertDatabaseCount('quotation_items', 2);
+    }
+
+    public function test_duplicate_product_and_variant_is_rejected(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+
+        $variant = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'retail_price' => 10000,
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([
+                ['product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => 1],
+                ['product_id' => $product->id, 'variant_id' => $variant->id, 'quantity' => 3],
+            ]),
+        )->assertUnprocessable()->assertJsonValidationErrors(['items.1.product_id']);
+
+        $this->assertDatabaseCount('quotation_requests', 0);
+        $this->assertDatabaseCount('quotation_items', 0);
+    }
+
+    public function test_variant_must_belong_to_the_product(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+        $otherProduct = $this->publishedProduct();
+
+        $foreignVariant = ProductVariant::factory()->create([
+            'product_id' => $otherProduct->id,
+            'name' => 'Red',
+            'retail_price' => 10000,
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([[
+                'product_id' => $product->id,
+                'variant_id' => $foreignVariant->id,
+                'quantity' => 1,
+            ]]),
+        )->assertUnprocessable()->assertJsonValidationErrors(['items.0.variant_id']);
+
+        $this->assertDatabaseCount('quotation_requests', 0);
+    }
+
+    public function test_out_of_stock_variant_is_rejected(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+
+        $variant = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Red',
+            'retail_price' => 10000,
+            'stock_status' => 'OUT_OF_STOCK',
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([[
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'quantity' => 1,
+            ]]),
+        )->assertUnprocessable()->assertJsonValidationErrors(['items.0.variant_id', 'items.0']);
+
+        $this->assertDatabaseCount('quotation_requests', 0);
+    }
+
+    public function test_variant_minimum_order_quantity_is_enforced(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $product = $this->publishedProduct();
+
+        $variant = ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Red',
+            'retail_price' => 10000,
+            'minimum_order_quantity' => 5,
+        ]);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([[
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'quantity' => 2,
+            ]]),
+        )->assertUnprocessable()->assertJsonValidationErrors(['items.0.quantity']);
+
+        $this->withToken($token)->postJson(
+            '/api/v1/customer/quotation-requests',
+            $this->payload([[
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'quantity' => 5,
+            ]]),
+        )->assertCreated();
     }
 
     public function test_required_delivery_date_cannot_be_in_the_past_or_malformed(): void

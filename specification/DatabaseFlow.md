@@ -197,6 +197,36 @@ created_at
 updated_at
 ```
 
+### `product_variants`
+
+Optional sub-products (colour, size, ...) of one product. A product with no rows here remains a complete single product.
+
+```text
+id PK
+product_id FK -> products.id
+name NULL                       // admin-typed label, e.g. "Red / M"
+variant_attributes JSON        // legacy attribute map, e.g. {"Color":"Red","Size":"M"}
+attributes_key                  // normalized identity, UNIQUE per product
+slug UNIQUE
+sku NULL                        // UNIQUE per product
+photo NULL                      // NULL = use the product photo
+retail_price NULL
+wholesale_price NULL
+discount_price NULL
+minimum_order_quantity DEFAULT 1
+price_valid_until NULL
+price_updated_at NULL
+price_updated_by_admin_id NULL FK -> admins.id
+stock_quantity NULL
+stock_status
+stock_confirmed_at NULL
+stock_confirmed_by_admin_id NULL FK -> admins.id
+supplier_note NULL
+sort_order DEFAULT 0
+created_at
+updated_at
+```
+
 ### `quotation_requests`
 
 Customer contact နှင့် delivery data ကို request အချိန်၏ snapshot အဖြစ် သိမ်းရမည်။ Guest request မခွင့်ပြုသောကြောင့် `customer_id` သည် NOT NULL ဖြစ်ရမည်။
@@ -580,6 +610,8 @@ created_at
 ## 4. Main Foreign-Key and Integrity Rules
 
 - `products.supplier_id` သည် Supplier မရှိပါက Product မဖန်တီးနိုင်စေရ။
+- `product_variants.product_id` သည် Product ဖျက်သောအခါ variant များပါ ဖျက်ခံရမည်။ Variant မရှိသော Product သည် ပုံမှန် Product တစ်ခုအဖြစ် ဆက်လက်ရောင်းချနိုင်ရမည်။
+- `product_variants.attributes_key` သည် Product တစ်ခုအတွင်း UNIQUE ဖြစ်ရမည်။ Flat variant flow တွင် `name` ကို Product တစ်ခုအတွင်း ထပ်မနေစေရ။
 - `quotation_requests.customer_id` သည် NOT NULL ဖြစ်ရမည်။ Guest quotation request မခွင့်ပြုရ။
 - `quotation_items.supplier_id` သည် မူရင်း Product Supplier ကို snapshot အဖြစ် သိမ်းရမည်။
 - `quotation_version_items` သည် Final Quotation version item snapshot ဖြစ်ရမည်။
@@ -598,6 +630,10 @@ created_at
 - `products.category_id`
 - `products.supplier_id`
 - `products.slug`
+- `product_variants.product_id, product_variants.sort_order`
+- `product_variants.product_id, product_variants.attributes_key` UNIQUE
+- `product_variants.product_id, product_variants.sku` UNIQUE
+- `product_variants.slug` UNIQUE
 - `quotation_requests.quotation_number`
 - `quotation_requests.customer_id`
 - `quotation_requests.status`

@@ -36,6 +36,11 @@ class SupplierService
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
+        $sortBy = in_array($filters['sort_by'] ?? null, ['shop_name', 'created_at'], true)
+            ? $filters['sort_by']
+            : 'shop_name';
+        $sortDirection = ($filters['sort_direction'] ?? null) === 'desc' ? 'desc' : 'asc';
+
         return Supplier::query()
             ->withCount('products')
             ->when(filled($filters['status'] ?? null), fn (Builder $query): Builder => $query->where('status', $filters['status']))
@@ -48,8 +53,8 @@ class SupplierService
                         ->orWhere('phone', 'like', "%{$search}%");
                 });
             })
-            ->orderBy('shop_name')
-            ->orderBy('id')
+            ->orderBy($sortBy, $sortDirection)
+            ->orderBy('id', $sortDirection)
             ->paginate($this->perPage($filters));
     }
 

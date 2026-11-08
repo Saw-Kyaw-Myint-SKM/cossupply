@@ -17,7 +17,7 @@ import {
   Pagination,
   StatusBadge,
   describeCustomerLoadError,
-  inputClass,
+  filterSelectClass,
   linkClass,
   primaryButtonClass,
   type LoadErrorState,
@@ -95,7 +95,7 @@ export default function OrderListPage() {
             setStatusFilter(event.target.value);
             setPage(1);
           }}
-          className={`${inputClass(false)} mt-1 w-full sm:w-64`}
+          className={`${filterSelectClass} mt-1 w-full sm:w-64`}
         >
           <option value="">{t('allStatuses')}</option>
           {ORDER_STATUSES.map((status) => (

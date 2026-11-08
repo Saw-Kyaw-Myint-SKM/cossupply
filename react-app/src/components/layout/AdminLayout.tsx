@@ -8,6 +8,7 @@ import {
   FiMenu,
   FiSettings,
   FiTruck,
+  FiUser,
   FiUsers,
   FiX,
   FiLogOut,
@@ -40,6 +41,7 @@ const NAV_LINKS: NavItem[] = [
   { to: '/admin/orders', icon: <FiTruck />, label: 'orders' },
   { to: '/admin/products', icon: <FiBox />, label: 'products' },
   { to: '/admin/suppliers', icon: <FiUsers />, label: 'suppliers' },
+  { to: '/admin/customers', icon: <FiUser />, label: 'customersTitle' },
   { to: '/admin/categories', icon: <FiGrid />, label: 'categories' },
   { to: '/admin/settings', icon: <FiSettings />, label: 'settings' },
 ];
@@ -204,18 +206,22 @@ export function AdminLayout() {
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-w-0 lg:ml-64">
-        {/* Mobile header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-4 lg:hidden">
+        {/* Top bar: page context on the left, language control on the right.
+            Visible at every breakpoint so the locale switch is always within
+            reach — including on desktop where the sidebar has no header. */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-gray-200 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
             aria-label={t('openSidebar')}
           >
             <FiMenu className="h-5 w-5" />
           </button>
+          <span className="flex-1 truncate text-sm font-semibold text-gray-900 sm:text-base">
+            {t('admin')}
+          </span>
           <LanguageSwitcher />
-          <span className="font-semibold text-gray-900">{t('admin')}</span>
         </header>
 
         {/* Page content */}

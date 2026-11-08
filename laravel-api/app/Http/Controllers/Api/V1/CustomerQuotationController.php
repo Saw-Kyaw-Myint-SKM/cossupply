@@ -54,8 +54,10 @@ class CustomerQuotationController extends Controller
             'items.supplier',
             'quotations' => fn ($query) => $query->orderByDesc('version'),
             'quotations.items.supplier',
+            'quotations.items.product',
             'quotations.actions' => fn ($query) => $query->orderByDesc('id'),
             'currentQuotation.items.supplier',
+            'currentQuotation.items.product',
             'currentQuotation.actions' => fn ($query) => $query->orderByDesc('id'),
             'currentQuotation.order',
         ]);

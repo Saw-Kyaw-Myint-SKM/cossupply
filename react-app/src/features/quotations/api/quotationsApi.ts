@@ -13,7 +13,8 @@
  *   POST /customer/quotations/{quotationId}/change-request
  *
  * The POST body carries only products already in the buyer's authenticated
- * cart (`product_id`, `quantity`) plus contact/delivery snapshot fields.
+ * cart (`product_id`, optional `variant_id`, `quantity`) plus
+ * contact/delivery snapshot fields.
  * `customer_id` is resolved server-side from the bearer token — it is never a
  * body field (LogicFlow §5). Prices stay display prices; the server remains
  * the money source of truth (MoneyAndValidationRules §5).
@@ -52,7 +53,7 @@ export interface QuotationRequest {
 }
 
 export interface QuotationRequestInput {
-  items: Array<{ product_id: number; quantity: number }>;
+  items: Array<{ product_id: number; variant_id?: number; quantity: number }>;
   name: string;
   phone: string;
   company_name?: string;
@@ -66,6 +67,25 @@ export interface QuotationRequestInput {
   customer_note?: string;
 }
 
+/**
+ * Compact snapshot of the request's current quotation version, delivered
+ * additively on list rows so a dashboard card can show the total without a
+ * second request. Null until the sales team issues the first version.
+ */
+export interface QuotationRequestSummaryQuotation {
+  id: number;
+  version: number;
+  status: QuotationVersionStatus;
+  is_current: boolean;
+  total_amount: number;
+  valid_until: string | null;
+  sent_at: string | null;
+  viewed_at?: string | null;
+  accepted_at?: string | null;
+  rejected_at?: string | null;
+  created_at?: string | null;
+}
+
 /** One row of the "My quotations" list (Task 06 list foundation). */
 export interface QuotationRequestSummary {
   id: number;
@@ -77,6 +97,7 @@ export interface QuotationRequestSummary {
   township: string | null;
   item_count: number;
   created_at: string;
+  current_quotation?: QuotationRequestSummaryQuotation | null;
   current_quotation_id?: number | null;
   current_version?: number | null;
   current_status?: QuotationVersionStatus | null;
@@ -140,6 +161,9 @@ export interface CustomerQuotationVersionItem {
   specification_snapshot?: string | null;
   supplier_name_snapshot?: string | null;
   sku_snapshot?: string | null;
+  /** Product image snapshot; absent when the product relation is not loaded. */
+  photo?: string | null;
+  photo_url?: string | null;
   quantity: number;
   unit_price: number;
   line_discount?: number | null;

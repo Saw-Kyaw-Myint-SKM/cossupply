@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use App\Models\ProductStock;
+use App\Models\ProductVariant;
 use App\Services\Audit\AuditLogService;
 use App\Services\Media\MediaService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -33,6 +34,8 @@ use Throwable;
 class ProductService
 {
     private const PHOTO_DIRECTORY = 'products';
+
+    private const VARIANT_PHOTO_DIRECTORY = 'products/variants';
 
     /**
      * Product columns accepted from the request data.
@@ -72,8 +75,14 @@ class ProductService
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
+        $sortBy = in_array($filters['sort_by'] ?? null, ['created_at'], true)
+            ? $filters['sort_by']
+            : 'created_at';
+        $sortDirection = ($filters['sort_direction'] ?? null) === 'asc' ? 'asc' : 'desc';
+
         return Product::query()
             ->with(['category', 'supplier', 'prices', 'stock'])
+            ->withCount('variants')
             ->when(filled($filters['status'] ?? null), fn (Builder $query): Builder => $query->where('status', $filters['status']))
             ->when(filled($filters['category_id'] ?? null), fn (Builder $query): Builder => $query->where('category_id', $filters['category_id']))
             ->when(filled($filters['supplier_id'] ?? null), fn (Builder $query): Builder => $query->where('supplier_id', $filters['supplier_id']))
@@ -88,8 +97,8 @@ class ProductService
                         ->orWhere('model', 'like', "%{$search}%");
                 });
             })
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+            ->orderBy($sortBy, $sortDirection)
+            ->orderBy('id', $sortDirection)
             ->paginate($this->perPage($filters));
     }
 
@@ -103,10 +112,14 @@ class ProductService
      */
     public function create(array $data, Admin $admin, ?UploadedFile $photo = null, ?string $ip = null): Product
     {
-        $photoPath = $photo !== null ? $this->media->storePublicImage($photo, self::PHOTO_DIRECTORY) : null;
+        $photoPath = null;
+        $variantPhotos = [];
 
         try {
-            $product = DB::transaction(function () use ($data, $admin, $photoPath, $ip): Product {
+            $photoPath = $photo !== null ? $this->media->storePublicImage($photo, self::PHOTO_DIRECTORY) : null;
+            $variantPhotos = $this->storeVariantPhotos($data['variants'] ?? []);
+
+            $product = DB::transaction(function () use ($data, $admin, $photoPath, $variantPhotos, $ip): Product {
                 $product = Product::create([
                     ...Arr::only($data, self::PRODUCT_FIELDS),
                     'slug' => $data['slug'] ?? Str::slug((string) ($data['name_en'] ?? '')),
@@ -117,6 +130,7 @@ class ProductService
 
                 $price = $this->writePrice($product, $data, $admin);
                 $stock = $this->writeStock($product, $data, $admin);
+                $this->createVariants($product, $data['variants'] ?? [], $variantPhotos, $admin, $ip);
 
                 if ($product->status === ProductStatus::PUBLISHED) {
                     $this->assertPublishable($product);
@@ -161,6 +175,10 @@ class ProductService
         } catch (Throwable $exception) {
             $this->media->deletePublicFile($photoPath);
 
+            foreach ($variantPhotos as $variantPhoto) {
+                $this->media->deletePublicFile($variantPhoto);
+            }
+
             throw $exception;
         }
 
@@ -181,10 +199,16 @@ class ProductService
         $oldPriceData = $oldPrice !== null ? $this->priceSnapshot($oldPrice) : null;
         $oldStockData = $oldStock !== null ? $this->stockSnapshot($oldStock) : null;
 
-        $newPhoto = $photo !== null ? $this->media->storePublicImage($photo, self::PHOTO_DIRECTORY) : null;
+        $newPhoto = null;
+        $variantPhotos = [];
+        $removedVariantPhotos = [];
+        $syncVariants = array_key_exists('variants', $data) || (bool) ($data['variants_sync'] ?? false);
 
         try {
-            DB::transaction(function () use ($product, $data, $admin, $newPhoto, $oldData, $oldPriceData, $oldStockData, $ip): void {
+            $newPhoto = $photo !== null ? $this->media->storePublicImage($photo, self::PHOTO_DIRECTORY) : null;
+            $variantPhotos = $syncVariants ? $this->storeVariantPhotos($data['variants'] ?? []) : [];
+
+            $removedVariantPhotos = DB::transaction(function () use ($product, $data, $admin, $newPhoto, $variantPhotos, $syncVariants, $oldData, $oldPriceData, $oldStockData, $ip): array {
                 $attributes = Arr::only($data, self::PRODUCT_FIELDS);
 
                 if (array_key_exists('slug', $data)) {
@@ -199,6 +223,10 @@ class ProductService
 
                 $price = $this->writePrice($product, $data, $admin);
                 $stock = $this->writeStock($product, $data, $admin);
+
+                $removedVariantPhotos = $syncVariants
+                    ? $this->syncVariants($product, $data['variants'] ?? [], $variantPhotos, $admin, $ip)
+                    : [];
 
                 $newData = $this->snapshot($product);
 
@@ -237,15 +265,25 @@ class ProductService
                         $ip,
                     );
                 }
+
+                return $removedVariantPhotos;
             });
         } catch (Throwable $exception) {
             $this->media->deletePublicFile($newPhoto);
+
+            foreach ($variantPhotos as $variantPhoto) {
+                $this->media->deletePublicFile($variantPhoto);
+            }
 
             throw $exception;
         }
 
         if ($newPhoto !== null) {
             $this->media->deletePublicFile($oldPhoto);
+        }
+
+        foreach ($removedVariantPhotos as $removedVariantPhoto) {
+            $this->media->deletePublicFile($removedVariantPhoto);
         }
 
         return $this->loadDetail($product);
@@ -295,9 +333,25 @@ class ProductService
     {
         $photo = $product->photo;
         $snapshot = $this->snapshot($product);
+        $variants = $product->variants()->get();
 
-        DB::transaction(function () use ($product, $snapshot, $admin, $ip): void {
+        DB::transaction(function () use ($product, $variants, $snapshot, $admin, $ip): void {
             $this->assertNotReferenced($product);
+
+            foreach ($variants as $variant) {
+                $variantSnapshot = $this->variantSnapshot($variant);
+                $variant->delete();
+
+                $this->auditLogs->log(
+                    $admin,
+                    'product.variant_deleted',
+                    'product_variant',
+                    (string) $variant->id,
+                    $variantSnapshot,
+                    [],
+                    $ip,
+                );
+            }
 
             ProductPrice::query()->where('product_id', $product->id)->delete();
             ProductStock::query()->where('product_id', $product->id)->delete();
@@ -323,6 +377,12 @@ class ProductService
         });
 
         $this->media->deletePublicFile($photo);
+
+        foreach ($variants as $variant) {
+            if ($variant->photo !== null && $variant->photo !== $photo) {
+                $this->media->deletePublicFile($variant->photo);
+            }
+        }
     }
 
     /**
@@ -354,6 +414,15 @@ class ProductService
 
         if ($price === null || $price->retail_price <= 0) {
             $errors['retail_price'][] = 'A retail price greater than zero is required before publishing a product.';
+        }
+
+        foreach ($product->variants()->get() as $index => $variant) {
+            if ($variant->retail_price === null || $variant->retail_price <= 0) {
+                $label = $variant->attributesLabel();
+                $errors["variants.{$index}.retail_price"][] = $label === ''
+                    ? 'Every variant needs a retail price greater than zero before publishing.'
+                    : "The variant \"{$label}\" needs a retail price greater than zero before publishing.";
+            }
         }
 
         if ($errors !== []) {
@@ -452,11 +521,309 @@ class ProductService
     }
 
     /**
+     * Store uploaded variant photos before the transaction so each row can
+     * reference its path. Returns the paths keyed by variant index.
+     *
+     * @param  array<int, array<string, mixed>>  $variants
+     * @return array<int, string|null>
+     */
+    private function storeVariantPhotos(array $variants): array
+    {
+        $photos = [];
+
+        try {
+            foreach ($variants as $index => $variant) {
+                if (! is_array($variant)) {
+                    continue;
+                }
+
+                $photo = $variant['photo'] ?? null;
+
+                $photos[$index] = $photo instanceof UploadedFile
+                    ? $this->media->storePublicImage($photo, self::VARIANT_PHOTO_DIRECTORY)
+                    : null;
+            }
+        } catch (Throwable $exception) {
+            foreach ($photos as $storedPhoto) {
+                $this->media->deletePublicFile($storedPhoto);
+            }
+
+            throw $exception;
+        }
+
+        return $photos;
+    }
+
+    /**
+     * Create every variant for a new product.
+     *
+     * @param  array<int, array<string, mixed>>  $variants
+     * @param  array<int, string|null>  $photos
+     */
+    private function createVariants(Product $product, array $variants, array $photos, Admin $admin, ?string $ip): void
+    {
+        foreach ($variants as $index => $variantData) {
+            if (! is_array($variantData)) {
+                continue;
+            }
+
+            $this->createVariant($product, $variantData, $photos[$index] ?? null, $index, $admin, $ip);
+        }
+    }
+
+    /**
+     * Create one variant row and audit it.
+     *
+     * @param  array<string, mixed>  $variantData
+     */
+    private function createVariant(
+        Product $product,
+        array $variantData,
+        ?string $photo,
+        int $sortOrder,
+        Admin $admin,
+        ?string $ip,
+    ): ProductVariant {
+        $attributes = ProductVariant::normalizeAttributes($variantData['attributes'] ?? []);
+        $name = trim((string) ($variantData['name'] ?? ''));
+
+        if ($name === '') {
+            $name = ProductVariant::nameFromAttributes($attributes);
+        }
+
+        if ($name === '') {
+            $name = 'Variant';
+        }
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => $name,
+            'variant_attributes' => $attributes,
+            'attributes_key' => ProductVariant::identityKey($name, $attributes),
+            'slug' => $this->variantSlug($product, $name, $attributes),
+            'sku' => $variantData['sku'] ?? null,
+            'photo' => $photo,
+            'retail_price' => $variantData['retail_price'] ?? null,
+            'wholesale_price' => $variantData['wholesale_price'] ?? null,
+            'discount_price' => $variantData['discount_price'] ?? null,
+            'minimum_order_quantity' => $variantData['minimum_order_quantity'] ?? 1,
+            'price_valid_until' => $variantData['price_valid_until'] ?? null,
+            'price_updated_at' => now(),
+            'price_updated_by_admin_id' => $admin->id,
+            'stock_quantity' => $variantData['stock_quantity'] ?? null,
+            'stock_status' => $variantData['stock_status'] ?? StockStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
+            'stock_confirmed_at' => now(),
+            'stock_confirmed_by_admin_id' => $admin->id,
+            'supplier_note' => $variantData['supplier_note'] ?? null,
+            'sort_order' => $sortOrder,
+        ]);
+
+        $this->auditLogs->log(
+            $admin,
+            'product.variant_created',
+            'product_variant',
+            (string) $variant->id,
+            [],
+            $this->variantSnapshot($variant),
+            $ip,
+        );
+
+        return $variant;
+    }
+
+    /**
+     * Sync the submitted variant list against the stored rows.
+     *
+     * Existing ids are updated, rows without an id are created, and rows that
+     * are no longer present are deleted. Returns old photo paths that should
+     * be removed after the transaction commits.
+     *
+     * @param  array<int, array<string, mixed>>  $variants
+     * @param  array<int, string|null>  $photos
+     * @return list<string>
+     */
+    private function syncVariants(Product $product, array $variants, array $photos, Admin $admin, ?string $ip): array
+    {
+        $existing = $product->variants()->get()->keyBy('id');
+        $oldPhotos = [];
+
+        $submittedIds = collect($variants)
+            ->filter(fn ($variant): bool => is_array($variant) && isset($variant['id']))
+            ->map(fn (array $variant): int => (int) $variant['id'])
+            ->all();
+
+        // Delete omitted rows first so a new row can reuse their combination
+        // or SKU within the same request.
+        foreach ($existing->except($submittedIds) as $variant) {
+            $snapshot = $this->variantSnapshot($variant);
+
+            if ($variant->photo !== null && $variant->photo !== $product->photo) {
+                $oldPhotos[] = $variant->photo;
+            }
+
+            $variant->delete();
+
+            $this->auditLogs->log(
+                $admin,
+                'product.variant_deleted',
+                'product_variant',
+                (string) $variant->id,
+                $snapshot,
+                [],
+                $ip,
+            );
+        }
+
+        // Capture the pre-parking snapshots so audit rows keep the real
+        // old values after the temporary keys are written.
+        $originalSnapshots = $existing->only($submittedIds)->mapWithKeys(
+            fn (ProductVariant $variant): array => [$variant->id => $this->variantSnapshot($variant)],
+        );
+
+        // Park the current keys and SKUs so swapping two combinations or two
+        // SKUs in one request cannot collide with the per-product indexes.
+        foreach ($existing->only($submittedIds) as $variant) {
+            $variant->forceFill([
+                'attributes_key' => 'pending-'.$variant->id.'-'.Str::uuid(),
+                'sku' => $variant->sku !== null ? 'pending-'.$variant->id.'-'.Str::uuid() : null,
+            ])->saveQuietly();
+        }
+
+        foreach ($variants as $index => $variantData) {
+            if (! is_array($variantData)) {
+                continue;
+            }
+
+            $id = isset($variantData['id']) ? (int) $variantData['id'] : null;
+            $newPhoto = $photos[$index] ?? null;
+
+            if ($id !== null && $existing->has($id)) {
+                $variant = $existing->get($id);
+                $oldSnapshot = $originalSnapshots[$variant->id] ?? $this->variantSnapshot($variant);
+                $oldPhoto = $variant->photo;
+                $attributes = ProductVariant::normalizeAttributes($variantData['attributes'] ?? []);
+                $name = trim((string) ($variantData['name'] ?? ''));
+
+                if ($name === '') {
+                    $name = ProductVariant::nameFromAttributes($attributes);
+                }
+
+                if ($name === '') {
+                    $name = $variant->name ?? 'Variant';
+                }
+
+                $variant->fill([
+                    'name' => $name,
+                    'variant_attributes' => $attributes,
+                    'attributes_key' => ProductVariant::identityKey($name, $attributes),
+                    'sku' => $variantData['sku'] ?? null,
+                    'retail_price' => $variantData['retail_price'] ?? null,
+                    'wholesale_price' => $variantData['wholesale_price'] ?? null,
+                    'discount_price' => $variantData['discount_price'] ?? null,
+                    'minimum_order_quantity' => $variantData['minimum_order_quantity'] ?? 1,
+                    'price_valid_until' => $variantData['price_valid_until'] ?? null,
+                    'stock_quantity' => $variantData['stock_quantity'] ?? null,
+                    'stock_status' => $variantData['stock_status'] ?? StockStatus::SUPPLIER_CONFIRMATION_REQUIRED->value,
+                    'supplier_note' => $variantData['supplier_note'] ?? null,
+                    'sort_order' => $index,
+                ]);
+
+                if ($newPhoto !== null) {
+                    $variant->photo = $newPhoto;
+                }
+
+                $variant->price_updated_at = now();
+                $variant->price_updated_by_admin_id = $admin->id;
+                $variant->stock_confirmed_at = now();
+                $variant->stock_confirmed_by_admin_id = $admin->id;
+                $variant->save();
+
+                if ($newPhoto !== null && $oldPhoto !== null && $oldPhoto !== $product->photo) {
+                    $oldPhotos[] = $oldPhoto;
+                }
+
+                $newSnapshot = $this->variantSnapshot($variant);
+
+                if ($newSnapshot !== $oldSnapshot) {
+                    $this->auditLogs->log(
+                        $admin,
+                        'product.variant_updated',
+                        'product_variant',
+                        (string) $variant->id,
+                        $oldSnapshot,
+                        $newSnapshot,
+                        $ip,
+                    );
+                }
+
+                continue;
+            }
+
+            $this->createVariant($product, $variantData, $newPhoto, $index, $admin, $ip);
+        }
+
+        return $oldPhotos;
+    }
+
+    /**
+     * Build a unique, readable slug for a variant.
+     *
+     * @param  array<string, string>  $attributes
+     */
+    private function variantSlug(Product $product, string $name, array $attributes): string
+    {
+        $suffix = Str::slug($name);
+
+        if ($suffix === '') {
+            $suffix = collect($attributes)
+                ->map(fn ($value): string => Str::slug((string) $value))
+                ->filter()
+                ->implode('-');
+        }
+
+        $base = Str::limit($product->slug, 220, '');
+        $slug = Str::limit($suffix === '' ? $base.'-variant' : $base.'-'.$suffix, 240, '');
+        $candidate = $slug;
+        $counter = 2;
+
+        while (ProductVariant::query()->where('slug', $candidate)->exists()) {
+            $candidate = Str::limit($slug, 240 - strlen((string) $counter) - 1, '').'-'.$counter;
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Audit-friendly variant representation.
+     *
+     * @return array<string, mixed>
+     */
+    private function variantSnapshot(ProductVariant $variant): array
+    {
+        return [
+            'name' => $variant->name,
+            'variant_attributes' => $variant->variant_attributes,
+            'slug' => $variant->slug,
+            'sku' => $variant->sku,
+            'photo' => $variant->photo,
+            'retail_price' => $variant->retail_price,
+            'wholesale_price' => $variant->wholesale_price,
+            'discount_price' => $variant->discount_price,
+            'minimum_order_quantity' => $variant->minimum_order_quantity,
+            'price_valid_until' => $variant->price_valid_until?->toDateString(),
+            'stock_quantity' => $variant->stock_quantity,
+            'stock_status' => $variant->stock_status->value,
+            'supplier_note' => $variant->supplier_note,
+        ];
+    }
+
+    /**
      * Eager-load the relations returned by the product API resource.
      */
     private function loadDetail(Product $product): Product
     {
-        return $product->load(['category', 'supplier', 'prices', 'stock']);
+        return $product->load(['category', 'supplier', 'prices', 'stock', 'variants.product'])->loadCount('variants');
     }
 
     /**

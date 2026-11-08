@@ -162,7 +162,15 @@ export default function HomePage() {
 
   const deals =
     products?.filter((product) => discountPercent(product) !== null) ?? [];
-  const featuredProducts = deals.length >= 3 ? deals : (products ?? []);
+  // Lead with deals, then top up with the rest so the rail always fills two
+  // full rows of five on desktop.
+  const featuredProducts =
+    deals.length >= 3
+      ? [
+          ...deals,
+          ...(products ?? []).filter((product) => discountPercent(product) === null),
+        ]
+      : (products ?? []);
   const hasDeals = deals.length >= 3;
   const activeSlide = SLIDES[slide];
   const slideImage =
@@ -279,7 +287,7 @@ export default function HomePage() {
 
         {isLoading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {Array.from({ length: 5 }, (_, index) => (
+            {Array.from({ length: 10 }, (_, index) => (
               <SkeletonCard key={index} />
             ))}
           </div>
@@ -305,7 +313,7 @@ export default function HomePage() {
 
         {!isLoading && featuredProducts.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {featuredProducts.slice(0, 5).map((product) => (
+            {featuredProducts.slice(0, 10).map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
@@ -425,16 +433,6 @@ export default function HomePage() {
         </section>
       ) : null}
 
-      {/* Last call for the full catalog. */}
-      <div className="text-center">
-        <Link
-          to="/products"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:brightness-105 motion-safe:transition-all"
-        >
-          Browse the full catalog
-          <FiArrowRight aria-hidden="true" className="h-4 w-4" />
-        </Link>
-      </div>
     </div>
   );
 }

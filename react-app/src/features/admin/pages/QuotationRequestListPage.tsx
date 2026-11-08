@@ -16,12 +16,14 @@ import {
   StatusBadge,
   describeLoadError,
   formatStatusLabel,
+  filterSelectClass,
   inputClass,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { TableActions } from '../../../components/ui/TableActions';
 import type { PaginationMeta } from '../../../api/query';
 import { useAuth } from '../../../lib/auth-context';
 import {
@@ -169,7 +171,7 @@ export default function QuotationRequestListPage() {
                 setStatus(event.target.value as QuotationRequestStatus | '');
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All statuses</option>
               {QUOTATION_REQUEST_STATUSES.map((value) => (
@@ -191,7 +193,7 @@ export default function QuotationRequestListPage() {
                 setAssignment(event.target.value as AssignmentFilter);
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">Everyone</option>
               <option value="unassigned">Unassigned</option>
@@ -235,7 +237,7 @@ export default function QuotationRequestListPage() {
                   <th className="px-4 py-3">Items</th>
                   <th className="px-4 py-3">Assigned</th>
                   <th className="px-4 py-3">Received</th>
-                  <th className="px-4 py-3 text-right">Open</th>
+                  <th className="w-24 px-4 py-3 text-right">Open</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -265,10 +267,15 @@ export default function QuotationRequestListPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                       {new Date(request.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link to={`/admin/quotation-requests/${request.id}`} className={linkClass}>
-                        Open
-                      </Link>
+                    <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                      <TableActions
+                        label={`Open ${request.quotation_number}`}
+                        primary={
+                          <Link to={`/admin/quotation-requests/${request.id}`} className={linkClass}>
+                            Open
+                          </Link>
+                        }
+                      />
                     </td>
                   </tr>
                 ))}

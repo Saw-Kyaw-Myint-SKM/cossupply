@@ -15,6 +15,7 @@ import {
   PageHeader,
   Pagination,
   describeLoadError,
+  filterSelectClass,
   inputClass,
   primaryButtonClass,
   secondaryButtonClass,
@@ -158,7 +159,7 @@ export default function AdminAuditLogsPage() {
                 setAction(event.target.value);
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allActions')}</option>
               {actions.map((option) => (
@@ -180,7 +181,7 @@ export default function AdminAuditLogsPage() {
                 setEntityType(event.target.value);
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allEntities')}</option>
               {entityTypes.map((option) => (
@@ -202,7 +203,7 @@ export default function AdminAuditLogsPage() {
                 setAdminId(event.target.value === '' ? '' : Number(event.target.value));
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allAdmins')}</option>
               {admins.map((option) => (

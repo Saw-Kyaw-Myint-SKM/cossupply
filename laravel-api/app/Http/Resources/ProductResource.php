@@ -57,6 +57,13 @@ class ProductResource extends JsonResource
                 'stock',
                 fn ($stock) => $stock !== null ? new ProductStockResource($stock) : null,
             ),
+            'variants_count' => $this->whenCounted('variants'),
+            'variants' => $this->whenLoaded(
+                'variants',
+                fn ($variants) => $variants->isEmpty()
+                    ? null
+                    : ProductVariantResource::collection($variants),
+            ),
             'created_by_admin_id' => $this->created_by_admin_id,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\Supplier;
@@ -390,6 +391,442 @@ class AdminProductTest extends TestCase
         $ids = collect($this->getJson('/api/v1/admin/products')->json('data.products'))->pluck('id');
 
         $this->assertSame($newest->id, $ids->first());
+    }
+
+    public function test_product_list_can_be_sorted_by_created_at(): void
+    {
+        $this->actingAsAdmin();
+
+        $base = now();
+
+        $oldest = Product::factory()->create([
+            'name_en' => 'Oldest Product',
+            'created_at' => $base->copy()->subDays(2),
+        ]);
+        $middle = Product::factory()->create([
+            'name_en' => 'Middle Product',
+            'created_at' => $base->copy()->subDay(),
+        ]);
+        $newest = Product::factory()->create([
+            'name_en' => 'Newest Product',
+            'created_at' => $base->copy(),
+        ]);
+
+        $ascending = collect(
+            $this->getJson('/api/v1/admin/products?sort_by=created_at&sort_direction=asc')->json('data.products'),
+        )->pluck('id');
+
+        $this->assertSame([$oldest->id, $middle->id, $newest->id], $ascending->all());
+
+        $descending = collect(
+            $this->getJson('/api/v1/admin/products?sort_by=created_at&sort_direction=desc')->json('data.products'),
+        )->pluck('id');
+
+        $this->assertSame([$newest->id, $middle->id, $oldest->id], $descending->all());
+    }
+
+    public function test_product_list_rejects_invalid_sort_options(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->getJson('/api/v1/admin/products?sort_by=name')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_by');
+
+        $this->getJson('/api/v1/admin/products?sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_direction');
+    }
+
+    public function test_admin_can_create_product_with_optional_variants(): void
+    {
+        $this->actingAsAdmin();
+
+        $response = $this->postProduct([
+            'variants' => [
+                [
+                    'attributes' => ['Color' => 'Red', 'Size' => 'M'],
+                    'sku' => 'TS-RED-M',
+                    'retail_price' => 6000,
+                    'stock_quantity' => 5,
+                    'stock_status' => 'IN_STOCK',
+                    'photo' => UploadedFile::fake()->image('red.jpg'),
+                ],
+                [
+                    'attributes' => ['Color' => 'Blue', 'Size' => 'M'],
+                    'sku' => 'TS-BLUE-M',
+                    'retail_price' => 6500,
+                    'stock_status' => 'LOW_STOCK',
+                ],
+            ],
+        ])->assertCreated();
+
+        $response->assertJsonCount(2, 'data.product.variants')
+            ->assertJsonPath('data.product.variants_count', 2)
+            ->assertJsonPath('data.product.variants.0.variant_attributes.Color', 'Red')
+            ->assertJsonPath('data.product.variants.0.variant_attributes.Size', 'M')
+            ->assertJsonPath('data.product.variants.0.retail_price', 6000)
+            ->assertJsonPath('data.product.variants.0.stock_status', 'IN_STOCK')
+            ->assertJsonPath('data.product.variants.1.sku', 'TS-BLUE-M');
+
+        $productId = $response->json('data.product.id');
+        $firstVariant = ProductVariant::query()->where('product_id', $productId)->orderBy('sort_order')->firstOrFail();
+        $photoPath = $firstVariant->photo;
+
+        $this->assertSame('plastic-chair-color-red-size-m', $firstVariant->slug);
+        $this->assertIsString($photoPath);
+        Storage::disk('public')->assertExists($photoPath);
+        $this->assertSame(
+            url(Storage::disk('public')->url($photoPath)),
+            $response->json('data.product.variants.0.photo_url'),
+        );
+
+        // A variant without a photo falls back to the product photo URL.
+        $this->assertNull($response->json('data.product.variants.1.photo'));
+        $this->assertSame(
+            $response->json('data.product.photo_url'),
+            $response->json('data.product.variants.1.photo_url'),
+        );
+
+        $this->assertDatabaseHas('product_variants', [
+            'product_id' => $productId,
+            'sku' => 'TS-BLUE-M',
+            'stock_status' => 'LOW_STOCK',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'product.variant_created',
+            'entity_type' => 'product_variant',
+        ]);
+
+        // The edit page loads variants from the detail endpoint.
+        $this->getJson("/api/v1/admin/products/{$productId}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.product.variants')
+            ->assertJsonPath('data.product.variants.0.photo_url', $response->json('data.product.variants.0.photo_url'));
+    }
+
+    public function test_product_can_have_no_variants(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->postProduct(['variants' => null])
+            ->assertCreated()
+            ->assertJsonPath('data.product.variants', null)
+            ->assertJsonPath('data.product.variants_count', 0);
+
+        $this->assertDatabaseCount('product_variants', 0);
+    }
+
+    public function test_variant_can_be_created_with_a_flat_name(): void
+    {
+        $this->actingAsAdmin();
+
+        $response = $this->postProduct([
+            'variants' => [
+                ['name' => 'Red / M', 'retail_price' => 5000],
+                ['name' => 'Blue / L', 'retail_price' => 5500],
+            ],
+        ])->assertCreated();
+
+        $response->assertJsonCount(2, 'data.product.variants')
+            ->assertJsonPath('data.product.variants.0.name', 'Red / M')
+            ->assertJsonPath('data.product.variants.1.name', 'Blue / L');
+
+        $productId = $response->json('data.product.id');
+
+        $this->assertDatabaseHas('product_variants', [
+            'product_id' => $productId,
+            'name' => 'Red / M',
+        ]);
+        $this->assertSame(
+            'plastic-chair-red-m',
+            ProductVariant::query()->where('name', 'Red / M')->value('slug'),
+        );
+    }
+
+    public function test_variant_names_must_be_unique_within_the_product(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->postProduct([
+            'variants' => [
+                ['name' => 'Same variant', 'retail_price' => 5000],
+                ['name' => 'Same variant', 'retail_price' => 5000],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['variants.1.name']);
+    }
+
+    public function test_variant_payload_rejects_duplicate_combinations_discounts_and_skus(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => 5000],
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => 6000],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['variants.1.attributes']);
+
+        $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => 5000, 'discount_price' => 6000],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['variants.0.discount_price']);
+
+        $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'sku' => 'DUP-1', 'retail_price' => 5000],
+                ['attributes' => ['Color' => 'Blue'], 'sku' => 'DUP-1', 'retail_price' => 5000],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['variants.1.sku']);
+    }
+
+    public function test_admin_can_update_and_remove_variants(): void
+    {
+        $this->actingAsAdmin();
+
+        $create = $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'sku' => 'RED-1', 'retail_price' => 5000],
+                ['attributes' => ['Color' => 'Blue'], 'sku' => 'BLUE-1', 'retail_price' => 5500],
+            ],
+        ])->assertCreated();
+
+        $productId = $create->json('data.product.id');
+        $redId = $create->json('data.product.variants.0.id');
+        $blueId = $create->json('data.product.variants.1.id');
+
+        // Update Red, keep Blue, and add Green.
+        $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                [
+                    'id' => $redId,
+                    'attributes' => ['Color' => 'Red'],
+                    'sku' => 'RED-2',
+                    'retail_price' => 7000,
+                ],
+                ['id' => $blueId, 'attributes' => ['Color' => 'Blue'], 'retail_price' => 5500],
+                ['attributes' => ['Color' => 'Green'], 'sku' => 'GREEN-1', 'retail_price' => 6000],
+            ],
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonCount(3, 'data.product.variants');
+
+        $this->assertDatabaseHas('product_variants', ['id' => $redId, 'sku' => 'RED-2', 'retail_price' => 7000]);
+        $this->assertDatabaseHas('product_variants', ['product_id' => $productId, 'sku' => 'GREEN-1']);
+
+        // Removing Blue from the payload deletes it.
+        $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                [
+                    'id' => $redId,
+                    'attributes' => ['Color' => 'Red'],
+                    'retail_price' => 7000,
+                ],
+            ],
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.product.variants');
+
+        $this->assertDatabaseMissing('product_variants', ['id' => $blueId]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'product.variant_deleted']);
+    }
+
+    public function test_variants_can_swap_attribute_combinations(): void
+    {
+        $this->actingAsAdmin();
+
+        $create = $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'sku' => 'RED-1', 'retail_price' => 5000],
+                ['attributes' => ['Color' => 'Blue'], 'sku' => 'BLUE-1', 'retail_price' => 5500],
+            ],
+        ])->assertCreated();
+
+        $productId = $create->json('data.product.id');
+        $redId = $create->json('data.product.variants.0.id');
+        $blueId = $create->json('data.product.variants.1.id');
+
+        $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                ['id' => $redId, 'attributes' => ['Color' => 'Blue'], 'sku' => 'BLUE-1', 'retail_price' => 5500],
+                ['id' => $blueId, 'attributes' => ['Color' => 'Red'], 'sku' => 'RED-1', 'retail_price' => 5000],
+            ],
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $this->assertSame(['Color' => 'Blue'], ProductVariant::findOrFail($redId)->variant_attributes);
+        $this->assertSame(['Color' => 'Red'], ProductVariant::findOrFail($blueId)->variant_attributes);
+        $this->assertSame('BLUE-1', ProductVariant::findOrFail($redId)->sku);
+        $this->assertSame('RED-1', ProductVariant::findOrFail($blueId)->sku);
+    }
+
+    public function test_deleted_variant_sku_can_be_reused_in_the_same_update(): void
+    {
+        $this->actingAsAdmin();
+
+        $create = $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'sku' => 'RED-1', 'retail_price' => 5000],
+            ],
+        ])->assertCreated();
+
+        $productId = $create->json('data.product.id');
+
+        $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                ['attributes' => ['Color' => 'Blue'], 'sku' => 'RED-1', 'retail_price' => 5000],
+            ],
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.product.variants')
+            ->assertJsonPath('data.product.variants.0.sku', 'RED-1');
+
+        $variants = ProductVariant::query()->where('product_id', $productId)->get();
+
+        $this->assertCount(1, $variants);
+        $this->assertSame(['Color' => 'Blue'], $variants->first()->variant_attributes);
+    }
+
+    public function test_variant_photo_can_be_replaced_and_cleared_variants_are_deleted(): void
+    {
+        $this->actingAsAdmin();
+
+        $create = $this->postProduct([
+            'variants' => [
+                [
+                    'attributes' => ['Color' => 'Red'],
+                    'retail_price' => 5000,
+                    'photo' => UploadedFile::fake()->image('red-old.jpg'),
+                ],
+            ],
+        ])->assertCreated();
+
+        $productId = $create->json('data.product.id');
+        $variantId = $create->json('data.product.variants.0.id');
+        $oldPhoto = $create->json('data.product.variants.0.photo');
+
+        $update = $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                [
+                    'id' => $variantId,
+                    'attributes' => ['Color' => 'Red'],
+                    'retail_price' => 5000,
+                    'photo' => UploadedFile::fake()->image('red-new.jpg'),
+                ],
+            ],
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $newPhoto = $update->json('data.product.variants.0.photo');
+
+        $this->assertNotSame($oldPhoto, $newPhoto);
+        Storage::disk('public')->assertMissing($oldPhoto);
+        Storage::disk('public')->assertExists($newPhoto);
+
+        // An empty synced list removes every variant.
+        $this->post("/api/v1/admin/products/{$productId}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.product.variants', null)
+            ->assertJsonPath('data.product.variants_count', 0);
+
+        $this->assertDatabaseMissing('product_variants', ['id' => $variantId]);
+        Storage::disk('public')->assertMissing($newPhoto);
+    }
+
+    public function test_variant_id_must_belong_to_the_product_being_updated(): void
+    {
+        $this->actingAsAdmin();
+
+        $first = $this->postProduct([
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => 5000],
+            ],
+        ])->assertCreated();
+
+        $second = $this->postProduct([
+            'name_en' => 'Second Chair',
+            'variants' => [
+                ['attributes' => ['Color' => 'Blue'], 'retail_price' => 5000],
+            ],
+        ])->assertCreated();
+
+        $foreignVariantId = $second->json('data.product.variants.0.id');
+
+        $this->post("/api/v1/admin/products/{$first->json('data.product.id')}", [
+            '_method' => 'PATCH',
+            'variants_sync' => '1',
+            'variants' => [
+                ['id' => $foreignVariantId, 'attributes' => ['Color' => 'Green'], 'retail_price' => 5000],
+            ],
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['variants.0.id']);
+    }
+
+    public function test_publishing_with_variants_requires_variant_prices(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->postProduct([
+            'status' => 'PUBLISHED',
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => null],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['variants.0.retail_price']);
+
+        $this->postProduct([
+            'status' => 'PUBLISHED',
+            'variants' => [
+                ['attributes' => ['Color' => 'Red'], 'retail_price' => 5000],
+            ],
+        ])->assertCreated()->assertJsonPath('data.product.status', 'PUBLISHED');
+    }
+
+    public function test_deleting_product_removes_its_variants_and_photos(): void
+    {
+        $this->actingAsAdmin();
+
+        $create = $this->postProduct([
+            'variants' => [
+                [
+                    'attributes' => ['Color' => 'Red'],
+                    'retail_price' => 5000,
+                    'photo' => UploadedFile::fake()->image('red.jpg'),
+                ],
+            ],
+        ])->assertCreated();
+
+        $productId = $create->json('data.product.id');
+        $variantPhoto = $create->json('data.product.variants.0.photo');
+
+        $this->deleteJson("/api/v1/admin/products/{$productId}")->assertOk();
+
+        $this->assertDatabaseMissing('product_variants', ['product_id' => $productId]);
+        Storage::disk('public')->assertMissing($variantPhoto);
+    }
+
+    public function test_product_list_includes_variant_count(): void
+    {
+        $this->actingAsAdmin();
+
+        $product = Product::factory()->create();
+        ProductVariant::factory()->count(2)->create(['product_id' => $product->id]);
+
+        $this->getJson('/api/v1/admin/products')
+            ->assertOk()
+            ->assertJsonPath('data.products.0.variants_count', 2);
     }
 
     private function actingAsAdmin(): Admin

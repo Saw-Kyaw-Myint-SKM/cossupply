@@ -4,6 +4,7 @@ namespace App\Http\Requests\Api\V1;
 
 use App\Enums\ProductStatus;
 use App\Enums\StockStatus;
+use App\Http\Requests\Api\V1\Concerns\ValidatesProductVariants;
 use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Validator;
 
 class StoreProductRequest extends FormRequest
 {
+    use ValidatesProductVariants;
+
     /**
      * Route access is enforced by the auth:sanctum + admin middleware.
      */
@@ -52,6 +55,7 @@ class StoreProductRequest extends FormRequest
             'stock_quantity' => ['nullable', 'integer', 'min:0'],
             'stock_status' => ['nullable', Rule::in(StockStatus::values())],
             'supplier_note' => ['nullable', 'string', 'max:1000'],
+            ...$this->variantRules(),
         ];
     }
 
@@ -80,6 +84,8 @@ class StoreProductRequest extends FormRequest
                 if ($retail !== null && $discount !== null && (int) $discount > (int) $retail) {
                     $validator->errors()->add('discount_price', 'The discount price must not be greater than the retail price.');
                 }
+
+                $this->validateProductVariants($validator);
             },
         ];
     }

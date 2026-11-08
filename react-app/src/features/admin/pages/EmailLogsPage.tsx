@@ -18,12 +18,14 @@ import {
   describeLoadError,
   describeRequestError,
   formatStatusLabel,
+  filterSelectClass,
   inputClass,
   primaryButtonClass,
   secondaryButtonClass,
   smallButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { TableActions } from '../../../components/ui/TableActions';
 import type { PaginationMeta } from '../../../api/query';
 import {
   listEmailLogs,
@@ -138,7 +140,7 @@ export default function AdminEmailLogsPage() {
               setStatus(event.target.value as EmailLogStatus | '');
               setPage(1);
             }}
-            className={`${inputClass(false)} mt-1 w-full sm:w-48`}
+            className={`${filterSelectClass} mt-1 w-full sm:w-48`}
           >
             <option value="">{t('allStatuses')}</option>
             {STATUS_OPTIONS.map((option) => (
@@ -220,7 +222,7 @@ export default function AdminEmailLogsPage() {
                   <th scope="col" className="px-4 py-3 font-medium">{t('email')}</th>
                   <th scope="col" className="px-4 py-3 font-medium">{t('status')}</th>
                   <th scope="col" className="px-4 py-3 font-medium">{t('attempted')}</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">{t('action')}</th>
+                  <th scope="col" className="w-28 px-4 py-3 text-right font-medium">{t('action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -244,19 +246,24 @@ export default function AdminEmailLogsPage() {
                       <StatusBadge status={log.status} />
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600">{formatWhen(log.created_at, locale, t('noData'))}</td>
-                    <td className="px-4 py-3 text-right">
-                      {log.resendable ? (
-                        <button
-                          type="button"
-                          onClick={() => void resend(log)}
-                          disabled={resendingId === log.id}
-                          className={smallButtonClass}
-                        >
-                          {resendingId === log.id ? t('resending') : t('resendEmail')}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">{t('notResendable')}</span>
-                      )}
+                    <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                      <TableActions
+                        label={`${t('resendEmail')} ${log.recipient_email}`}
+                        primary={
+                          log.resendable ? (
+                            <button
+                              type="button"
+                              onClick={() => void resend(log)}
+                              disabled={resendingId === log.id}
+                              className={smallButtonClass}
+                            >
+                              {resendingId === log.id ? t('resending') : t('resendEmail')}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">{t('notResendable')}</span>
+                          )
+                        }
+                      />
                     </td>
                   </tr>
                 ))}

@@ -86,6 +86,14 @@ class Product extends Model
     }
 
     /**
+     * Optional variants (colour, size, ...) that belong to this product.
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
      * The current stock record for this product.
      */
     public function stock(): HasOne

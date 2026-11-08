@@ -137,7 +137,7 @@ export function PriceBlock({
       <div className="flex flex-wrap items-baseline gap-2">
         {discounted ? (
           <span
-            className="text-sm text-subtle line-through"
+            className="text-xs text-subtle line-through"
             aria-label={t('originalDisplayPrice')}
           >
             {formatMMK(price.retail_price)} MMK
@@ -276,7 +276,9 @@ export function ProductCard({
             loading="lazy"
             decoding="async"
             className={`h-full w-full object-contain ${
-              blocked ? "opacity-70 contrast-90 grayscale" : ""
+              blocked
+                ? "opacity-70 contrast-90 grayscale"
+                : "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out group-hover:scale-110 group-hover:brightness-105"
             }`}
           />          
 

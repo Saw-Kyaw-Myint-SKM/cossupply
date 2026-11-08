@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { PublicProduct } from '../api/catalog';
+import type { PublicProduct, PublicProductVariant } from '../api/catalog';
 import {
   addProductToCart,
   cartUnitCount,
   clearCartItems,
+  lineKey as cartLineKey,
   loadCart,
   removeCartItem,
   saveCart,
   setCartQuantity,
+  variantDisplayName,
   type CartItem,
 } from './cart-storage';
 
@@ -19,6 +21,9 @@ import {
  */
 export interface LastAddedCartLine {
   productId: number;
+  variantId: number | null;
+  lineKey: string;
+  variantLabel: string | null;
   quantity: number;
   at: number;
 }
@@ -30,13 +35,17 @@ interface CartContextType {
   /** Snapshot of the most recent successful add, or null when the list starts session. */
   lastAdded: LastAddedCartLine | null;
   /**
-   * Add (or top up) a product line.
+   * Add (or top up) a product/variant line.
    * Returns null on success, or the rejection message to show the buyer.
    */
-  add: (product: PublicProduct, quantity: number) => string | null;
-  /** Same contract as `add`, for an existing line. */
-  setQuantity: (productId: number, quantity: number) => string | null;
-  remove: (productId: number) => void;
+  add: (
+    product: PublicProduct,
+    quantity: number,
+    variant?: PublicProductVariant | null,
+  ) => string | null;
+  /** Same contract as `add`, for an existing line key. */
+  setQuantity: (lineKey: string, quantity: number) => string | null;
+  remove: (lineKey: string) => void;
   clear: () => void;
 }
 
@@ -50,18 +59,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveCart(items);
   }, [items]);
 
-  const add = (product: PublicProduct, quantity: number): string | null => {
-    const result = addProductToCart(items, product, quantity);
+  const add = (
+    product: PublicProduct,
+    quantity: number,
+    variant: PublicProductVariant | null = null,
+  ): string | null => {
+    const result = addProductToCart(items, product, quantity, variant);
 
     if (result.error !== null) return result.error;
 
     setItems(result.items);
-    setLastAdded({ productId: product.id, quantity, at: Date.now() });
+    setLastAdded({
+      productId: product.id,
+      variantId: variant?.id ?? null,
+      lineKey: cartLineKey({ product_id: product.id, variant_id: variant?.id ?? null }),
+      variantLabel: variant ? variantDisplayName(variant) : null,
+      quantity,
+      at: Date.now(),
+    });
     return null;
   };
 
-  const setQuantity = (productId: number, quantity: number): string | null => {
-    const result = setCartQuantity(items, productId, quantity);
+  const setQuantity = (key: string, quantity: number): string | null => {
+    const result = setCartQuantity(items, key, quantity);
 
     if (result.error !== null) return result.error;
 
@@ -69,8 +89,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const remove = (productId: number) => {
-    setItems((current) => removeCartItem(current, productId));
+  const remove = (key: string) => {
+    setItems((current) => removeCartItem(current, key));
   };
 
   const clear = () => {

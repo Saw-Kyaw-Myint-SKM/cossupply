@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   CATEGORY_FIELDS,
   buildCategoryFormData,
@@ -28,6 +28,7 @@ import {
   validateImageFile,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { useToast } from '../../../components/ui/Toast';
 
 interface CategoryFormState {
   parent_id: string;
@@ -82,15 +83,13 @@ function toFormState(category: Category): CategoryFormState {
  * param, `/admin/categories/:id/edit` loads the category first.
  */
 export default function CategoryFormPage() {
+  const { showToast } = useToast();
   const params = useParams<{ id: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const rawId = params.id;
   const categoryId = rawId === undefined ? null : Number(rawId);
   const isEdit = categoryId !== null;
-
-  const flashMessage = (location.state as { flash?: string } | null)?.flash ?? null;
 
   const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
   const [current, setCurrent] = useState<Category | null>(null);
@@ -106,16 +105,8 @@ export default function CategoryFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(flashMessage);
 
   const formAlertRef = useRef<HTMLDivElement>(null);
-
-  // Consume the "created" flash so it does not reappear on refresh.
-  useEffect(() => {
-    if (flashMessage) {
-      navigate(location.pathname, { replace: true, state: null });
-    }
-  }, [flashMessage, location.pathname, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,7 +228,6 @@ export default function CategoryFormPage() {
 
   const updateField = <K extends keyof CategoryFormState>(key: K, value: CategoryFormState[K]) => {
     setForm((previous) => ({ ...previous, [key]: value }));
-    setSuccessMessage(null);
     setFormError(null);
     clearFieldError(key);
   };
@@ -246,7 +236,6 @@ export default function CategoryFormPage() {
     const input = event.target;
     const file = input.files?.[0] ?? null;
 
-    setSuccessMessage(null);
     setFormError(null);
 
     if (!file) {
@@ -287,7 +276,6 @@ export default function CategoryFormPage() {
     setIsSaving(true);
     setFormError(null);
     setFieldErrors({});
-    setSuccessMessage(null);
 
     const formData = buildCategoryFormData({
       parent_id: form.parent_id,
@@ -309,18 +297,26 @@ export default function CategoryFormPage() {
 
     if (response.success && response.data) {
       const category = response.data.category;
+      const categoryLabel = category.name_en || category.name_mm;
 
       if (categoryId === null) {
-        navigate(`/admin/categories/${category.id}/edit`, {
-          replace: true,
-          state: { flash: 'Category created.' },
+        showToast({
+          tone: 'success',
+          title: 'Category created.',
+          description: `“${categoryLabel}” was added to the catalog.`,
         });
+
+        navigate(`/admin/categories/${category.id}/edit`, { replace: true });
         return;
       }
 
       setCurrent(category);
       setForm(toFormState(category));
-      setSuccessMessage(response.message ?? 'Category updated.');
+      showToast({
+        tone: 'success',
+        title: 'Category updated.',
+        description: `“${categoryLabel}” is up to date.`,
+      });
       return;
     }
 
@@ -392,12 +388,6 @@ export default function CategoryFormPage() {
   return (
     <div className="space-y-6">
       {header}
-
-      {successMessage ? (
-        <Alert tone="success">
-          <p className="text-sm font-medium">{successMessage}</p>
-        </Alert>
-      ) : null}
 
       {optionsError ? (
         <Alert tone="warning">

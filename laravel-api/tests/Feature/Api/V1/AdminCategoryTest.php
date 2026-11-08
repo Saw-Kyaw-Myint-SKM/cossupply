@@ -221,6 +221,51 @@ class AdminCategoryTest extends TestCase
             ->assertJsonValidationErrors(['per_page']);
     }
 
+    public function test_category_list_can_be_sorted_by_created_at(): void
+    {
+        $this->actingAsAdmin();
+
+        $base = now();
+
+        $oldest = Category::factory()->create([
+            'name_en' => 'Oldest Category',
+            'created_at' => $base->copy()->subDays(2),
+        ]);
+        $middle = Category::factory()->create([
+            'name_en' => 'Middle Category',
+            'created_at' => $base->copy()->subDay(),
+        ]);
+        $newest = Category::factory()->create([
+            'name_en' => 'Newest Category',
+            'created_at' => $base->copy(),
+        ]);
+
+        $descending = collect(
+            $this->getJson('/api/v1/admin/categories?sort_by=created_at&sort_direction=desc')->json('data.categories'),
+        )->pluck('id');
+
+        $this->assertSame([$newest->id, $middle->id, $oldest->id], $descending->all());
+
+        $ascending = collect(
+            $this->getJson('/api/v1/admin/categories?sort_by=created_at&sort_direction=asc')->json('data.categories'),
+        )->pluck('id');
+
+        $this->assertSame([$oldest->id, $middle->id, $newest->id], $ascending->all());
+    }
+
+    public function test_category_list_rejects_invalid_sort_options(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->getJson('/api/v1/admin/categories?sort_by=name_en')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_by');
+
+        $this->getJson('/api/v1/admin/categories?sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_direction');
+    }
+
     private function actingAsAdmin(): Admin
     {
         $admin = Admin::factory()->create();

@@ -30,6 +30,8 @@ class AdminCategoryController extends Controller
             'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
             'status' => ['nullable', Rule::in(Category::STATUSES)],
             'search' => ['nullable', 'string', 'max:100'],
+            'sort_by' => ['nullable', Rule::in(['created_at'])],
+            'sort_direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 

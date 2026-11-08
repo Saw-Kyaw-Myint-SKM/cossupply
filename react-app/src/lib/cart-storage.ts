@@ -12,13 +12,26 @@
  *   - Quantity must be a whole number of at least the product MOQ.
  *   - SUPPLIER_CONFIRMATION_REQUIRED products are cart-eligible but must be
  *     flagged so the UI can say "Price/Stock will be confirmed".
+ *
+ * Variants are optional. A line is identified by product + variant, so two
+ * colours of the same product stay separate lines while adding the same
+ * colour twice tops up one line.
  */
-import type { PublicProduct, PublicProductPrice, StockStatus } from '../api/catalog';
+import type {
+  PublicProduct,
+  PublicProductPrice,
+  PublicProductVariant,
+  StockStatus,
+} from '../api/catalog';
 
 export const CART_STORAGE_KEY = 'cos_cart_v1';
 
 export interface CartItem {
   product_id: number;
+  /** null for a product-level line (no variants). */
+  variant_id: number | null;
+  /** Snapshot of the chosen options, e.g. "Color: Red, Size: M". */
+  variant_label: string | null;
   slug: string;
   sku: string | null;
   name_mm: string;
@@ -42,6 +55,25 @@ export interface CartMutation {
   error: string | null;
 }
 
+/** Stable identity for one cart line: product + optional variant. */
+export function lineKey(item: Pick<CartItem, 'product_id' | 'variant_id'>): string {
+  return `${item.product_id}:${item.variant_id ?? 0}`;
+}
+
+/** Readable label for a legacy variant attribute snapshot. */
+export function variantLabel(attributes: Record<string, string>): string {
+  return Object.entries(attributes)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join(', ');
+}
+
+/** The admin-typed variant name, falling back to legacy attributes. */
+export function variantDisplayName(variant: PublicProductVariant): string {
+  const name = (variant.name ?? '').trim();
+
+  return name !== '' ? name : variantLabel(variant.variant_attributes ?? {});
+}
+
 /**
  * The unit price shown to buyers: the discounted price when it is a genuine
  * reduction, otherwise retail. A `discount_price` of 0 is stored as "no
@@ -59,9 +91,31 @@ export function displayUnitPrice(price: PublicProductPrice | null | undefined): 
   return retail;
 }
 
+/** Variant unit price using the same discount rule as the product price. */
+export function variantDisplayUnitPrice(
+  variant: PublicProductVariant | null | undefined,
+): number | null {
+  if (!variant || variant.retail_price === null) return null;
+
+  const retail = variant.retail_price;
+  const discount = variant.discount_price;
+
+  if (discount !== null && discount !== undefined && discount > 0 && discount < retail) {
+    return discount;
+  }
+
+  return retail;
+}
+
 /** MOQ for a product, defaulting to 1 when no price row exists yet. */
 export function minimumQuantity(price: PublicProductPrice | null | undefined): number {
   const moq = price?.minimum_order_quantity ?? 1;
+  return Number.isFinite(moq) && moq >= 1 ? Math.trunc(moq) : 1;
+}
+
+/** MOQ for a chosen variant, defaulting to 1. */
+export function variantMinimumQuantity(variant: PublicProductVariant | null | undefined): number {
+  const moq = variant?.minimum_order_quantity ?? 1;
   return Number.isFinite(moq) && moq >= 1 ? Math.trunc(moq) : 1;
 }
 
@@ -96,6 +150,21 @@ export function cartBlockReason(product: PublicProduct): string | null {
   return null;
 }
 
+/** Why a chosen variant cannot be added, or null when it can. */
+export function variantBlockReason(variant: PublicProductVariant | null): string | null {
+  if (!variant) return null;
+
+  if (variant.stock_status === 'OUT_OF_STOCK') {
+    return 'This variant is out of stock and cannot be added to the cart.';
+  }
+
+  if (variant.retail_price === null) {
+    return 'This variant has no confirmed price yet.';
+  }
+
+  return null;
+}
+
 /** Validate a quantity against a product's MOQ. Returns an error message or null. */
 export function quantityError(quantity: number, minimum: number): string | null {
   if (!Number.isFinite(quantity) || !Number.isInteger(quantity)) {
@@ -111,64 +180,77 @@ export function quantityError(quantity: number, minimum: number): string | null 
   return null;
 }
 
-function snapshot(product: PublicProduct, quantity: number): CartItem | null {
-  const price = displayUnitPrice(product.price);
-  const moq = minimumQuantity(product.price);
+function snapshot(
+  product: PublicProduct,
+  quantity: number,
+  variant: PublicProductVariant | null,
+): CartItem | null {
+  const price = variant ? variantDisplayUnitPrice(variant) : displayUnitPrice(product.price);
+  const moq = variant ? variantMinimumQuantity(variant) : minimumQuantity(product.price);
 
   if (price === null) return null;
 
   return {
     product_id: product.id,
+    variant_id: variant?.id ?? null,
+    variant_label: variant ? variantDisplayName(variant) : null,
     slug: product.slug,
-    sku: product.sku,
+    sku: variant?.sku ?? product.sku,
     name_mm: product.name_mm,
     name_en: product.name_en,
     unit: product.unit,
-    photo_url: product.photo_url,
+    photo_url: variant?.photo_url ?? product.photo_url,
     supplier_id: product.supplier_id,
     supplier_name: product.supplier?.shop_name ?? null,
     category_name: product.category?.name_en ?? null,
     unit_price: price,
     minimum_order_quantity: moq,
-    stock_status: product.stock?.stock_status ?? null,
-    stock_quantity: product.stock?.stock_quantity ?? null,
+    stock_status: variant?.stock_status ?? product.stock?.stock_status ?? null,
+    stock_quantity: variant?.stock_quantity ?? product.stock?.stock_quantity ?? null,
     quantity,
   };
 }
 
 /**
- * Add a product (or increase an existing line).
- * Returns the previous list untouched when the product is not eligible or the
+ * Add a product (or variant) or increase an existing line.
+ * Returns the previous list untouched when the line is not eligible or the
  * quantity is below MOQ, together with a message for the UI.
  */
 export function addProductToCart(
   items: CartItem[],
   product: PublicProduct,
   quantity: number,
+  variant: PublicProductVariant | null = null,
 ): CartMutation {
-  const blocked = cartBlockReason(product);
+  if (product.status !== 'PUBLISHED') {
+    return { items, error: 'This product is not available.' };
+  }
+
+  const blocked = variant ? variantBlockReason(variant) : cartBlockReason(product);
   if (blocked) return { items, error: blocked };
 
-  const price = displayUnitPrice(product.price);
+  const price = variant ? variantDisplayUnitPrice(variant) : displayUnitPrice(product.price);
   if (price === null) {
     return { items, error: 'This product has no confirmed price yet.' };
   }
 
-  const moq = minimumQuantity(product.price);
+  const moq = variant ? variantMinimumQuantity(variant) : minimumQuantity(product.price);
   const invalid = quantityError(quantity, moq);
   if (invalid) return { items, error: invalid };
 
-  const existing = items.find((item) => item.product_id === product.id);
+  const key = lineKey({ product_id: product.id, variant_id: variant?.id ?? null });
+  const existing = items.find((item) => lineKey(item) === key);
+
   if (existing) {
     return {
       items: items.map((item) =>
-        item.product_id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
+        lineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item,
       ),
       error: null,
     };
   }
 
-  const created = snapshot(product, quantity);
+  const created = snapshot(product, quantity, variant);
   if (!created) return { items, error: 'This product has no confirmed price yet.' };
 
   return { items: [...items, created], error: null };
@@ -177,23 +259,23 @@ export function addProductToCart(
 /** Replace an existing line's quantity, enforcing MOQ. */
 export function setCartQuantity(
   items: CartItem[],
-  productId: number,
+  key: string,
   quantity: number,
 ): CartMutation {
-  const existing = items.find((item) => item.product_id === productId);
-  if (!existing) return { items, error: 'That product is no longer in your cart.' };
+  const existing = items.find((item) => lineKey(item) === key);
+  if (!existing) return { items, error: 'That item is no longer in your cart.' };
 
   const invalid = quantityError(quantity, existing.minimum_order_quantity);
   if (invalid) return { items, error: invalid };
 
   return {
-    items: items.map((item) => (item.product_id === productId ? { ...item, quantity } : item)),
+    items: items.map((item) => (lineKey(item) === key ? { ...item, quantity } : item)),
     error: null,
   };
 }
 
-export function removeCartItem(items: CartItem[], productId: number): CartItem[] {
-  return items.filter((item) => item.product_id !== productId);
+export function removeCartItem(items: CartItem[], key: string): CartItem[] {
+  return items.filter((item) => lineKey(item) !== key);
 }
 
 export function clearCartItems(): CartItem[] {
@@ -218,14 +300,19 @@ export function cartSubtotal(items: CartItem[]): number {
 export function reconcileCart(items: unknown): CartItem[] {
   if (!Array.isArray(items)) return [];
 
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   const result: CartItem[] = [];
 
   for (const entry of items) {
     if (!entry || typeof entry !== 'object') continue;
 
     const item = entry as Partial<CartItem>;
-    if (typeof item.product_id !== 'number' || seen.has(item.product_id)) continue;
+    if (typeof item.product_id !== 'number') continue;
+
+    const variantId = typeof item.variant_id === 'number' ? item.variant_id : null;
+    const key = lineKey({ product_id: item.product_id, variant_id: variantId });
+
+    if (seen.has(key)) continue;
 
     const quantity = Number(item.quantity);
     const minimum = Number(item.minimum_order_quantity);
@@ -241,10 +328,12 @@ export function reconcileCart(items: unknown): CartItem[] {
     if (item.stock_status === 'OUT_OF_STOCK') continue;
     if (typeof item.slug !== 'string' || typeof item.name_mm !== 'string') continue;
 
-    seen.add(item.product_id);
+    seen.add(key);
 
     result.push({
       product_id: item.product_id,
+      variant_id: variantId,
+      variant_label: typeof item.variant_label === 'string' ? item.variant_label : null,
       slug: item.slug,
       sku: typeof item.sku === 'string' ? item.sku : null,
       name_mm: item.name_mm,

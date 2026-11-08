@@ -31,6 +31,8 @@ export interface CategoryListParams {
   search?: string;
   status?: CategoryStatus | '';
   parent_id?: number | string;
+  sort_by?: 'created_at';
+  sort_direction?: 'asc' | 'desc';
 }
 
 export interface CategoryListResult {
@@ -85,7 +87,9 @@ export function buildCategoryFormData(input: CategoryInput): FormData {
 /**
  * GET /admin/categories
  *
- * Paginated list ordered by `sort_order`, then `name_en`, then `id`.
+ * Paginated list ordered by `sort_order`, then `name_en`, then `id` by
+ * default. Pass `sort_by: 'created_at'` with `sort_direction: 'desc'` for
+ * newest first (or `'asc'` for oldest first).
  */
 export async function listCategories(
   params: CategoryListParams = {},
@@ -96,6 +100,8 @@ export async function listCategories(
     search: params.search,
     status: params.status,
     parent_id: params.parent_id,
+    sort_by: params.sort_by,
+    sort_direction: params.sort_direction,
   });
 
   return apiRequest<CategoryListResult>(`/admin/categories${query}`);

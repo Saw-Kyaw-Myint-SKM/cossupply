@@ -62,6 +62,12 @@ class PublicProductResource extends JsonResource
                 'stock',
                 fn ($stock) => $stock !== null ? new PublicProductStockResource($stock) : null,
             ),
+            'variants' => $this->whenLoaded(
+                'variants',
+                fn ($variants) => $variants->isEmpty()
+                    ? null
+                    : PublicProductVariantResource::collection($variants),
+            ),
         ];
     }
 }

@@ -41,7 +41,12 @@ class CategoryService
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
-        return Category::query()
+        $sortBy = in_array($filters['sort_by'] ?? null, ['created_at'], true)
+            ? $filters['sort_by']
+            : null;
+        $sortDirection = ($filters['sort_direction'] ?? null) === 'asc' ? 'asc' : 'desc';
+
+        $query = Category::query()
             ->when(filled($filters['parent_id'] ?? null), fn (Builder $query): Builder => $query->where('parent_id', $filters['parent_id']))
             ->when(filled($filters['status'] ?? null), fn (Builder $query): Builder => $query->where('status', $filters['status']))
             ->when(filled($filters['search'] ?? null), function (Builder $query) use ($filters): void {
@@ -51,8 +56,15 @@ class CategoryService
                     $query->where('name_mm', 'like', "%{$search}%")
                         ->orWhere('name_en', 'like', "%{$search}%");
                 });
-            })
-            ->orderBy('sort_order')
+            });
+
+        if ($sortBy === 'created_at') {
+            return $query->orderBy('created_at', $sortDirection)
+                ->orderBy('id', $sortDirection)
+                ->paginate($this->perPage($filters));
+        }
+
+        return $query->orderBy('sort_order')
             ->orderBy('name_en')
             ->orderBy('id')
             ->paginate($this->perPage($filters));

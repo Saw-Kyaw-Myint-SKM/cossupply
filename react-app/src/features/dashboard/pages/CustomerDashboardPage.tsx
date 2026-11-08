@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  FiAlertCircle,
   FiArrowRight,
   FiClipboard,
   FiFileText,
@@ -14,11 +13,7 @@ import {
   listQuotationRequests,
   type QuotationRequestSummary,
 } from '../../quotations/api/quotationsApi';
-import QuotationStatusBadge from '../../quotations/components/QuotationStatusBadge';
-import {
-  buildQuotationListMarkers,
-  formatQuotationDate,
-} from '../../quotations/lib/quotationView';
+import QuotationSummaryCard from '../../quotations/components/QuotationSummaryCard';
 
 function SummaryTile({
   to,
@@ -218,15 +213,20 @@ export default function CustomerDashboardPage() {
 
         <div className="p-3">
           {quotationLoading ? (
-            <div className="grid grid-cols-2 gap-2.5">
-              {[0, 1].map((index) => (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {[0, 1, 2].map((index) => (
                 <div
                   key={index}
-                  className="space-y-2 rounded-lg border border-slate-200/60 bg-white/60 p-2.5"
+                  className="h-44 animate-pulse rounded-xl border border-slate-200/60 bg-white/60 p-3.5"
                 >
-                  <div className="h-2.5 w-3/4 animate-pulse rounded bg-slate-200/70" />
-                  <div className="h-2.5 w-1/2 animate-pulse rounded bg-slate-100" />
-                  <div className="h-2.5 w-2/3 animate-pulse rounded bg-slate-100" />
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="h-2.5 w-1/2 rounded bg-slate-200/70" />
+                    <div className="h-4 w-14 rounded-full bg-slate-200/70" />
+                  </div>
+                  <div className="mt-5 h-3 w-10 rounded bg-slate-100" />
+                  <div className="mt-2 h-5 w-2/3 rounded bg-slate-200/70" />
+                  <div className="mt-4 h-2.5 w-3/4 rounded bg-slate-100" />
+                  <div className="mt-2 h-2.5 w-1/2 rounded bg-slate-100" />
                 </div>
               ))}
             </div>
@@ -271,71 +271,10 @@ export default function CustomerDashboardPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2.5">
-              {latestQuotations.map((row) => {
-                const markers = buildQuotationListMarkers(row, locale, t);
-
-                return (
-                  <Link
-                    key={row.id}
-                    to={`/quotations/${row.id}`}
-                    className={`group flex h-full flex-col rounded-lg border bg-white/75 p-2.5 shadow-sm hover:border-primary/40 hover:bg-white hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-safe:transition-all ${
-                      markers.actionNeeded
-                        ? 'border-amber-300/80 ring-1 ring-amber-200/60'
-                        : 'border-slate-200/70'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span
-                        className="min-w-0 flex-1 truncate font-mono text-[10px] font-semibold text-slate-600"
-                        title={row.quotation_number}
-                      >
-                        {row.quotation_number}
-                      </span>
-                      {markers.actionNeeded && (
-                        <span
-                          aria-label={t('actionNeeded')}
-                          className="h-1.5 w-1.5 flex-none rounded-full bg-amber-500 ring-2 ring-amber-100"
-                        />
-                      )}
-                    </div>
-
-                    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
-                      <span className="flex min-w-0 [&>span]:max-w-full [&>span]:truncate [&>span]:px-1.5 [&>span]:py-0 [&>span]:text-[10px]">
-                        <QuotationStatusBadge status={row.status} />
-                      </span>
-                      {markers.actionNeeded && (
-                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                          <FiAlertCircle aria-hidden="true" className="h-2.5 w-2.5" />
-                          {t('action')}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="mt-1.5 text-[10px] text-slate-500">
-                      {formatQuotationDate(row.created_at, locale, t)}
-                      <span aria-hidden="true" className="px-1 text-slate-300">
-                        ·
-                      </span>
-                      {row.item_count} {t(row.item_count === 1 ? 'line' : 'lines')}
-                    </p>
-
-                    <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                      {markers.hasCurrentVersion && markers.currentVersionLabel ? (
-                        <span className="truncate text-[10px] text-slate-500">
-                          {markers.currentVersionLabel}
-                        </span>
-                      ) : (
-                        <span aria-hidden="true" />
-                      )}
-                      <span className="inline-flex flex-none items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary group-hover:bg-primary group-hover:text-white motion-safe:transition-colors">
-                        {t('view')}
-                        <FiArrowRight aria-hidden="true" className="h-2.5 w-2.5" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {latestQuotations.map((row) => (
+                <QuotationSummaryCard key={row.id} row={row} />
+              ))}
             </div>
           )}
         </div>

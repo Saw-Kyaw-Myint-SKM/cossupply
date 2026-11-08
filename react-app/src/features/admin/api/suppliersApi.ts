@@ -45,6 +45,8 @@ export interface SupplierListParams {
   per_page?: number;
   search?: string;
   status?: SupplierStatus | '';
+  sort_by?: 'shop_name' | 'created_at';
+  sort_direction?: 'asc' | 'desc';
 }
 
 export interface SupplierListResult {
@@ -120,7 +122,8 @@ export function buildSupplierFormData(input: SupplierInput): FormData {
 /**
  * GET /admin/suppliers
  *
- * Paginated list ordered by `shop_name`, then `id`.
+ * Paginated list ordered by `shop_name` then `id` by default. Pass
+ * `sort_by=created_at` with `sort_direction` to sort by creation time.
  */
 export async function listSuppliers(
   params: SupplierListParams = {},
@@ -130,6 +133,8 @@ export async function listSuppliers(
     per_page: params.per_page,
     search: params.search,
     status: params.status,
+    sort_by: params.sort_by,
+    sort_direction: params.sort_direction,
   });
 
   return apiRequest<SupplierListResult>(`/admin/suppliers${query}`);

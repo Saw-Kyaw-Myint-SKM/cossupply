@@ -262,6 +262,7 @@ export function buildQuotationRequestPayload(args: BuildQuotationPayloadArgs): B
       ? {
           items: args.items.map((item) => ({
             product_id: item.product_id,
+            ...(item.variant_id !== null ? { variant_id: item.variant_id } : {}),
             quantity: item.quantity,
           })),
           name: delivery.name,

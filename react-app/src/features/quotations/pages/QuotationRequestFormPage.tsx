@@ -17,6 +17,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Alert,
   EmptyState,
+  FALLBACK_THUMB,
   Field,
   LoadingPanel,
   PageHeader,
@@ -37,7 +38,7 @@ import { useAuth, type User } from '../../../lib/auth-context';
 import { useCart } from '../../../lib/cart-context';
 import { useI18n, type TranslationKey, type Translator } from '../../../lib/i18n-context';
 import { formatMMK } from '../../../lib/money';
-import { needsSupplierConfirmation } from '../../../lib/cart-storage';
+import { lineKey, needsSupplierConfirmation } from '../../../lib/cart-storage';
 import type { QuotationRequest } from '../api/quotationsApi';
 import {
   buildQuotationRequestPayload,
@@ -341,43 +342,11 @@ export default function QuotationRequestFormPage() {
         </Alert>
       ) : null}
 
-      {/* Order summary derived from the cart snapshot lines. */}
-      <section className="rounded-lg border border-rule bg-plate" aria-label={t('orderListSummary')}>
-        <ul className="divide-y divide-rule">
-          {items.map((item, index) => (
-            <li key={item.product_id} className="flex items-start gap-4 p-4">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  {displayName(item)}
-                </p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  {t('supplierDefault')}
-                  {item.sku ? ` · ${t('sku', { sku: item.sku })}` : ''}
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900">
-                  {formatMMK(item.unit_price)} {t('mmk')} / {item.unit} × {item.quantity} ={' '}
-                  <span className="tabular-nums">{formatMMK(item.unit_price * item.quantity)}</span>{' '}
-                  {t('mmk')}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {t('displayPriceOnly')}
-                </p>
-                {needsSupplierConfirmation(item.stock_status) ? (
-                  <p className="mt-2 inline-block rounded-md bg-purple-50 px-2 py-1 text-xs text-purple-800">
-                    {t('lineSupplierConfirmation')}
-                  </p>
-                ) : null}
-                {itemErrors.some((error) => error.key === `items.${index}.quantity`) ? (
-                  <p role="alert" className="mt-2 text-xs text-red-600">
-                    {itemErrors.find((error) => error.key === `items.${index}.quantity`)?.message}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-wrap items-baseline justify-between gap-3 border-t border-rule">
-          <p className="text-sm text-gray-600">
+      {/* Order summary derived from the cart snapshot lines, one card per line. */}
+      <section className="space-y-3" aria-label={t('orderListSummary')}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold text-ink">{t('orderListSummary')}</h2>
+          <p className="text-xs text-gray-500">
             {t('orderListSummaryCount', {
               units: itemCount,
               unitLabel: t(itemCount === 1 ? 'unit' : 'units'),
@@ -385,20 +354,91 @@ export default function QuotationRequestFormPage() {
               lineLabel: t(items.length === 1 ? 'line' : 'lines'),
             })}
           </p>
-          <p className="text-lg font-semibold text-ink tabular-nums">{formatMMK(subtotal)} {t('mmk')}</p>
         </div>
-        <p className="border-t border-rule px-4 py-3 text-xs text-gray-500">
-          {t('orderListSummaryNotice')}
-        </p>
-        {hasSupplierConfirmationLines ? (
-          <p className="border-t border-purple-100 bg-purple-50/60 px-4 py-2 text-xs text-purple-800">
-            {t('someLinesNeedSupplierConfirmation')}
+
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {items.map((item, index) => {
+            const quantityError = itemErrors.find(
+              (error) => error.key === `items.${index}.quantity`,
+            );
+
+            return (
+              <li
+                key={lineKey(item)}
+                className="flex h-full flex-col rounded-xl border border-rule bg-plate p-3.5 shadow-sm motion-safe:transition-all hover:border-primary/30 hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  <img
+                    src={item.photo_url ?? FALLBACK_THUMB}
+                    alt={displayName(item)}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-14 w-14 flex-none rounded-lg object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-snug text-gray-900">
+                      {displayName(item)}
+                    </p>
+                    {item.variant_label ? (
+                      <p className="mt-0.5 text-xs font-medium text-accent">
+                        {item.variant_label}
+                      </p>
+                    ) : null}
+                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                      {item.supplier_name ?? t('supplierDefault')}
+                      {item.sku ? ` · ${t('sku', { sku: item.sku })}` : ''}
+                    </p>
+                  </div>
+                  <span className="flex-none rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary tabular-nums">
+                    ×{item.quantity}
+                  </span>
+                </div>
+
+                <div className="mt-3 border-t border-rule pt-3">
+                  <p className="text-[11px] text-gray-500">
+                    {t('displayPrice')} · {formatMMK(item.unit_price)} {t('mmk')}
+                    {item.unit ? ` / ${item.unit}` : ''}
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-ink">
+                    {formatMMK(item.unit_price * item.quantity)} {t('mmk')}
+                  </p>
+                </div>
+
+                {needsSupplierConfirmation(item.stock_status) ? (
+                  <p className="mt-2 rounded-md bg-purple-50 px-2 py-1 text-xs text-purple-800">
+                    {t('lineSupplierConfirmation')}
+                  </p>
+                ) : null}
+                {quantityError ? (
+                  <p role="alert" className="mt-2 text-xs text-red-600">
+                    {quantityError.message}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="rounded-xl border border-rule bg-plate shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-3 px-4 py-3">
+            <p className="text-sm font-medium text-gray-600">{t('subtotalDisplayPrice')}</p>
+            <p className="text-lg font-semibold text-ink tabular-nums">
+              {formatMMK(subtotal)} {t('mmk')}
+            </p>
+          </div>
+          <p className="border-t border-rule px-4 py-3 text-xs text-gray-500">
+            {t('orderListSummaryNotice')}
           </p>
-        ) : null}
+          {hasSupplierConfirmationLines ? (
+            <p className="border-t border-purple-100 bg-purple-50/60 px-4 py-2 text-xs text-purple-800">
+              {t('someLinesNeedSupplierConfirmation')}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       {/* Contact details (request-time snapshot). */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('contactDetails')}>
+      <section className="rounded-xl border border-rule bg-plate p-4 shadow-sm sm:p-6" aria-label={t('contactDetails')}>
         <h2 className="text-base font-semibold text-ink">{t('contactDetails')}</h2>
         <p className="mt-1 text-xs text-gray-500">
           {t('contactDetailsHint')}
@@ -477,7 +517,7 @@ export default function QuotationRequestFormPage() {
       </section>
 
       {/* Delivery address: saved entries or manual entry. */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('deliveryAddress')}>
+      <section className="rounded-xl border border-rule bg-plate p-4 shadow-sm sm:p-6" aria-label={t('deliveryAddress')}>
         <h2 className="text-base font-semibold text-ink">{t('deliveryAddress')}</h2>
         <p className="mt-1 text-sm text-gray-600">
           {addresses && addresses.length > 0
@@ -641,7 +681,7 @@ export default function QuotationRequestFormPage() {
       </section>
 
       {/* Delivery preferences. */}
-      <section className="rounded-lg border border-rule bg-plate p-4 sm:p-6" aria-label={t('deliveryPreferences')}>
+      <section className="rounded-xl border border-rule bg-plate p-4 shadow-sm sm:p-6" aria-label={t('deliveryPreferences')}>
         <h2 className="text-base font-semibold text-ink">{t('deliveryPreferences')}</h2>
 
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -728,7 +768,7 @@ function SubmittedView({ quotation, t }: { quotation: QuotationRequest; t: Trans
       <Alert tone="success">{t('quotationSubmitted')}</Alert>
 
       <section
-        className="rounded-lg border border-rule bg-plate p-6"
+        className="rounded-xl border border-rule bg-plate p-6 shadow-sm"
         aria-label={t('quotationRequestConfirmation')}
       >
         <h1 className="text-base font-medium text-gray-600">
@@ -755,25 +795,31 @@ function SubmittedView({ quotation, t }: { quotation: QuotationRequest; t: Trans
           </div>
         </dl>
 
-        <ul className="mt-6 divide-y divide-rule border-t border-rule">
+        <ul className="mt-6 grid grid-cols-1 gap-3 border-t border-rule pt-4 sm:grid-cols-2">
           {quotation.items.map((item, index) => (
-            <li key={`${item.product_id}-${index}`} className="flex items-start gap-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  {item.product_name_snapshot}
-                </p>
-                {item.specification_snapshot ? (
-                  <p className="mt-0.5 text-xs text-gray-500">{item.specification_snapshot}</p>
-                ) : null}
-              </div>
-              <div className="flex-none text-right">
-                <p className="text-sm font-medium text-ink tabular-nums">
+            <li
+              key={`${item.product_id}-${index}`}
+              className="flex h-full flex-col rounded-xl border border-rule bg-gray-50/60 p-3.5"
+            >
+              <p className="text-sm font-semibold text-gray-900">
+                {item.product_name_snapshot}
+              </p>
+              {item.specification_snapshot ? (
+                <p className="mt-0.5 text-xs text-gray-500">{item.specification_snapshot}</p>
+              ) : null}
+
+              <div className="mt-auto flex items-end justify-between gap-2 border-t border-rule pt-2.5">
+                <p className="text-xs text-gray-500">{t('lineTotal')}</p>
+                <p className="text-sm font-medium tabular-nums text-ink">
                   {item.quantity} × {formatMMK(item.display_price)} {t('mmk')}
                 </p>
-                {item.stock_status === 'SUPPLIER_CONFIRMATION_REQUIRED' ? (
-                  <p className="mt-1 text-xs text-purple-700">{t('supplierConfirmationRequired')}</p>
-                ) : null}
               </div>
+
+              {item.stock_status === 'SUPPLIER_CONFIRMATION_REQUIRED' ? (
+                <p className="mt-2 text-xs text-purple-700">
+                  {t('supplierConfirmationRequired')}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

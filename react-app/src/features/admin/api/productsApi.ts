@@ -36,6 +36,31 @@ export interface ProductStock {
   supplier_note: string | null;
 }
 
+export interface ProductVariant {
+  id: number;
+  product_id: number;
+  /** Flat, admin-typed variant name (e.g. "Red / M"). */
+  name: string | null;
+  variant_attributes: Record<string, string>;
+  slug: string;
+  sku: string | null;
+  photo: string | null;
+  photo_url: string | null;
+  retail_price: number | null;
+  wholesale_price: number | null;
+  discount_price: number | null;
+  minimum_order_quantity: number;
+  price_valid_until: string | null;
+  price_updated_at: string | null;
+  stock_quantity: number | null;
+  stock_status: StockStatus;
+  stock_confirmed_at: string | null;
+  supplier_note: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Product {
   id: number;
   supplier_id: number;
@@ -59,6 +84,9 @@ export interface Product {
   supplier?: { id: number; shop_name: string } | null;
   price?: ProductPrice | null;
   stock?: ProductStock | null;
+  /** Detail/create/update only; null when the product has no variants. */
+  variants?: ProductVariant[] | null;
+  variants_count?: number;
   created_by_admin_id: number;
   created_at: string;
   updated_at: string;
@@ -71,11 +99,31 @@ export interface ProductListParams {
   status?: ProductStatus | '';
   category_id?: number | string;
   supplier_id?: number | string;
+  sort_by?: 'created_at';
+  sort_direction?: 'asc' | 'desc';
 }
 
 export interface ProductListResult {
   products: Product[];
   meta: PaginationMeta;
+}
+
+/** One optional variant row in the admin form. */
+export interface ProductVariantInput {
+  /** null on create and for newly added rows. */
+  id: number | null;
+  /** Directly typed variant name (e.g. "Red / M"). */
+  name: string;
+  sku: string;
+  photo: File | null;
+  retail_price: string;
+  wholesale_price: string;
+  discount_price: string;
+  minimum_order_quantity: string;
+  price_valid_until: string;
+  stock_quantity: string;
+  stock_status: '' | StockStatus;
+  supplier_note: string;
 }
 
 /** Form-shaped input; the module turns it into multipart form data. */
@@ -107,6 +155,13 @@ export interface ProductInput {
   stock_quantity: string;
   stock_status: '' | StockStatus;
   supplier_note: string;
+  /**
+   * Optional variants. An empty array is valid: the product then behaves as a
+   * single product with no variants.
+   */
+  variants: ProductVariantInput[];
+  /** true tells the update endpoint to delete stored variants missing from `variants`. */
+  syncVariants: boolean;
 }
 
 /** Field keys the create/update endpoints can report 422 errors for. */
@@ -135,6 +190,8 @@ export const PRODUCT_FIELDS = [
   'stock_quantity',
   'stock_status',
   'supplier_note',
+  'variants',
+  'variants_sync',
 ] as const;
 
 /**
@@ -146,6 +203,8 @@ export const PRODUCT_FIELDS = [
  *   omitted when blank (their update rules are not all nullable, and an
  *   untouched stock row should not be rewritten).
  * - `status` is only appended when `includeStatus` is set (create).
+ * - `variants` (optional) are appended as nested `variants[i][...]` keys;
+ *   `variants_sync` tells update to delete rows missing from the list.
  */
 export function buildProductFormData(
   input: ProductInput,
@@ -156,7 +215,7 @@ export function buildProductFormData(
   const stockQuantity = input.stock_quantity.trim();
   const supplierNote = input.supplier_note.trim();
 
-  return buildFormData({
+  const form = buildFormData({
     supplier_id: input.supplier_id.trim(),
     category_id: input.category_id.trim(),
     name_mm: input.name_mm.trim(),
@@ -182,12 +241,73 @@ export function buildProductFormData(
     stock_status: input.stock_status || null,
     supplier_note: supplierNote || null,
   });
+
+  if (input.syncVariants) {
+    form.append('variants_sync', '1');
+  }
+
+  input.variants.forEach((variant, index) => {
+    appendVariant(form, variant, index);
+  });
+
+  return form;
+}
+
+/**
+ * Append one nested variant. PHP parses `variants[0][attributes][Color]` into
+ * the nested array the request validates, and `variants[0][photo]` into an
+ * uploaded file.
+ */
+function appendVariant(form: FormData, variant: ProductVariantInput, index: number): void {
+  const prefix = `variants[${index}]`;
+
+  if (variant.id !== null) {
+    form.append(`${prefix}[id]`, String(variant.id));
+  }
+
+  form.append(`${prefix}[name]`, variant.name.trim());
+
+  // Empty strings are sent so ConvertEmptyStringsToNull clears nullable
+  // fields on update instead of silently keeping the stored value.
+  form.append(`${prefix}[sku]`, variant.sku.trim());
+  form.append(`${prefix}[retail_price]`, variant.retail_price.trim());
+  form.append(`${prefix}[wholesale_price]`, variant.wholesale_price.trim());
+  form.append(`${prefix}[discount_price]`, variant.discount_price.trim());
+
+  const minimumOrderQuantity = variant.minimum_order_quantity.trim();
+  if (minimumOrderQuantity !== '') {
+    form.append(`${prefix}[minimum_order_quantity]`, minimumOrderQuantity);
+  }
+
+  const priceValidUntil = variant.price_valid_until.trim();
+  if (priceValidUntil !== '') {
+    form.append(`${prefix}[price_valid_until]`, priceValidUntil);
+  }
+
+  const stockQuantity = variant.stock_quantity.trim();
+  if (stockQuantity !== '') {
+    form.append(`${prefix}[stock_quantity]`, stockQuantity);
+  }
+
+  if (variant.stock_status !== '') {
+    form.append(`${prefix}[stock_status]`, variant.stock_status);
+  }
+
+  const supplierNote = variant.supplier_note.trim();
+  if (supplierNote !== '') {
+    form.append(`${prefix}[supplier_note]`, supplierNote);
+  }
+
+  if (variant.photo !== null && variant.photo.size > 0) {
+    form.append(`${prefix}[photo]`, variant.photo);
+  }
 }
 
 /**
  * GET /admin/products
  *
- * Paginated list ordered newest first, each item embedding its category,
+ * Paginated list ordered newest first by default (pass `sort_direction: 'asc'`
+ * for oldest first), each item embedding its category,
  * supplier, price, and stock rows.
  */
 export async function listProducts(
@@ -200,6 +320,8 @@ export async function listProducts(
     status: params.status,
     category_id: params.category_id,
     supplier_id: params.supplier_id,
+    sort_by: params.sort_by,
+    sort_direction: params.sort_direction,
   });
 
   return apiRequest<ProductListResult>(`/admin/products${query}`);

@@ -18,22 +18,30 @@ import {
   PageHeader,
   Pagination,
   StatusBadge,
-  dangerLinkClass,
-  dangerSmallButtonClass,
   describeLoadError,
   describeRequestError,
   formatStatusLabel,
+  filterSelectClass,
   inputClass,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
-  smallButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { TableActions } from '../../../components/ui/TableActions';
 
 const PER_PAGE = 15;
 
 type StatusFilter = '' | ProductStatus;
+type SortOption = 'created_at:desc' | 'created_at:asc';
+
+const SORT_PARAMS: Record<
+  SortOption,
+  { sort_by: 'created_at'; sort_direction: 'asc' | 'desc' }
+> = {
+  'created_at:desc': { sort_by: 'created_at', sort_direction: 'desc' },
+  'created_at:asc': { sort_by: 'created_at', sort_direction: 'asc' },
+};
 
 interface PendingStatus {
   id: number;
@@ -48,8 +56,8 @@ interface StatusFailure {
 const QUICK_STATUS_ACTIONS: { status: ProductStatus; label: string }[] = [
   { status: 'PUBLISHED', label: 'Publish' },
   { status: 'HIDDEN', label: 'Hide' },
-  { status: 'OUT_OF_STOCK', label: 'Out of stock' },
-  { status: 'DRAFT', label: 'Draft' },
+  { status: 'OUT_OF_STOCK', label: 'Mark out of stock' },
+  { status: 'DRAFT', label: 'Move to draft' },
 ];
 
 const STATUS_FIELD_LABELS: Record<string, string> = {
@@ -132,6 +140,7 @@ export default function ProductListPage() {
   const [status, setStatus] = useState<StatusFilter>('');
   const [categoryId, setCategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [sort, setSort] = useState<SortOption>('created_at:desc');
   const [page, setPage] = useState(1);
 
   const [pendingStatus, setPendingStatus] = useState<PendingStatus | null>(null);
@@ -180,6 +189,7 @@ export default function ProductListPage() {
         status: status || undefined,
         category_id: categoryId || undefined,
         supplier_id: supplierId || undefined,
+        ...SORT_PARAMS[sort],
       });
 
       if (cancelled) return;
@@ -209,7 +219,7 @@ export default function ProductListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, search, status, categoryId, supplierId, reloadToken]);
+  }, [page, search, status, categoryId, supplierId, sort, reloadToken]);
 
   const hasFilters = search !== '' || status !== '' || categoryId !== '' || supplierId !== '';
   const actionsBusy = updatingId !== null || isDeleting;
@@ -220,6 +230,7 @@ export default function ProductListPage() {
     setStatus('');
     setCategoryId('');
     setSupplierId('');
+    setSort('created_at:desc');
     setPage(1);
     setActionError(null);
     setStatusFailure(null);
@@ -236,6 +247,12 @@ export default function ProductListPage() {
     event.preventDefault();
     setPage(1);
     setSearch(searchInput.trim());
+    resetActionFeedback();
+  };
+
+  const handleSortChange = (value: string) => {
+    setSort(value as SortOption);
+    setPage(1);
     resetActionFeedback();
   };
 
@@ -330,7 +347,7 @@ export default function ProductListPage() {
   const header = (
     <PageHeader
       title="Products"
-      description="Manage products, prices, and stock. Publishing needs an active supplier, an active category, a photo, and a retail price above zero."
+      description="Manage products, variants, prices, and stock. Publishing needs an active supplier, an active category, a photo, and a retail price above zero."
       action={
         <Link to="/admin/products/new" className={primaryButtonClass}>
           New product
@@ -406,11 +423,11 @@ export default function ProductListPage() {
       <section className="rounded-lg bg-white p-4 shadow sm:p-6">
         <form
           onSubmit={handleSearchSubmit}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
           role="search"
           aria-label="Filter products"
         >
-          <div className="lg:col-span-2">
+          <div className="sm:col-span-2">
             <label htmlFor="product-search" className="block text-sm font-medium text-gray-700">
               Search
             </label>
@@ -444,7 +461,7 @@ export default function ProductListPage() {
                 setPage(1);
                 resetActionFeedback();
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All statuses</option>
               <option value="DRAFT">Draft</option>
@@ -469,7 +486,7 @@ export default function ProductListPage() {
                 setPage(1);
                 resetActionFeedback();
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All categories</option>
               {categoryOptions.map((option) => (
@@ -495,7 +512,7 @@ export default function ProductListPage() {
                 setPage(1);
                 resetActionFeedback();
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All suppliers</option>
               {supplierOptions.map((option) => (
@@ -503,6 +520,24 @@ export default function ProductListPage() {
                   {supplierOptionLabel(option)}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="product-sort"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Sort by
+            </label>
+            <select
+              id="product-sort"
+              value={sort}
+              onChange={(event) => handleSortChange(event.target.value)}
+              className={`${filterSelectClass} mt-1`}
+            >
+              <option value="created_at:desc">Newest first</option>
+              <option value="created_at:asc">Oldest first</option>
             </select>
           </div>
         </form>
@@ -585,7 +620,10 @@ export default function ProductListPage() {
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
                       Status
                     </th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                    <th
+                      scope="col"
+                      className="w-24 whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-gray-600"
+                    >
                       Actions
                     </th>
                   </tr>
@@ -625,6 +663,11 @@ export default function ProductListPage() {
                               </p>
                               <p className="truncate text-xs text-gray-400">
                                 {product.sku ? `SKU ${product.sku}` : `#${product.id}`}
+                                {product.variants_count && product.variants_count > 0
+                                  ? ` · ${product.variants_count} variant${
+                                      product.variants_count === 1 ? '' : 's'
+                                    }`
+                                  : ''}
                               </p>
                             </div>
                           </div>
@@ -665,97 +708,76 @@ export default function ProductListPage() {
                         <td className="whitespace-nowrap px-4 py-3">
                           <StatusBadge status={product.status} />
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex flex-col items-end gap-1.5">
-                            {pendingStatus !== null && pendingStatus.id === product.id ? (
-                              <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                                <span className="text-xs text-gray-700">
-                                  {statusActionLabel(pendingStatus.status)} “
-                                  {productLabel(product)}”?
-                                </span>
-                                <button
-                                  type="button"
-                                  className={dangerSmallButtonClass}
-                                  disabled={rowBusy}
-                                  onClick={() => void applyStatusChange(product, pendingStatus.status)}
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  type="button"
-                                  className={smallButtonClass}
-                                  disabled={rowBusy}
-                                  onClick={() => setPendingStatus(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </span>
-                            ) : confirmingId === product.id ? (
-                              <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                                <span className="text-xs text-gray-700">
-                                  Delete “{productLabel(product)}”?
-                                </span>
-                                <button
-                                  type="button"
-                                  className={dangerSmallButtonClass}
-                                  disabled={rowBusy}
-                                  onClick={() => void handleDelete(product)}
-                                >
-                                  {isDeleting ? 'Deleting…' : 'Confirm'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className={smallButtonClass}
-                                  disabled={rowBusy}
-                                  onClick={() => setConfirmingId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </span>
-                            ) : (
-                              <>
-                                <div className="flex flex-wrap justify-end gap-1.5">
-                                  {QUICK_STATUS_ACTIONS.filter(
-                                    (action) => action.status !== product.status,
-                                  ).map((action) => (
-                                    <button
-                                      key={action.status}
-                                      type="button"
-                                      className={smallButtonClass}
-                                      disabled={rowBusy}
-                                      onClick={() => requestStatusChange(product, action.status)}
-                                      aria-label={`${action.label} ${productLabel(product)}`}
-                                    >
-                                      {updatingId === product.id ? 'Updating…' : action.label}
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="flex flex-wrap items-center justify-end gap-3">
-                                  <Link
-                                    to={`/admin/products/${product.id}/edit`}
-                                    className={linkClass}
-                                    aria-label={`Edit ${productLabel(product)}`}
-                                  >
-                                    Edit
-                                  </Link>
-                                  <button
-                                    type="button"
-                                    className={dangerLinkClass}
-                                    onClick={() => {
+                        <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                          <TableActions
+                            label={`Actions for ${productLabel(product)}`}
+                            disabled={rowBusy}
+                            primary={
+                              <Link
+                                to={`/admin/products/${product.id}/edit`}
+                                className={linkClass}
+                                aria-label={`Edit ${productLabel(product)}`}
+                              >
+                                Edit
+                              </Link>
+                            }
+                            groups={[
+                              {
+                                label: 'Change status',
+                                items: QUICK_STATUS_ACTIONS.map((action) => ({
+                                  key: action.status,
+                                  label: action.label,
+                                  checked: action.status === product.status,
+                                  disabled: rowBusy || action.status === product.status,
+                                  onSelect: () => requestStatusChange(product, action.status),
+                                })),
+                              },
+                              {
+                                items: [
+                                  {
+                                    key: 'delete',
+                                    label: 'Delete',
+                                    tone: 'danger' as const,
+                                    disabled: rowBusy,
+                                    onSelect: () => {
                                       setConfirmingId(product.id);
                                       setPendingStatus(null);
                                       setActionError(null);
                                       setSuccessMessage(null);
                                       setStatusFailure(null);
-                                    }}
-                                    aria-label={`Delete ${productLabel(product)}`}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                                    },
+                                  },
+                                ],
+                              },
+                            ]}
+                            confirm={
+                              pendingStatus !== null && pendingStatus.id === product.id
+                                ? {
+                                    title: `${statusActionLabel(pendingStatus.status)} “${productLabel(
+                                      product,
+                                    )}”?`,
+                                    confirmLabel:
+                                      updatingId === product.id ? 'Updating…' : 'Confirm',
+                                    cancelLabel: 'Cancel',
+                                    busy: updatingId === product.id,
+                                    tone: 'danger' as const,
+                                    onConfirm: () =>
+                                      void applyStatusChange(product, pendingStatus.status),
+                                    onCancel: () => setPendingStatus(null),
+                                  }
+                                : confirmingId === product.id
+                                  ? {
+                                      title: `Delete “${productLabel(product)}”?`,
+                                      confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
+                                      cancelLabel: 'Cancel',
+                                      busy: isDeleting,
+                                      tone: 'danger' as const,
+                                      onConfirm: () => void handleDelete(product),
+                                      onCancel: () => setConfirmingId(null),
+                                    }
+                                  : null
+                            }
+                          />
                         </td>
                       </tr>
                     );

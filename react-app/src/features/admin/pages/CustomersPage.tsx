@@ -17,6 +17,7 @@ import {
   StatusBadge,
   describeLoadError,
   formatStatusLabel,
+  filterSelectClass,
   inputClass,
   primaryButtonClass,
   secondaryButtonClass,
@@ -146,7 +147,7 @@ export default function AdminCustomersPage() {
                 setStatus(event.target.value as CustomerStatus | '');
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allStatuses')}</option>
               <option value="active">{t('active')}</option>
@@ -166,7 +167,7 @@ export default function AdminCustomersPage() {
                 setCustomerType(event.target.value as CustomerType | '');
                 setPage(1);
               }}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allTypes')}</option>
               <option value="individual">{t('individual')}</option>

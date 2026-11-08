@@ -15,7 +15,7 @@ import {
   Pagination,
   describeCustomerLoadError,
   formatStatusLabel,
-  inputClass,
+  filterSelectClass,
   linkClass,
   secondaryButtonClass,
   type LoadErrorState,
@@ -147,7 +147,7 @@ export default function NotificationsPage() {
               setUnreadOnly(event.target.value === 'unread');
               setPage(1);
             }}
-            className={`${inputClass(false)} mt-1 w-full sm:w-56`}
+            className={`${filterSelectClass} mt-1 w-full sm:w-56`}
           >
             <option value="all">{t('allNotifications')}</option>
             <option value="unread">{t('unreadOnly')}</option>

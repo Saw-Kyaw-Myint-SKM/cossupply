@@ -10,8 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listQuotationRequests, type QuotationRequestSummary } from '../api/quotationsApi';
-import QuotationStatusBadge from '../components/QuotationStatusBadge';
-import { buildQuotationListMarkers } from '../lib/quotationView';
+import QuotationSummaryCard from '../components/QuotationSummaryCard';
 import {
   EmptyState,
   LoadingPanel,
@@ -22,22 +21,13 @@ import {
   primaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
-import { useI18n, type Translator } from '../../../lib/i18n-context';
+import { useI18n } from '../../../lib/i18n-context';
 import type { PaginationMeta } from '../../../api/query';
 
 const PER_PAGE = 10;
 
-/**
- * "Oct 19, 2026, 2:45 PM"-style stamp; list pages elsewhere use the
- * browser default formatting (AdminDashboardPage), so keep that.
- */
-function formatRequestDate(iso: string, locale: 'en' | 'my', t: Translator): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? t('statusNoValue') : date.toLocaleString(locale === 'my' ? 'my-MM' : 'en-US');
-}
-
 export default function QuotationListPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [requests, setRequests] = useState<QuotationRequestSummary[] | null>(null);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
 
@@ -147,83 +137,20 @@ export default function QuotationListPage() {
       ) : null}
 
       <section
-        className="rounded-lg border border-rule bg-plate"
+        className="space-y-4"
         aria-busy={isLoading}
         aria-label={t('quotationRequests')}
       >
-        <ul className="divide-y divide-rule">
-          {rows.map((row) => {
-            const markers = buildQuotationListMarkers(row, locale, t);
-
-            return (
-              <li key={row.id}>
-                <Link
-                  to={`/quotations/${row.id}`}
-                  className="flex flex-col gap-2 p-4 motion-safe:transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm font-semibold text-ink tabular-nums">
-                        {row.quotation_number}
-                      </span>
-                      <QuotationStatusBadge status={row.status} />
-                      {markers.actionNeeded ? (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                          {t('actionNeeded')}
-                        </span>
-                      ) : null}
-                      {markers.expired ? (
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-                          {t('expired')}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {row.customer_name} · {row.city}
-                      {row.township ? `, ${row.township}` : ''}
-                    </p>
-                    {markers.hasCurrentVersion ? (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
-                        <span>{markers.currentVersionLabel}</span>
-                        {row.current_status ? (
-                          <>
-                            <span aria-hidden="true" className="text-gray-400">
-                              ·
-                            </span>
-                            <QuotationStatusBadge status={row.current_status} />
-                          </>
-                        ) : null}
-                        {markers.validityLabel ? (
-                          <>
-                            <span aria-hidden="true" className="text-gray-400">
-                              ·
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {markers.validityLabel}
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <p className="text-xs text-gray-500 sm:sr-only">{row.phone}</p>
-                  </div>
-
-                  <div className="flex-none text-left sm:text-right">
-                    <p className="text-sm text-gray-700">
-                      {row.item_count} {t(row.item_count === 1 ? 'line' : 'lines')}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {t('requested', { date: formatRequestDate(row.created_at, locale, t) })}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((row) => (
+            <QuotationSummaryCard key={row.id} row={row} />
+          ))}
+        </div>
 
         {meta && meta.last_page > 1 ? (
-          <Pagination meta={meta} onPage={setPage} disabled={isLoading} />
+          <div className="overflow-hidden rounded-2xl border border-rule bg-white">
+            <Pagination meta={meta} onPage={setPage} disabled={isLoading} />
+          </div>
         ) : null}
       </section>
     </div>

@@ -4,8 +4,10 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PublicCatalogTest extends TestCase
@@ -76,6 +78,64 @@ class PublicCatalogTest extends TestCase
                 ->assertNotFound()
                 ->assertJsonPath('success', false);
         }
+    }
+
+    public function test_product_detail_exposes_variants_with_images_and_public_fields(): void
+    {
+        $product = Product::factory()->published()->create(['photo' => 'products/chair.jpg']);
+
+        ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Red / M',
+            'variant_attributes' => ['Color' => 'Red', 'Size' => 'M'],
+            'slug' => 'chair-red-m',
+            'sku' => 'CHAIR-RED-M',
+            'photo' => 'products/variants/red.jpg',
+            'retail_price' => 5500,
+            'stock_status' => 'LOW_STOCK',
+            'stock_quantity' => 8,
+            'sort_order' => 0,
+        ]);
+
+        ProductVariant::factory()->create([
+            'product_id' => $product->id,
+            'name' => 'Blue / M',
+            'variant_attributes' => ['Color' => 'Blue', 'Size' => 'M'],
+            'slug' => 'chair-blue-m',
+            'sku' => 'CHAIR-BLUE-M',
+            'photo' => null,
+            'retail_price' => 6000,
+            'stock_status' => 'IN_STOCK',
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->getJson("/api/v1/products/{$product->id}")->assertOk();
+
+        $response->assertJsonCount(2, 'data.product.variants')
+            ->assertJsonPath('data.product.variants.0.name', 'Red / M')
+            ->assertJsonPath('data.product.variants.0.variant_attributes.Color', 'Red')
+            ->assertJsonPath('data.product.variants.0.retail_price', 5500)
+            ->assertJsonPath('data.product.variants.0.stock_status', 'LOW_STOCK')
+            ->assertJsonPath('data.product.variants.0.stock_quantity', 8)
+            ->assertJsonMissingPath('data.product.variants.0.wholesale_price')
+            ->assertJsonMissingPath('data.product.variants.0.supplier_note');
+
+        $this->assertSame(
+            url(Storage::disk('public')->url('products/variants/red.jpg')),
+            $response->json('data.product.variants.0.photo_url'),
+        );
+
+        // A variant without its own photo falls back to the product photo.
+        $this->assertNull($response->json('data.product.variants.1.photo'));
+        $this->assertSame(
+            $response->json('data.product.photo_url'),
+            $response->json('data.product.variants.1.photo_url'),
+        );
+
+        // The list endpoint stays lean and does not embed variants.
+        $this->getJson('/api/v1/products')
+            ->assertOk()
+            ->assertJsonMissingPath('data.products.0.variants');
     }
 
     public function test_product_list_filters_narrow_results(): void

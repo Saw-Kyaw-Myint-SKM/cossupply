@@ -68,6 +68,25 @@ export interface PublicSupplier {
   verified: boolean;
 }
 
+export interface PublicProductVariant {
+  id: number;
+  name: string | null;
+  variant_attributes: Record<string, string>;
+  slug: string;
+  sku: string | null;
+  photo: string | null;
+  photo_url: string | null;
+  retail_price: number | null;
+  discount_price: number | null;
+  minimum_order_quantity: number;
+  price_valid_until: string | null;
+  last_updated_at: string | null;
+  stock_quantity: number | null;
+  stock_status: StockStatus;
+  last_confirmed_at: string | null;
+  sort_order: number;
+}
+
 export interface PublicProduct {
   id: number;
   supplier_id: number;
@@ -91,6 +110,8 @@ export interface PublicProduct {
   supplier?: PublicSupplier | null;
   price?: PublicProductPrice | null;
   stock?: PublicProductStock | null;
+  /** Detail endpoint only; null when the product has no variants. */
+  variants?: PublicProductVariant[] | null;
 }
 
 export interface CatalogListParams {

@@ -22,6 +22,8 @@ import {
 function line(overrides: Partial<CartItem> = {}): CartItem {
   return {
     product_id: 1,
+    variant_id: null,
+    variant_label: null,
     slug: 'plastic-chair',
     sku: 'CHAIR-001',
     name_mm: 'ပလတ်စတစ်ကုတ်အင်္ကျီ',
@@ -178,6 +180,22 @@ describe('buildQuotationRequestPayload — saved address mode', () => {
       required_delivery_date: '2099-01-31',
       customer_note: 'Call before delivery',
     });
+  });
+
+  it('includes variant_id for variant lines and keeps two variants separate', () => {
+    const built = buildQuotationRequestPayload({
+      ...baseArgs(),
+      items: [
+        line({ variant_id: 11, variant_label: 'Color: Red' }),
+        line({ variant_id: 12, variant_label: 'Color: Blue' }),
+      ],
+    });
+
+    expect(built.ok).toBe(true);
+    expect(built.payload?.items).toEqual([
+      { product_id: 1, variant_id: 11, quantity: 2 },
+      { product_id: 1, variant_id: 12, quantity: 2 },
+    ]);
   });
 
   it('omits empty optional fields instead of sending blank strings', () => {

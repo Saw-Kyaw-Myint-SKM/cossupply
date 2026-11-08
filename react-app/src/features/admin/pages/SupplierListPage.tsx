@@ -11,16 +11,28 @@ import {
   Pagination,
   StatusBadge,
   describeLoadError,
+  filterSelectClass,
   inputClass,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { TableActions } from '../../../components/ui/TableActions';
 
 const PER_PAGE = 15;
 
 type StatusFilter = '' | SupplierStatus;
+type SortOption = 'shop_name:asc' | 'created_at:desc' | 'created_at:asc';
+
+const SORT_PARAMS: Record<
+  SortOption,
+  { sort_by: 'shop_name' | 'created_at'; sort_direction: 'asc' | 'desc' }
+> = {
+  'shop_name:asc': { sort_by: 'shop_name', sort_direction: 'asc' },
+  'created_at:desc': { sort_by: 'created_at', sort_direction: 'desc' },
+  'created_at:asc': { sort_by: 'created_at', sort_direction: 'asc' },
+};
 
 /**
  * Admin supplier list: search, status filter, pagination, and edit links.
@@ -40,6 +52,7 @@ export default function SupplierListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('');
+  const [sort, setSort] = useState<SortOption>('shop_name:asc');
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -54,6 +67,7 @@ export default function SupplierListPage() {
         per_page: PER_PAGE,
         search: search || undefined,
         status: status || undefined,
+        ...SORT_PARAMS[sort],
       });
 
       if (cancelled) return;
@@ -73,7 +87,7 @@ export default function SupplierListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, search, status, reloadToken]);
+  }, [page, search, status, sort, reloadToken]);
 
   const hasFilters = search !== '' || status !== '';
 
@@ -81,6 +95,7 @@ export default function SupplierListPage() {
     setSearchInput('');
     setSearch('');
     setStatus('');
+    setSort('shop_name:asc');
     setPage(1);
   };
 
@@ -92,6 +107,11 @@ export default function SupplierListPage() {
 
   const handleStatusChange = (value: string) => {
     setStatus(value as StatusFilter);
+    setPage(1);
+  };
+
+  const handleSortChange = (value: string) => {
+    setSort(value as SortOption);
     setPage(1);
   };
 
@@ -153,7 +173,7 @@ export default function SupplierListPage() {
           role="search"
           aria-label={t('filterSuppliers')}
         >
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <label htmlFor="supplier-search" className="block text-sm font-medium text-gray-700">
               {t('search')}
             </label>
@@ -183,12 +203,31 @@ export default function SupplierListPage() {
               id="supplier-status-filter"
               value={status}
               onChange={(event) => handleStatusChange(event.target.value)}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">{t('allStatuses')}</option>
               <option value="ACTIVE">{t('active')}</option>
               <option value="INACTIVE">{t('inactive')}</option>
               <option value="SUSPENDED">{t('suspended')}</option>
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="supplier-sort"
+              className="block text-sm font-medium text-gray-700"
+            >
+              {t('sortBy')}
+            </label>
+            <select
+              id="supplier-sort"
+              value={sort}
+              onChange={(event) => handleSortChange(event.target.value)}
+              className={`${filterSelectClass} mt-1`}
+            >
+              <option value="shop_name:asc">{t('nameAscending')}</option>
+              <option value="created_at:desc">{t('newestFirst')}</option>
+              <option value="created_at:asc">{t('oldestFirst')}</option>
             </select>
           </div>
         </form>
@@ -266,7 +305,10 @@ export default function SupplierListPage() {
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
                       {t('status')}
                     </th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                    <th
+                      scope="col"
+                      className="w-24 whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-gray-600"
+                    >
                       {t('actions')}
                     </th>
                   </tr>
@@ -339,14 +381,19 @@ export default function SupplierListPage() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        <Link
-                          to={`/admin/suppliers/${supplier.id}/edit`}
-                          className={linkClass}
-                          aria-label={t('editSupplierAria', { supplier: supplierLabel(supplier, t) })}
-                        >
-                          {t('edit')}
-                        </Link>
+                      <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                        <TableActions
+                          label={t('editSupplierAria', { supplier: supplierLabel(supplier, t) })}
+                          primary={
+                            <Link
+                              to={`/admin/suppliers/${supplier.id}/edit`}
+                              className={linkClass}
+                              aria-label={t('editSupplierAria', { supplier: supplierLabel(supplier, t) })}
+                            >
+                              {t('edit')}
+                            </Link>
+                          }
+                        />
                       </td>
                     </tr>
                   ))}

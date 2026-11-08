@@ -30,6 +30,8 @@ class AdminSupplierController extends Controller
         $filters = $request->validate([
             'status' => ['nullable', Rule::in(SupplierStatus::values())],
             'search' => ['nullable', 'string', 'max:100'],
+            'sort_by' => ['nullable', Rule::in(['shop_name', 'created_at'])],
+            'sort_direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 

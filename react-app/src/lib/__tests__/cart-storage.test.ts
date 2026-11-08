@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { PublicProduct, StockStatus } from '../../api/catalog';
+import type {
+  PublicProduct,
+  PublicProductVariant,
+  StockStatus,
+} from '../../api/catalog';
 import {
   addProductToCart,
   cartBlockReason,
@@ -7,12 +11,15 @@ import {
   cartUnitCount,
   displayUnitPrice,
   isProductCartEligible,
+  lineKey,
   minimumQuantity,
   needsSupplierConfirmation,
   quantityError,
   reconcileCart,
   removeCartItem,
   setCartQuantity,
+  variantBlockReason,
+  variantDisplayUnitPrice,
   type CartItem,
 } from '../cart-storage';
 
@@ -80,9 +87,33 @@ function withStock(status: StockStatus | null): Partial<PublicProduct> {
     : { stock: { stock_quantity: 10, stock_status: status, last_confirmed_at: null } };
 }
 
+function variant(overrides: Partial<PublicProductVariant> = {}): PublicProductVariant {
+  return {
+    id: 11,
+    name: 'Red / M',
+    variant_attributes: { Color: 'Red' },
+    slug: 'plastic-chair-red',
+    sku: 'CHAIR-RED',
+    photo: null,
+    photo_url: '/storage/products/variants/red.jpg',
+    retail_price: 4500,
+    discount_price: null,
+    minimum_order_quantity: 3,
+    price_valid_until: null,
+    last_updated_at: null,
+    stock_quantity: 7,
+    stock_status: 'IN_STOCK',
+    last_confirmed_at: null,
+    sort_order: 0,
+    ...overrides,
+  };
+}
+
 function line(overrides: Partial<CartItem> = {}): CartItem {
   return {
     product_id: 1,
+    variant_id: null,
+    variant_label: null,
     slug: 'plastic-chair',
     sku: 'CHAIR-001',
     name_mm: 'ပလတ်စတစ်ကုတ်အင်္ကျီ',
@@ -251,9 +282,81 @@ describe('addProductToCart', () => {
   });
 });
 
+describe('variant lines', () => {
+  it('adds a variant with its own price, stock, MOQ and image', () => {
+    const result = addProductToCart([], product(), 3, variant());
+
+    expect(result.error).toBeNull();
+    expect(result.items[0]).toMatchObject({
+      product_id: 1,
+      variant_id: 11,
+      variant_label: 'Red / M',
+      unit_price: 4500,
+      minimum_order_quantity: 3,
+      stock_status: 'IN_STOCK',
+      photo_url: '/storage/products/variants/red.jpg',
+    });
+  });
+
+  it('keeps two variants of the same product as separate lines', () => {
+    const first = addProductToCart([], product(), 3, variant());
+    const second = addProductToCart(
+      first.items,
+      product(),
+      3,
+      variant({ id: 12, variant_attributes: { Color: 'Blue' } }),
+    );
+
+    expect(second.error).toBeNull();
+    expect(second.items).toHaveLength(2);
+  });
+
+  it('merges the same variant into one line', () => {
+    const first = addProductToCart([], product(), 3, variant());
+    const second = addProductToCart(first.items, product(), 3, variant());
+
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0].quantity).toBe(6);
+  });
+
+  it('blocks an out-of-stock variant', () => {
+    const result = addProductToCart([], product(), 3, variant({ stock_status: 'OUT_OF_STOCK' }));
+
+    expect(result.error).toMatch(/variant is out of stock/i);
+  });
+
+  it('uses the variant discount for the display price', () => {
+    expect(variantDisplayUnitPrice(variant({ discount_price: 4000 }))).toBe(4000);
+    expect(variantDisplayUnitPrice(variant({ discount_price: 5000 }))).toBe(4500);
+    expect(variantDisplayUnitPrice(null)).toBeNull();
+    expect(variantBlockReason(null)).toBeNull();
+  });
+
+  it('reconciles legacy lines without variant columns', () => {
+    const legacy = { ...line() } as Partial<CartItem>;
+    delete legacy.variant_id;
+    delete legacy.variant_label;
+
+    const [reconciled] = reconcileCart([legacy]);
+
+    expect(reconciled.variant_id).toBeNull();
+    expect(reconciled.variant_label).toBeNull();
+  });
+
+  it('keeps the same product with different variants during reconcile', () => {
+    const reconciled = reconcileCart([
+      line({ variant_id: 11, variant_label: 'Color: Red' }),
+      line({ variant_id: 12, variant_label: 'Color: Blue' }),
+    ]);
+
+    expect(reconciled).toHaveLength(2);
+  });
+});
+
 describe('setCartQuantity', () => {
   it('accepts a quantity at the MOQ', () => {
-    const result = setCartQuantity([line()], 1, 2);
+    const existing = [line()];
+    const result = setCartQuantity(existing, lineKey(existing[0]), 2);
 
     expect(result.error).toBeNull();
     expect(result.items[0].quantity).toBe(2);
@@ -261,14 +364,14 @@ describe('setCartQuantity', () => {
 
   it('rejects a quantity below the MOQ and keeps the previous value', () => {
     const existing = [line({ quantity: 5 })];
-    const result = setCartQuantity(existing, 1, 1);
+    const result = setCartQuantity(existing, lineKey(existing[0]), 1);
 
     expect(result.error).toMatch(/minimum order quantity of 2/);
     expect(result.items[0].quantity).toBe(5);
   });
 
   it('reports a line that is no longer in the cart', () => {
-    const result = setCartQuantity([line()], 999, 4);
+    const result = setCartQuantity([line()], '999:0', 4);
 
     expect(result.error).toMatch(/no longer in your cart/i);
   });
@@ -288,8 +391,10 @@ describe('cart totals', () => {
 
   it('removes only the requested line', () => {
     const items = [line(), line({ product_id: 2 })];
-    expect(removeCartItem(items, 1)).toHaveLength(1);
-    expect(removeCartItem(items, 1)[0].product_id).toBe(2);
+    const remaining = removeCartItem(items, lineKey(items[0]));
+
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].product_id).toBe(2);
   });
 });
 

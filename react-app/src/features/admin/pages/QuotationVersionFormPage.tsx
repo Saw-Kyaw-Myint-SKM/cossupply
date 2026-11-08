@@ -19,6 +19,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { formatMMK } from '../../../lib/money';
+import { useToast } from '../../../components/ui/Toast';
 import {
   createQuotationVersion,
   getAdminQuotationRequest,
@@ -53,6 +54,7 @@ export default function QuotationVersionFormPage() {
   }>();
   const editingId = quotationId ? Number(quotationId) : null;
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [form, setForm] = useState<VersionFormState | null>(null);
   const [context, setContext] = useState<FormContext | null>(null);
@@ -222,14 +224,16 @@ export default function QuotationVersionFormPage() {
       return;
     }
 
-    navigate(`/admin/quotation-requests/${context.requestId}`, {
-      state: {
-        notice:
-          editingId !== null
-            ? `Draft version ${editingQuotation?.version ?? ''} updated.`
-            : 'Quotation draft created.',
-      },
+    showToast({
+      tone: 'success',
+      title:
+        editingId !== null
+          ? `Draft version ${editingQuotation?.version ?? ''} updated.`
+          : 'Quotation draft created.',
+      description: `Quotation ${context.quotationNumber} for ${context.customerName}.`,
     });
+
+    navigate(`/admin/quotation-requests/${context.requestId}`);
   };
 
   if (loading) {

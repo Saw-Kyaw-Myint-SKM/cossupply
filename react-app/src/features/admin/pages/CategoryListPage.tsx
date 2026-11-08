@@ -14,21 +14,30 @@ import {
   PageHeader,
   Pagination,
   StatusBadge,
-  dangerLinkClass,
-  dangerSmallButtonClass,
   describeLoadError,
   describeRequestError,
+  filterSelectClass,
   inputClass,
   linkClass,
   primaryButtonClass,
   secondaryButtonClass,
-  smallButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
+import { TableActions } from '../../../components/ui/TableActions';
 
 const PER_PAGE = 15;
 
 type StatusFilter = '' | CategoryStatus;
+type SortOption = 'default' | 'created_at:desc' | 'created_at:asc';
+
+const SORT_PARAMS: Record<
+  SortOption,
+  { sort_by?: 'created_at'; sort_direction?: 'asc' | 'desc' }
+> = {
+  default: {},
+  'created_at:desc': { sort_by: 'created_at', sort_direction: 'desc' },
+  'created_at:asc': { sort_by: 'created_at', sort_direction: 'asc' },
+};
 
 function categoryLabel(category: Category): string {
   return category.name_en || category.name_mm;
@@ -53,6 +62,7 @@ export default function CategoryListPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('');
   const [parentId, setParentId] = useState('');
+  const [sort, setSort] = useState<SortOption>('default');
   const [page, setPage] = useState(1);
 
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -89,6 +99,7 @@ export default function CategoryListPage() {
         search: search || undefined,
         status: status || undefined,
         parent_id: parentId || undefined,
+        ...SORT_PARAMS[sort],
       });
 
       if (cancelled) return;
@@ -118,7 +129,7 @@ export default function CategoryListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, search, status, parentId, reloadToken]);
+  }, [page, search, status, parentId, sort, reloadToken]);
 
   const parentNames = useMemo(() => {
     const names = new Map<number, string>();
@@ -135,6 +146,7 @@ export default function CategoryListPage() {
     setSearch('');
     setStatus('');
     setParentId('');
+    setSort('default');
     setPage(1);
     setActionError(null);
   };
@@ -156,6 +168,13 @@ export default function CategoryListPage() {
 
   const handleParentChange = (value: string) => {
     setParentId(value);
+    setPage(1);
+    setSuccessMessage(null);
+    setActionError(null);
+  };
+
+  const handleSortChange = (value: string) => {
+    setSort(value as SortOption);
     setPage(1);
     setSuccessMessage(null);
     setActionError(null);
@@ -261,11 +280,11 @@ export default function CategoryListPage() {
       <section className="rounded-lg bg-white p-4 shadow sm:p-6">
         <form
           onSubmit={handleSearchSubmit}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:flex lg:flex-nowrap lg:items-end"
           role="search"
           aria-label="Filter categories"
         >
-          <div className="lg:col-span-2">
+          <div className="sm:col-span-2 lg:min-w-0 lg:max-w-md lg:flex-1">
             <label htmlFor="category-search" className="block text-sm font-medium text-gray-700">
               Search
             </label>
@@ -284,7 +303,7 @@ export default function CategoryListPage() {
             </div>
           </div>
 
-          <div>
+          <div className="lg:shrink-0">
             <label
               htmlFor="category-status-filter"
               className="block text-sm font-medium text-gray-700"
@@ -295,7 +314,7 @@ export default function CategoryListPage() {
               id="category-status-filter"
               value={status}
               onChange={(event) => handleStatusChange(event.target.value)}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All statuses</option>
               <option value="ACTIVE">Active</option>
@@ -303,7 +322,7 @@ export default function CategoryListPage() {
             </select>
           </div>
 
-          <div>
+          <div className="lg:shrink-0">
             <label
               htmlFor="category-parent-filter"
               className="block text-sm font-medium text-gray-700"
@@ -314,7 +333,7 @@ export default function CategoryListPage() {
               id="category-parent-filter"
               value={parentId}
               onChange={(event) => handleParentChange(event.target.value)}
-              className={`${inputClass(false)} mt-1`}
+              className={`${filterSelectClass} mt-1`}
             >
               <option value="">All categories</option>
               {parentOptions.map((option) => (
@@ -322,6 +341,25 @@ export default function CategoryListPage() {
                   {option.name_mm} ({option.name_en})
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div className="lg:shrink-0">
+            <label
+              htmlFor="category-sort"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Sort by
+            </label>
+            <select
+              id="category-sort"
+              value={sort}
+              onChange={(event) => handleSortChange(event.target.value)}
+              className={`${filterSelectClass} mt-1`}
+            >
+              <option value="default">Display order</option>
+              <option value="created_at:desc">Newest first</option>
+              <option value="created_at:asc">Oldest first</option>
             </select>
           </div>
         </form>
@@ -398,7 +436,10 @@ export default function CategoryListPage() {
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
                       Status
                     </th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                    <th
+                      scope="col"
+                      className="w-24 whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-gray-600"
+                    >
                       Actions
                     </th>
                   </tr>
@@ -443,31 +484,11 @@ export default function CategoryListPage() {
                       <td className="whitespace-nowrap px-4 py-3">
                         <StatusBadge status={category.status} />
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {confirmingId === category.id ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="text-xs text-gray-700">
-                              Delete “{categoryLabel(category)}”?
-                            </span>
-                            <button
-                              type="button"
-                              className={dangerSmallButtonClass}
-                              disabled={isDeleting}
-                              onClick={() => void handleDelete(category)}
-                            >
-                              {isDeleting ? 'Deleting…' : 'Confirm'}
-                            </button>
-                            <button
-                              type="button"
-                              className={smallButtonClass}
-                              disabled={isDeleting}
-                              onClick={() => setConfirmingId(null)}
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                        <TableActions
+                          label={`Actions for ${categoryLabel(category)}`}
+                          disabled={isDeleting}
+                          primary={
                             <Link
                               to={`/admin/categories/${category.id}/edit`}
                               className={linkClass}
@@ -475,20 +496,38 @@ export default function CategoryListPage() {
                             >
                               Edit
                             </Link>
-                            <button
-                              type="button"
-                              className={dangerLinkClass}
-                              onClick={() => {
-                                setConfirmingId(category.id);
-                                setActionError(null);
-                                setSuccessMessage(null);
-                              }}
-                              aria-label={`Delete ${categoryLabel(category)}`}
-                            >
-                              Delete
-                            </button>
-                          </span>
-                        )}
+                          }
+                          groups={[
+                            {
+                              items: [
+                                {
+                                  key: 'delete',
+                                  label: 'Delete',
+                                  tone: 'danger' as const,
+                                  disabled: isDeleting,
+                                  onSelect: () => {
+                                    setConfirmingId(category.id);
+                                    setActionError(null);
+                                    setSuccessMessage(null);
+                                  },
+                                },
+                              ],
+                            },
+                          ]}
+                          confirm={
+                            confirmingId === category.id
+                              ? {
+                                  title: `Delete “${categoryLabel(category)}”?`,
+                                  confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
+                                  cancelLabel: 'Cancel',
+                                  busy: isDeleting,
+                                  tone: 'danger' as const,
+                                  onConfirm: () => void handleDelete(category),
+                                  onCancel: () => setConfirmingId(null),
+                                }
+                              : null
+                          }
+                        />
                       </td>
                     </tr>
                   ))}

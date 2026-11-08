@@ -1,28 +1,30 @@
 /**
  * Product Detail Page (Task 05).
  *
- * Shows one published product with its display price, availability, public
- * supplier summary, and the guest cart controls. The "30-second pitch" keeps
- * name, price, stock, quantity, and the add action in one readable run; on
- * mobile a sticky bar carries price + add action once that zone scrolls away.
- * A guest who presses "Request Quotation" is sent to the customer
- * login/register screen instead of any quotation form (RolesPermissions §1
- * and LogicFlow §4).
+ * Layout A: a sticky gallery on the left and a focused buy box on the right.
+ * Variant chips live with the price and add action, while description,
+ * specifications and supplier details sit in tabs below.
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FiChevronRight, FiMinus, FiPlus } from 'react-icons/fi';
-import { getProduct, type PublicProduct } from '../../../api/catalog';
+import {
+  getProduct,
+  type PublicProduct,
+  type PublicProductVariant,
+} from '../../../api/catalog';
 import {
   cartBlockReason,
   displayUnitPrice,
   minimumQuantity,
   quantityError,
+  variantBlockReason,
+  variantDisplayName,
+  variantMinimumQuantity,
 } from '../../../lib/cart-storage';
 import {
   Alert,
   addedButtonClass,
-  FALLBACK_BANNER,
   LoadingPanel,
   PageHeader,
   primaryButtonClass,
@@ -39,16 +41,41 @@ import {
   StockBadge,
   describeCatalogError,
 } from '../components/ProductUi';
+import ProductGallery from '../components/ProductGallery';
+import ProductInfo from '../components/ProductInfo';
+import VariantSelector from '../components/VariantSelector';
 import { useI18n } from '../../../lib/i18n-context';
+
+/** Variant price shaped like the public product price for PriceBlock. */
+function variantPriceRecord(
+  variant: PublicProductVariant,
+): NonNullable<PublicProduct['price']> {
+  return {
+    retail_price: variant.retail_price ?? 0,
+    discount_price: variant.discount_price,
+    minimum_order_quantity: variant.minimum_order_quantity,
+    price_valid_until: variant.price_valid_until,
+    last_updated_at: variant.last_updated_at,
+  };
+}
+
+function variantStock(variant: PublicProductVariant): NonNullable<PublicProduct['stock']> {
+  return {
+    stock_quantity: variant.stock_quantity,
+    stock_status: variant.stock_status,
+    last_confirmed_at: variant.last_confirmed_at,
+  };
+}
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, userType } = useAuth();
   const { add, lastAdded } = useCart();
-  const { t, displayName: catalogName } = useI18n();
+  const { displayName: catalogName } = useI18n();
 
   const [product, setProduct] = useState<PublicProduct | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<PublicProductVariant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -66,10 +93,23 @@ export default function ProductDetailPage() {
         if (cancelled) return;
 
         if (response.success && response.data) {
-          setProduct(response.data.product);
-          setQuantity(minimumQuantity(response.data.product.price));
+          const loadedProduct = response.data.product;
+          const variants = loadedProduct.variants ?? [];
+          const initialVariant =
+            variants.find((variant) => variant.stock_status !== 'OUT_OF_STOCK') ??
+            variants[0] ??
+            null;
+
+          setProduct(loadedProduct);
+          setSelectedVariant(initialVariant);
+          setQuantity(
+            initialVariant
+              ? variantMinimumQuantity(initialVariant)
+              : minimumQuantity(loadedProduct.price),
+          );
         } else {
           setProduct(null);
+          setSelectedVariant(null);
           setLoadError(describeCatalogError(response, 'product'));
         }
       })
@@ -82,16 +122,47 @@ export default function ProductDetailPage() {
     };
   }, [id]);
 
-  const blocked = product ? cartBlockReason(product) : null;
-  const moq = product ? minimumQuantity(product.price) : 1;
+  const selectedVariantLabel = selectedVariant ? variantDisplayName(selectedVariant) : null;
+
+  const activePrice = selectedVariant
+    ? selectedVariant.retail_price !== null
+      ? variantPriceRecord(selectedVariant)
+      : null
+    : (product?.price ?? null);
+
+  const activeStock = selectedVariant ? variantStock(selectedVariant) : (product?.stock ?? null);
+
+  const blocked = product
+    ? selectedVariant
+      ? variantBlockReason(selectedVariant)
+      : cartBlockReason(product)
+    : null;
+
+  const moq = selectedVariant
+    ? variantMinimumQuantity(selectedVariant)
+    : product
+      ? minimumQuantity(product.price)
+      : 1;
+
+  // Keep the quantity valid when the buyer switches variants.
+  useEffect(() => {
+    if (!product) return;
+
+    setQuantity(
+      selectedVariant
+        ? variantMinimumQuantity(selectedVariant)
+        : minimumQuantity(product.price),
+    );
+    setMessage(null);
+  }, [product, selectedVariant]);
 
   /** The receipt moment, shared with the catalog cards. */
-  const receipt = useReceipt(product?.id ?? 0, lastAdded);
+  const receipt = useReceipt(product?.id ?? 0, lastAdded, selectedVariant?.id ?? null);
 
   /**
-   * Sticky purchase bar: watches the pitch zone and appears once it has left
-   * the viewport, so the add action is never more than a thumb's reach away
-   * on a long spec read. One-way reveal, no scroll listeners.
+   * Sticky purchase bar: watches the buy box and appears once it has left the
+   * viewport, so the add action is never more than a thumb's reach away on a
+   * long spec read. One-way reveal, no scroll listeners.
    */
   useEffect(() => {
     if (!product) return;
@@ -139,7 +210,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    setMessage(add(product, quantity));
+    setMessage(add(product, quantity, selectedVariant));
   };
 
   const handleRequestQuotation = () => {
@@ -151,7 +222,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    const failure = add(product, quantity);
+    const failure = add(product, quantity, selectedVariant);
     if (failure) {
       setMessage(failure);
       return;
@@ -179,10 +250,12 @@ export default function ProductDetailPage() {
   }
 
   const displayName = catalogName(product);
+  const activeSku = selectedVariant?.sku ?? product.sku;
 
   const addControl = (extraClass = '') => (
     <button
       type="submit"
+      form="product-form"
       disabled={Boolean(blocked)}
       className={`${extraClass}${
         blocked
@@ -216,8 +289,8 @@ export default function ProductDetailPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <nav className="flex items-center gap-1 text-sm text-subtle" aria-label="Breadcrumb">
+    <div className="space-y-2.5">
+      <nav className="flex items-center gap-1 text-xs text-subtle" aria-label="Breadcrumb">
         <Link to="/" className="rounded hover:text-ink">
           Home
         </Link>
@@ -238,217 +311,180 @@ export default function ProductDetailPage() {
         ) : null}
       </nav>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <section className="lg:col-span-2">
-          <div className="glass-panel overflow-hidden">
-            <img
-              src={product.photo_url ?? FALLBACK_BANNER}
-              alt={displayName}
-              loading="lazy"
-              decoding="async"
-              className="h-64 w-full object-cover sm:h-80"
+      <section className="overflow-hidden rounded-2xl border border-rule/80 bg-white shadow-[0_6px_24px_-16px_rgba(0,142,204,0.35)]">
+        <div className="grid grid-cols-1 lg:grid-cols-12">
+          <div className="bg-gradient-to-br from-primary-light/60 via-white to-paper p-3 sm:p-4 lg:col-span-5">
+            <ProductGallery
+              product={product}
+              selectedVariant={selectedVariant}
+              displayName={displayName}
+              selectedVariantLabel={selectedVariantLabel}
+              onSelect={setSelectedVariant}
             />
           </div>
-        </section>
 
-        <section className="space-y-5 lg:col-span-3">
-          {/* The 30-second pitch: everything needed to decide, in one run. */}
-          <div id="product-pitch" className="glass-panel p-6">
-            <p className="text-xs text-subtle">
-              {product.category ? catalogName(product.category) : t('uncategorised')}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">{displayName}</h1>
-            <p className="mt-1 text-sm text-subtle">
-              {product.brand ?? 'No brand'}
-              {product.model ? ` · ${product.model}` : ''}
-              {product.sku ? ` · SKU ${product.sku}` : ''}
-            </p>
+          <div className="p-3 sm:p-4 lg:col-span-7">
+            <div id="product-pitch" className="flex h-full flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StockBadge stock={activeStock} />
+                  {activeStock?.stock_quantity !== null &&
+                  activeStock?.stock_quantity !== undefined ? (
+                    <span className="text-[13px] text-muted">
+                      {activeStock.stock_quantity} available
+                    </span>
+                  ) : null}
+                </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <StockBadge stock={product.stock} />
-              {product.stock?.stock_quantity !== null &&
-              product.stock?.stock_quantity !== undefined ? (
-                <span className="text-sm text-muted">
-                  {product.stock.stock_quantity} {product.unit} available
-                </span>
+                {product.supplier ? (
+                  <Link
+                    to={`/products?supplier_id=${product.supplier.id}`}
+                    className="group flex max-w-full items-center gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-r from-primary-light/70 via-white to-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-primary/40 hover:shadow"
+                  >
+                    {product.supplier.logo_url ? (
+                      <img
+                        src={product.supplier.logo_url}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-10 w-10 flex-none rounded-lg object-cover ring-1 ring-black/5"
+                      />
+                    ) : (
+                      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white text-sm font-semibold text-primary ring-1 ring-primary/10">
+                        {product.supplier.shop_name.charAt(0)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5">
+                        <span className="max-w-[150px] truncate text-[13px] font-semibold text-ink group-hover:text-primary">
+                          {product.supplier.shop_name}
+                        </span>
+                        {product.supplier.verified ? (
+                          <span className="rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            Verified
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block max-w-[190px] truncate text-[11px] text-muted">
+                        {[product.supplier.delivery_area, product.supplier.delivery_time]
+                          .filter(Boolean)
+                          .join(' · ') || 'Delivery confirmed in quotation'}
+                      </span>
+                    </span>
+                    <span className="ml-1 flex-none rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-primary ring-1 ring-primary/15 transition group-hover:bg-primary group-hover:text-white">
+                      View store
+                    </span>
+                  </Link>
+                ) : null}
+              </div>
+
+              <h1 className="mt-1 text-xl font-semibold tracking-tight text-ink sm:text-[22px]">
+                {displayName}
+              </h1>
+
+              <div className="mt-2.5 rounded-lg bg-primary-light/40 px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Reference price
+                </p>
+                <div className="mt-0.5">
+                  <PriceBlock price={activePrice} showValidity />
+                </div>
+              </div>
+
+              <ConfirmationNote stock={activeStock} />
+
+              {product.variants && product.variants.length > 0 ? (
+                <VariantSelector
+                  variants={product.variants}
+                  selectedVariant={selectedVariant}
+                  onSelect={setSelectedVariant}
+                />
               ) : null}
-            </div>
 
-            <div className="mt-4 border-t border-dashed border-rule pt-4">
-              <PriceBlock price={product.price} showValidity />
-            </div>
+              <form id="product-form" onSubmit={handleQuantitySubmit} className="mt-2.5 space-y-2">
+                <div>
+                  <label
+                    htmlFor="product-quantity"
+                    className="block text-[13px] font-medium text-ink"
+                  >
+                    Quantity
+                  </label>
+                  <p className="mt-0.5 text-xs text-muted">Minimum order {moq}</p>
+                </div>
 
-            <ConfirmationNote stock={product.stock} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center rounded-lg border border-line bg-white">
+                    <button
+                      type="button"
+                      onClick={() => step(-1)}
+                      disabled={quantity <= moq || Boolean(blocked)}
+                      className="flex h-9 w-9 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
+                      aria-label="Decrease quantity"
+                    >
+                      <FiMinus aria-hidden="true" className="h-3.5 w-3.5" />
+                    </button>
+                    <input
+                      id="product-quantity"
+                      type="number"
+                      inputMode="numeric"
+                      min={moq}
+                      step={1}
+                      value={Number.isFinite(quantity) ? quantity : ''}
+                      onChange={(event) => handleQuantityInput(event.target.value)}
+                      disabled={Boolean(blocked)}
+                      className="w-14 border-x border-line px-2 py-1.5 text-center text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+                      aria-describedby={message ? 'quantity-error' : undefined}
+                      aria-invalid={Boolean(message) || undefined}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => step(1)}
+                      disabled={Boolean(blocked)}
+                      className="flex h-9 w-9 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
+                      aria-label="Increase quantity"
+                    >
+                      <FiPlus aria-hidden="true" className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
 
-            <form
-              id="product-form"
-              onSubmit={handleQuantitySubmit}
-              className="mt-6 space-y-3"
-            >
-              <label
-                htmlFor="product-quantity"
-                className="block text-sm font-medium text-ink"
-              >
-                Quantity ({product.unit}) — minimum {moq}
-              </label>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center rounded-lg border border-white/70 bg-white/70">
+                <div className="flex flex-wrap items-center gap-2">
+                  {addControl('h-9 px-3 text-[13px]!')}
                   <button
                     type="button"
-                    onClick={() => step(-1)}
-                    disabled={quantity <= moq || Boolean(blocked)}
-                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
-                    aria-label="Decrease quantity"
-                  >
-                    <FiMinus aria-hidden="true" className="h-4 w-4" />
-                  </button>
-                  <input
-                    id="product-quantity"
-                    type="number"
-                    inputMode="numeric"
-                    min={moq}
-                    step={1}
-                    value={Number.isFinite(quantity) ? quantity : ''}
-                    onChange={(event) => handleQuantityInput(event.target.value)}
+                    onClick={handleRequestQuotation}
                     disabled={Boolean(blocked)}
-                    className="w-20 border-x border-line px-2 py-2 text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
-                    aria-describedby={message ? 'quantity-error' : undefined}
-                    aria-invalid={Boolean(message) || undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => step(1)}
-                    disabled={Boolean(blocked)}
-                    className="flex h-11 w-11 items-center justify-center text-ink disabled:cursor-not-allowed disabled:text-line"
-                    aria-label="Increase quantity"
+                    className={`${blocked ? 'cursor-not-allowed border border-line bg-line text-subtle' : secondaryButtonClass} h-9 px-3 text-[13px]!`}
                   >
-                    <FiPlus aria-hidden="true" className="h-4 w-4" />
+                    Request quotation
                   </button>
                 </div>
 
-                {addControl()}
-              </div>
+                {message ? (
+                  <p
+                    id="quantity-error"
+                    role="alert"
+                    className="motion-safe:animate-rise-in text-sm text-red-600"
+                  >
+                    {message}
+                  </p>
+                ) : null}
+                {blocked ? <p className="text-sm text-red-600">{blocked}</p> : null}
 
-              {message ? (
-                <p
-                  id="quantity-error"
-                  role="alert"
-                  className="motion-safe:animate-rise-in text-sm text-red-600"
-                >
-                  {message}
+                <p aria-live="polite" className="sr-only">
+                  {receipt
+                    ? `Added ${receipt.quantity} ${product.unit} of ${
+                        product.name_en ?? product.name_mm
+                      }${selectedVariantLabel ? ` (${selectedVariantLabel})` : ''} to your order list.`
+                    : ''}
                 </p>
-              ) : null}
-              {blocked ? <p className="text-sm text-red-600">{blocked}</p> : null}
-
-              <p aria-live="polite" className="sr-only">
-                {receipt
-                  ? `Added ${receipt.quantity} ${product.unit} of ${product.name_en ?? product.name_mm} to your order list.`
-                  : ''}
-              </p>
-            </form>
-
-            <div className="mt-6 border-t border-rule pt-5">
-              <button
-                type="button"
-                onClick={handleRequestQuotation}
-                disabled={Boolean(blocked)}
-                className={`${blocked ? 'cursor-not-allowed border border-line bg-line text-subtle' : secondaryButtonClass} h-11 w-full`}
-              >
-                Request quotation from this item
-              </button>
-              <p className="mt-2 text-xs text-subtle">
-                Guests are asked to sign in or register first. Nothing is submitted to the API at
-                this step.
-              </p>
+              </form>
             </div>
           </div>
-
-          {product.supplier ? (
-            <div className="glass-panel p-6">
-              <h2 className="text-base font-semibold text-ink">Supplier</h2>
-              <div className="mt-3 flex items-start gap-3">
-                {product.supplier.logo_url ? (
-                  <img
-                    src={product.supplier.logo_url}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    className="h-12 w-12 rounded-md object-cover"
-                  />
-                ) : null}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">{product.supplier.shop_name}</p>
-                  {product.supplier.company_name ? (
-                    <p className="text-sm text-muted">{product.supplier.company_name}</p>
-                  ) : null}
-                  {product.supplier.business_description ? (
-                    <p className="mt-1 text-sm text-muted">{product.supplier.business_description}</p>
-                  ) : null}
-                  <dl className="mt-2 grid grid-cols-1 gap-1 text-sm text-muted sm:grid-cols-2">
-                    {product.supplier.delivery_area ? (
-                      <div>
-                        <dt className="inline font-medium text-ink">Delivery area: </dt>
-                        <dd className="inline">{product.supplier.delivery_area}</dd>
-                      </div>
-                    ) : null}
-                    {product.supplier.delivery_time ? (
-                      <div>
-                        <dt className="inline font-medium text-ink">Delivery time: </dt>
-                        <dd className="inline">{product.supplier.delivery_time}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                  {product.supplier.verified ? (
-                    <p className="mt-2 inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
-                      Verified supplier
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
-      </div>
-
-      <section className="glass-panel p-6">
-        <h2 className="text-base font-semibold text-ink">Product details</h2>
-
-        {product.description ? (
-          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink">
-            {product.description}
-          </p>
-        ) : (
-          <p className="mt-3 text-sm text-subtle">No description has been provided.</p>
-        )}
-
-        <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ['Specification', product.specification],
-            ['Size', product.size],
-            ['Colour', product.color],
-            ['Unit', product.unit],
-            ['Package size', product.package_size],
-            ['Brand', product.brand],
-            ['Model', product.model],
-            ['SKU', product.sku],
-          ]
-            .filter((entry): entry is [string, string] => Boolean(entry[1]))
-            .map(([label, value]) => (
-              <div key={label} className="flex justify-between gap-3 border-b border-rule pb-2">
-                <dt className="font-medium text-muted">{label}</dt>
-                <dd className="text-right text-ink">{value}</dd>
-              </div>
-            ))}
-        </dl>
-
-        {product.price?.retail_price ? (
-          <p className="mt-5 text-xs text-subtle">
-            Reference display price: <span className="tabular-nums">{formatMMK(product.price.retail_price)}</span> MMK per {product.unit}.
-            Final pricing is issued with the supplier quotation.
-          </p>
-        ) : null}
+        </div>
       </section>
+
+      <ProductInfo product={product} selectedSku={activeSku} />
 
       {/*
        * Sticky mobile purchase bar: price left, add action right. Hidden on
@@ -462,8 +498,8 @@ export default function ProductDetailPage() {
       >
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-semibold text-ink tabular-nums">
-            {product.price && displayUnitPrice(product.price) !== null
-              ? `${formatMMK((displayUnitPrice(product.price) ?? 0) * quantity)} MMK`
+            {activePrice && displayUnitPrice(activePrice) !== null
+              ? `${formatMMK((displayUnitPrice(activePrice) ?? 0) * quantity)} MMK`
               : 'Price confirmed in quotation'}
           </span>
           {addControl()}

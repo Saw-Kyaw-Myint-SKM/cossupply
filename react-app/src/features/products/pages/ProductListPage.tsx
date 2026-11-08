@@ -32,7 +32,7 @@ import {
   EmptyState,
   PageHeader,
   SkeletonCard,
-  inputClass,
+  filterSelectClass,
   secondaryButtonClass,
 } from '../../../components/catalog-ui/CatalogUi';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
@@ -442,7 +442,7 @@ export default function ProductListPage() {
           id="sheet-category"
           value={categoryId}
           onChange={(event) => updateParams({ category_id: event.target.value })}
-          className={inputClass(false) + ' mt-1'}
+          className={`${filterSelectClass} mt-1`}
         >
           <option value="">All categories</option>
           {categories.map((category) => (
@@ -461,7 +461,7 @@ export default function ProductListPage() {
           id="sheet-supplier"
           value={supplierId}
           onChange={(event) => updateParams({ supplier_id: event.target.value })}
-          className={inputClass(false) + ' mt-1'}
+          className={`${filterSelectClass} mt-1`}
         >
           <option value="">All suppliers</option>
           {suppliers.map((supplier) => (
@@ -480,7 +480,7 @@ export default function ProductListPage() {
           id="sheet-stock"
           value={stockStatus}
           onChange={(event) => updateParams({ stock_status: event.target.value })}
-          className={inputClass(false) + ' mt-1'}
+          className={`${filterSelectClass} mt-1`}
         >
           {STOCK_FILTERS.map((option) => (
             <option key={option.value} value={option.value}>

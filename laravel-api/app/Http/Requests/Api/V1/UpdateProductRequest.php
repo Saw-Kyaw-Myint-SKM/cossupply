@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Enums\StockStatus;
+use App\Http\Requests\Api\V1\Concerns\ValidatesProductVariants;
 use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Validator;
 
 class UpdateProductRequest extends FormRequest
 {
+    use ValidatesProductVariants;
+
     /**
      * Route access is enforced by the auth:sanctum + admin middleware.
      */
@@ -31,6 +34,7 @@ class UpdateProductRequest extends FormRequest
         $product = $this->route('product');
 
         return [
+            ...$this->variantRules($product instanceof Product ? $product : null),
             'supplier_id' => ['sometimes', 'required', 'integer', 'exists:suppliers,id'],
             'category_id' => ['sometimes', 'required', 'integer', 'exists:categories,id'],
             'name_mm' => ['sometimes', 'required', 'string', 'max:255'],
@@ -88,6 +92,8 @@ class UpdateProductRequest extends FormRequest
                 if ($retail !== null && $discount !== null && (int) $discount > (int) $retail) {
                     $validator->errors()->add('discount_price', 'The discount price must not be greater than the retail price.');
                 }
+
+                $this->validateProductVariants($validator);
             },
         ];
     }

@@ -80,7 +80,7 @@ class PublicProductController extends Controller
             ? Product::query()
                 ->whereKey((int) $productId)
                 ->where('status', ProductStatus::PUBLISHED->value)
-                ->with(['category', 'supplier', 'prices', 'stock'])
+                ->with(['category', 'supplier', 'prices', 'stock', 'variants.product'])
                 ->first()
             : null;
 

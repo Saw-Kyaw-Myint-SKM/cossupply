@@ -8,6 +8,7 @@ import {
   type SettingValue,
 } from '../api/settingsApi';
 import { useI18n, type TranslationKey } from '../../../lib/i18n-context';
+import { useToast } from '../../../components/ui/Toast';
 import type { ApiResponse } from '../../../api/client';
 
 /**
@@ -165,6 +166,7 @@ const inputErrorClass = 'border-red-300 focus:border-red-500 focus:ring-red-500'
 
 export default function AdminSettingsPage() {
   const { t } = useI18n();
+  const { showToast } = useToast();
   const [settings, setSettings] = useState<Setting[] | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -173,7 +175,6 @@ export default function AdminSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const formAlertRef = useRef<HTMLDivElement>(null);
 
@@ -183,7 +184,6 @@ export default function AdminSettingsPage() {
     const load = async () => {
       setIsLoading(true);
       setLoadError(null);
-      setSuccessMessage(null);
 
       const response = await fetchSettings();
 
@@ -236,7 +236,6 @@ export default function AdminSettingsPage() {
 
   const handleValueChange = (key: string, value: DraftValue) => {
     setDraft((previous) => ({ ...previous, [key]: value }));
-    setSuccessMessage(null);
     setFormError(null);
     setFieldErrors((previous) => {
       if (!previous[key]) return previous;
@@ -280,7 +279,6 @@ export default function AdminSettingsPage() {
     }
 
     if (Object.keys(localErrors).length > 0) {
-      setSuccessMessage(null);
       setFieldErrors(localErrors);
       setFormError(t('settingsNeedAttention'));
       focusFirstError(localErrors);
@@ -290,7 +288,6 @@ export default function AdminSettingsPage() {
     setIsSaving(true);
     setFormError(null);
     setFieldErrors({});
-    setSuccessMessage(null);
 
     const response = await bulkUpdateSettings(payload);
 
@@ -300,7 +297,10 @@ export default function AdminSettingsPage() {
       const merged = mergeSettings(settings, response.data.settings);
       setSettings(merged);
       setDraft(buildDraft(merged));
-      setSuccessMessage(response.message ?? t('settingsUpdated'));
+      showToast({
+        tone: 'success',
+        title: response.message ?? t('settingsUpdated'),
+      });
       return;
     }
 
@@ -498,12 +498,6 @@ export default function AdminSettingsPage() {
           {t('settingsCount', { settings: settings.length, groups: groups.length })}
         </p>
       </div>
-
-      {successMessage ? (
-        <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4">
-          <p className="text-sm font-medium text-green-800">{successMessage}</p>
-        </div>
-      ) : null}
 
       {formError ? (
         <div

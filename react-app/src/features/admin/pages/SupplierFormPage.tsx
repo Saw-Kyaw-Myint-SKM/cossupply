@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   SUPPLIER_FIELDS,
   buildSupplierFormData,
@@ -12,8 +12,8 @@ import {
 } from '../api/suppliersApi';
 import { mapValidationErrors } from '../api/catalogApiUtils';
 import { useI18n } from '../../../lib/i18n-context';
+import { useToast } from '../../../components/ui/Toast';
 import {
-  Alert,
   Field,
   IMAGE_ACCEPT,
   LoadingPanel,
@@ -107,15 +107,13 @@ function toFormState(supplier: Supplier): SupplierFormState {
  */
 export default function SupplierFormPage() {
   const { t } = useI18n();
+  const { showToast } = useToast();
   const params = useParams<{ id: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const rawId = params.id;
   const supplierId = rawId === undefined ? null : Number(rawId);
   const isEdit = supplierId !== null;
-
-  const flashMessage = (location.state as { flash?: string } | null)?.flash ?? null;
 
   const [form, setForm] = useState<SupplierFormState>(EMPTY_FORM);
   const [current, setCurrent] = useState<Supplier | null>(null);
@@ -126,16 +124,8 @@ export default function SupplierFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(flashMessage);
 
   const formAlertRef = useRef<HTMLDivElement>(null);
-
-  // Consume the "created" flash so it does not reappear on refresh.
-  useEffect(() => {
-    if (flashMessage) {
-      navigate(location.pathname, { replace: true, state: null });
-    }
-  }, [flashMessage, location.pathname, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,7 +200,6 @@ export default function SupplierFormPage() {
 
   const updateField = <K extends keyof SupplierFormState>(key: K, value: SupplierFormState[K]) => {
     setForm((previous) => ({ ...previous, [key]: value }));
-    setSuccessMessage(null);
     setFormError(null);
     clearFieldError(key);
   };
@@ -219,7 +208,6 @@ export default function SupplierFormPage() {
     const input = event.target;
     const file = input.files?.[0] ?? null;
 
-    setSuccessMessage(null);
     setFormError(null);
 
     if (!file) {
@@ -260,7 +248,6 @@ export default function SupplierFormPage() {
     setIsSaving(true);
     setFormError(null);
     setFieldErrors({});
-    setSuccessMessage(null);
 
     const formData = buildSupplierFormData({
       shop_name: form.shop_name,
@@ -293,16 +280,23 @@ export default function SupplierFormPage() {
       const supplier = response.data.supplier;
 
       if (supplierId === null) {
-        navigate(`/admin/suppliers/${supplier.id}/edit`, {
-          replace: true,
-          state: { flash: t('supplierCreated') },
+        showToast({
+          tone: 'success',
+          title: t('supplierCreated'),
+          description: t('supplierCreatedHint', { name: supplier.shop_name }),
         });
+
+        navigate(`/admin/suppliers/${supplier.id}/edit`, { replace: true });
         return;
       }
 
       setCurrent(supplier);
       setForm(toFormState(supplier));
-      setSuccessMessage(response.message ?? t('supplierUpdated'));
+      showToast({
+        tone: 'success',
+        title: t('supplierUpdated'),
+        description: t('supplierUpdatedHint', { name: supplier.shop_name }),
+      });
       return;
     }
 
@@ -376,12 +370,6 @@ export default function SupplierFormPage() {
   return (
     <div className="space-y-6">
       {header}
-
-      {successMessage ? (
-        <Alert tone="success">
-          <p className="text-sm font-medium">{successMessage}</p>
-        </Alert>
-      ) : null}
 
       {formError ? (
         <div

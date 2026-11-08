@@ -16,6 +16,7 @@ import {
   StatusBadge,
   describeLoadError,
   formatStatusLabel,
+  filterSelectClass,
   inputClass,
   linkClass,
   primaryButtonClass,
@@ -174,7 +175,7 @@ export default function OrderListPage() {
               setStatusFilter(event.target.value);
               setPage(1);
             }}
-            className={`${inputClass(false)} mt-1 w-full sm:w-56`}
+            className={`${filterSelectClass} mt-1 w-full sm:w-56`}
           >
             <option value="">All statuses</option>
             {ORDER_STATUSES.map((status) => (
@@ -196,7 +197,7 @@ export default function OrderListPage() {
               setPaymentFilter(event.target.value);
               setPage(1);
             }}
-            className={`${inputClass(false)} mt-1 w-full sm:w-52`}
+            className={`${filterSelectClass} mt-1 w-full sm:w-52`}
           >
             <option value="">All payments</option>
             {PAYMENT_STATUSES.map((status) => (

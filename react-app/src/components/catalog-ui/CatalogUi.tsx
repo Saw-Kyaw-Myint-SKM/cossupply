@@ -242,6 +242,12 @@ export function inputClass(hasError: boolean): string {
   return `${inputBaseClass} ${hasError ? inputErrorClass : inputNormalClass}`;
 }
 
+/**
+ * Compact select for filter bars. Keeps the shared focus/disabled treatment
+ * but uses tighter padding and smaller type so filter rows stay out of the way.
+ */
+export const filterSelectClass = `${inputBaseClass} ${inputNormalClass} max-w-52`;
+
 /** Multiline variant of the shared input treatment. */
 export const textareaClass = `${inputBaseClass} ${inputNormalClass} resize-y`;
 
@@ -316,9 +322,13 @@ export const JUST_ADDED_MS = 1500;
 export function useReceipt(
   productId: number,
   lastAdded: LastAddedCartLine | null,
+  variantId: number | null = null,
 ): LastAddedCartLine | null {
   const [, tick] = useReducer((value: number) => value + 1, 0);
-  const justAddedAt = lastAdded && lastAdded.productId === productId ? lastAdded.at : 0;
+  const justAddedAt =
+    lastAdded && lastAdded.productId === productId && (lastAdded.variantId ?? null) === (variantId ?? null)
+      ? lastAdded.at
+      : 0;
 
   useEffect(() => {
     if (justAddedAt === 0) return;

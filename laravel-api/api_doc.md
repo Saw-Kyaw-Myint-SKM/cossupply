@@ -334,7 +334,9 @@ Query parameters (all optional):
 | `parent_id` | integer, must exist in `categories` |
 | `status` | one of `ACTIVE`, `INACTIVE` |
 | `search` | string, max 100; matches `name_mm` or `name_en` (LIKE) |
-| `per_page` | integer 1–100, default 15 |
+| `sort_by` | one of `created_at`; omit for the default display order |
+| `sort_direction` | one of `asc` or `desc`; default `desc` |
+| `per_page` | integer 1-100, default 15 |
 
 ### Success response
 
@@ -372,7 +374,7 @@ Query parameters (all optional):
 
 Notes:
 
-- Ordered by `sort_order`, then `name_en`, then `id`.
+- Ordered by `sort_order`, then `name_en`, then `id`. Pass `sort_by=created_at` with `sort_direction=desc|asc` to order by creation time instead (newest first by default).
 - `image` is the path relative to the `public` disk; `image_url` is the absolute `/storage/...` URL and is `null` when no image is stored.
 
 ### Error responses
@@ -745,6 +747,8 @@ Query parameters (all optional):
 | --- | --- |
 | `status` | one of `ACTIVE`, `INACTIVE`, `SUSPENDED` |
 | `search` | string, max 100; matches `shop_name`, `company_name` or `phone` (LIKE) |
+| `sort_by` | one of `shop_name` or `created_at`; default `shop_name` |
+| `sort_direction` | one of `asc` or `desc`; default `asc` |
 | `per_page` | integer 1–100, default 15 |
 
 ### Success response
@@ -794,7 +798,7 @@ Query parameters (all optional):
 
 Notes:
 
-- Ordered by `shop_name`, then `id`.
+- Ordered by `shop_name` then `id` by default. Pass `sort_by=created_at` with `sort_direction=asc|desc` to order by creation time.
 - `products_count` is only included by the list endpoint (`withCount('products')`).
 
 ### Error responses
@@ -803,7 +807,7 @@ Notes:
 | --- | --- | --- |
 | `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
 | `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Token without the `admin` ability |
-| `422` | `{"message": "The selected status is invalid.", "errors": {"status": ["The selected status is invalid."]}}` | Invalid filter or `per_page` outside 1–100 |
+| `422` | `{"message": "The selected status is invalid.", "errors": {"status": ["The selected status is invalid."]}}` | Invalid filter, sort option, or `per_page` outside 1–100 |
 
 ---
 
@@ -1172,6 +1176,8 @@ Query parameters (all optional):
 | `category_id` | integer, must exist in `categories` |
 | `supplier_id` | integer, must exist in `suppliers` |
 | `search` | string, max 100; matches `name_mm`, `name_en`, `sku`, `brand` or `model` (LIKE) |
+| `sort_by` | one of `created_at`; default `created_at` |
+| `sort_direction` | one of `asc` or `desc`; default `desc` |
 | `per_page` | integer 1–100, default 15 |
 
 ### Success response
@@ -1273,9 +1279,10 @@ Query parameters (all optional):
 
 Notes:
 
-- Ordered newest first (`created_at` desc, then `id` desc).
+- Ordered newest first (`created_at` desc, then `id` desc) by default. Pass `sort_by=created_at` with `sort_direction=asc` to return the oldest products first.
 - Each item embeds its `category`, `supplier`, first `price` row and `stock` row; `price` and `stock` are `null` when no row exists.
 - Only the first (oldest) price row per product is embedded; all money values are integer MMK.
+- Each item includes `variants_count`. The `variants` array itself is only embedded by the detail, create and update responses.
 
 ### Error responses
 
@@ -1347,6 +1354,8 @@ Send as `multipart/form-data`. The price and stock fields are flat ("embedded") 
 | `stock_quantity` | nullable, integer, min 0 |
 | `stock_status` | nullable, one of `IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, `PRE_ORDER`, `SUPPLIER_CONFIRMATION_REQUIRED` |
 | `supplier_note` | nullable, string, max 1000 |
+| `variants` | nullable array, max 50. Each item is a variant (see below). Omit or send an empty array for a product with no variants. |
+| `variants_sync` | optional boolean. On update, when present the server syncs the stored variants to exactly the submitted list (missing rows are deleted). |
 
 ```json
 {
@@ -1361,9 +1370,45 @@ Send as `multipart/form-data`. The price and stock fields are flat ("embedded") 
   "stock_status": "IN_STOCK",
   "supplier_note": "Confirmed by supplier",
   "status": "DRAFT",
-  "photo": "<binary image file>"
+  "photo": "<binary image file>",
+  "variants": [
+    {
+      "name": "Red / M",
+      "sku": "TS-RED-M",
+      "retail_price": 6000,
+      "stock_quantity": 5,
+      "stock_status": "IN_STOCK",
+      "photo": "<binary image file>"
+    }
+  ]
 }
 ```
+
+Variant item fields (multipart keys are `variants[i][...]`, e.g. `variants[0][name]`):
+
+| Field | Rules |
+| --- | --- |
+| `name` | nullable, string, max 255; required when `attributes` is absent. Unique within the product |
+| `attributes` | optional legacy field: associative array, 1–3 entries; each name and value is a non-empty string, max 100. When `name` is omitted the server derives it from these attributes |
+| `sku` | nullable, string, max 100; unique within the product |
+| `photo` | nullable, file: `jpeg`, `jpg`, `png`, `webp`, max 2048 KB. When omitted the parent product photo is used for display |
+| `retail_price` | nullable, integer, min 1 (required before the product is published) |
+| `wholesale_price` | nullable, integer, min 0 |
+| `discount_price` | nullable, integer, min 0, must not exceed the variant `retail_price` |
+| `minimum_order_quantity` | nullable, integer, min 1 (default 1) |
+| `price_valid_until` | nullable, date |
+| `stock_quantity` | nullable, integer, min 0 |
+| `stock_status` | nullable, one of the stock status values; defaults to `SUPPLIER_CONFIRMATION_REQUIRED` |
+| `supplier_note` | nullable, string, max 1000 |
+| `id` | update only: integer, must belong to the product being updated |
+
+Notes for variants:
+
+- Variants are optional. A product with no `variants` rows remains a complete single product; the response then returns `"variants": null` with `"variants_count": 0`.
+- Duplicate variant names (or legacy attribute combinations), duplicate SKUs within the same product, and `discount_price > retail_price` return `422` keyed by `variants.<index>.<field>`.
+- Each variant gets its own generated `slug`, price and stock values; `price_updated_at` and `stock_confirmed_at` follow the current admin.
+- Publishing a product with variants requires every variant to have `retail_price > 0`; the parent product's own publish rules still apply.
+- Audit rows: `product.variant_created`, `product.variant_updated`, and `product.variant_deleted`.
 
 Notes:
 
@@ -1598,6 +1643,11 @@ No body, no query parameters.
 }
 ```
 
+Notes:
+
+- `variants` is the full variant list, or `null` when the product has no variants; `variants_count` is its size.
+- Each variant carries its own price and stock values. When a variant has no photo, `photo_url` falls back to the product photo URL.
+
 ### Error responses
 
 | Status | Body | Cause |
@@ -1665,23 +1715,40 @@ Send as `multipart/form-data` when a replacement photo is attached. All fields a
 | `stock_quantity` | sometimes, nullable, integer, min 0 |
 | `stock_status` | sometimes, nullable, one of `IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, `PRE_ORDER`, `SUPPLIER_CONFIRMATION_REQUIRED` |
 | `supplier_note` | sometimes, nullable, string, max 1000 |
+| `variants` | sometimes, nullable array, max 50; same item fields as create, plus `id` for existing rows |
+| `variants_sync` | sometimes boolean. When true, the stored variants are synced to exactly the submitted list: existing ids are updated, rows without an id are created, and omitted rows are deleted |
 
 ```json
 {
   "name_en": "Plastic Chair Deluxe",
   "retail_price": 6500,
   "stock_status": "LOW_STOCK",
-  "photo": "<binary replacement image file>"
+  "photo": "<binary replacement image file>",
+  "variants_sync": true,
+  "variants": [
+    {
+      "id": 4,
+      "name": "Red / M",
+      "sku": "TS-RED-M",
+      "retail_price": 6000
+    },
+    {
+      "name": "Blue / M",
+      "retail_price": 6500
+    }
+  ]
 }
 ```
 
 Notes:
 
 - `status` is not accepted here; use `PATCH /api/v1/admin/products/{product}/status`.
+- `variants` is optional. Without `variants` or `variants_sync` the stored variants are untouched. Sending `variants_sync` with an empty `variants` list deletes all variants.
 - `slug` is only changed when explicitly supplied; otherwise the existing slug is kept.
 - When `discount_price` is supplied without `retail_price`, the comparison uses the stored (effective) retail price.
 - The replacement photo is stored first; on failure the new file is removed and the old photo stays. On success the previous file is deleted after commit.
 - Audit rows are written only for values that actually change: `product.updated`, `product.price_updated` and/or `product.stock_updated`.
+- Variant changes write `product.variant_created`, `product.variant_updated`, and `product.variant_deleted` audit rows.
 
 ### Success response
 
@@ -2243,7 +2310,27 @@ No body, no query parameters. `{productId}` is the only input.
       "category": { "id": 1, "parent_id": null, "name_mm": "အီလက်ထရောနစ်", "name_en": "Electronics", "slug": "electronics", "description": "Phones, accessories and home electronics.", "image": null, "image_url": null, "sort_order": 0 },
       "supplier": { "id": 1, "shop_name": "Yangon Trading", "company_name": "Yangon Trading Co., Ltd.", "logo": null, "logo_url": null, "business_description": "Wholesale electronics supplier.", "delivery_area": "Yangon", "delivery_time": "1-2 days", "verified": true },
       "price": { "retail_price": 5000, "discount_price": null, "minimum_order_quantity": 1, "price_valid_until": null, "last_updated_at": "2026-10-17T05:40:36+00:00" },
-      "stock": { "stock_quantity": 20, "stock_status": "IN_STOCK", "last_confirmed_at": "2026-10-17T05:40:36+00:00" }
+      "stock": { "stock_quantity": 20, "stock_status": "IN_STOCK", "last_confirmed_at": "2026-10-17T05:40:36+00:00" },
+      "variants": [
+        {
+          "id": 4,
+          "name": "Red / M",
+          "variant_attributes": { "Color": "Red", "Size": "M" },
+          "slug": "plastic-chair-red-m",
+          "sku": "CHAIR-RED-M",
+          "photo": "products/variants/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+          "photo_url": "http://localhost:8000/storage/products/variants/2wF5hJ8kLq3mNxR7tYv9bC1dE4gH6sZp.jpg",
+          "retail_price": 5500,
+          "discount_price": null,
+          "minimum_order_quantity": 1,
+          "price_valid_until": null,
+          "last_updated_at": "2026-10-17T05:40:36+00:00",
+          "stock_quantity": 8,
+          "stock_status": "LOW_STOCK",
+          "last_confirmed_at": "2026-10-17T05:40:36+00:00",
+          "sort_order": 0
+        }
+      ]
     }
   }
 }
@@ -2251,7 +2338,9 @@ No body, no query parameters. `{productId}` is the only input.
 
 Notes:
 
-- The response body is the same shape as one item of `GET /api/v1/products`.
+- The response body is the same shape as one item of `GET /api/v1/products`, plus `variants`.
+- `variants` is `null` when the product has no variants. Each variant exposes its own media URL, attributes, display price and stock. When a variant has no photo, `photo_url` falls back to the product photo URL.
+- The list endpoint does not embed variants; call the detail endpoint to load them.
 - Browsing is not cart eligibility. When `stock.stock_status` is `OUT_OF_STOCK` the client must not offer *Add to cart*; every other stock status — including `SUPPLIER_CONFIRMATION_REQUIRED` — is addable (LogicFlow §4). A product with no `stock` row is addable as well.
 - The supplier block carries only `shop_name`, `company_name`, `logo`, `business_description`, `delivery_area`, `delivery_time` and `verified` — no phone/Viber/email/address, per RolesPermissions §3.
 
@@ -3093,8 +3182,9 @@ Customer. The owner is always the authenticated customer; a body-supplied `custo
 | Field | Rules |
 | --- | --- |
 | `items` | required, array, min 1 |
-| `items.*.product_id` | required, integer, exists on `products.id`, must be `PUBLISHED` and not `OUT_OF_STOCK` |
-| `items.*.quantity` | required, integer, min 1, at least the product's `minimum_order_quantity` |
+| `items.*.product_id` | required, integer, exists on `products.id`, must be `PUBLISHED` |
+| `items.*.variant_id` | nullable, integer, exists on `product_variants.id`, must belong to the selected product; the variant must not be `OUT_OF_STOCK` |
+| `items.*.quantity` | required, integer, min 1, at least the selected product/variant `minimum_order_quantity` |
 | `name` | required, string, max 255 |
 | `phone` | required, string, max 50 |
 | `company_name` | nullable, string, max 255 |
@@ -3106,12 +3196,12 @@ Customer. The owner is always the authenticated customer; a body-supplied `custo
 | `required_delivery_date` | nullable, date, today or later |
 | `customer_note` | nullable, string, max 2000 |
 
-Each product may appear only once. Per-item failures are keyed as `items.{index}.product_id` or `items.{index}.quantity`.
+The same product may appear once per variant; an exact `product_id + variant_id` pair may not repeat. Per-item failures are keyed as `items.{index}.product_id`, `items.{index}.variant_id` or `items.{index}.quantity`.
 
 ```json
 {
   "items": [
-    { "product_id": 15, "quantity": 3 }
+    { "product_id": 15, "variant_id": 4, "quantity": 3 }
   ],
   "name": "Aung Aung",
   "phone": "09123456789",
@@ -3169,7 +3259,8 @@ Notes:
 
 - The quotation number follows `{prefix}-YYYY-####`; the prefix comes from the `quotation_number_prefix` master setting (default `QT`).
 - Product name, specification, supplier, display price and stock status are snapshotted at submission time and never refreshed afterwards.
-- `display_price` is the discount price when it is a real discount, otherwise the retail price; it may be `null` when the product has no price row.
+- When `variant_id` is supplied, the variant's attributes are appended to `specification_snapshot` (for example `Variant: Color: red, shirt: Blue`), and `display_price` / `stock_status` come from the variant instead of the product.
+- `display_price` is the discount price when it is a real discount, otherwise the retail price; it may be `null` when the product or variant has no price row.
 - The request and all item snapshots are persisted in one transaction.
 
 ### Error responses
@@ -3368,7 +3459,7 @@ Additional additive fields:
 
 - `current_quotation_id` — the current version id (or `null`).
 - `order` — the order created when the current version was accepted (`id`, `order_number`, `order_status`, `payment_status`, `delivery_status`, `total_amount`, `created_at`), or `null`.
-- `versions` — every version visible to the customer, newest first, with the customer version shape (`discount_amount`, `cod_terms`, `delivery_date`, item snapshots and per-version `actions`).
+- `versions` — every version visible to the customer, newest first, with the customer version shape (`discount_amount`, `cod_terms`, `delivery_date`, item snapshots and per-version `actions`). Version items also include the linked product's optional `photo` / `photo_url` for display; the line snapshot itself stays immutable.
 
 ### Error responses
 

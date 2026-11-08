@@ -162,6 +162,47 @@ class AdminSupplierTest extends TestCase
             ->assertJsonStructure(['data' => ['suppliers', 'meta' => ['current_page', 'per_page', 'total', 'last_page']]]);
     }
 
+    public function test_supplier_list_can_be_sorted_by_created_at(): void
+    {
+        $this->actingAsAdmin();
+
+        $base = now();
+
+        $this->travelTo($base->copy()->subDays(2));
+        Supplier::factory()->create(['shop_name' => 'Oldest Supplies']);
+
+        $this->travelTo($base->copy()->subDays(1));
+        Supplier::factory()->create(['shop_name' => 'Middle Supplies']);
+
+        $this->travelBack();
+        Supplier::factory()->create(['shop_name' => 'Newest Supplies']);
+
+        $this->getJson('/api/v1/admin/suppliers?sort_by=created_at&sort_direction=desc')
+            ->assertOk()
+            ->assertJsonPath('data.suppliers.0.shop_name', 'Newest Supplies')
+            ->assertJsonPath('data.suppliers.1.shop_name', 'Middle Supplies')
+            ->assertJsonPath('data.suppliers.2.shop_name', 'Oldest Supplies');
+
+        $this->getJson('/api/v1/admin/suppliers?sort_by=created_at&sort_direction=asc')
+            ->assertOk()
+            ->assertJsonPath('data.suppliers.0.shop_name', 'Oldest Supplies')
+            ->assertJsonPath('data.suppliers.1.shop_name', 'Middle Supplies')
+            ->assertJsonPath('data.suppliers.2.shop_name', 'Newest Supplies');
+    }
+
+    public function test_supplier_list_rejects_invalid_sort_options(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->getJson('/api/v1/admin/suppliers?sort_by=phone')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_by');
+
+        $this->getJson('/api/v1/admin/suppliers?sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sort_direction');
+    }
+
     public function test_suppliers_have_no_delete_route(): void
     {
         $this->actingAsAdmin();
