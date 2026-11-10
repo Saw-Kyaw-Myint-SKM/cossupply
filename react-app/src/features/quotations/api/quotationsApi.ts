@@ -20,6 +20,7 @@
  * the money source of truth (MoneyAndValidationRules §5).
  */
 import { apiRequest, type ApiResponse } from '../../../api/client';
+import { downloadAuthorizedFile, type DownloadedFile } from '../../../api/download';
 import { toQueryString, type PaginationMeta } from '../../../api/query';
 
 export type { PaginationMeta };
@@ -203,6 +204,12 @@ export interface CustomerQuotationVersion {
   cod_terms: string | null;
   admin_note: string | null;
   sent_at: string | null;
+  /**
+   * Whether a generated PDF exists for this version. Admin generates it when
+   * the version is sent; `null`/absent means an older backend omitted the
+   * field, so the UI keeps the download action available.
+   */
+  pdf_available?: boolean | null;
   items: CustomerQuotationVersionItem[];
   actions: QuotationVersionAction[];
 }
@@ -396,5 +403,24 @@ export async function requestQuotationChange(
       method: 'POST',
       body: JSON.stringify({ customer_note: customerNote.trim() }),
     },
+  );
+}
+
+export type { DownloadedFile };
+
+/**
+ * GET /customer/quotations/{quotationId}/pdf/download — the newest PDF the
+ * sales team generated for one of the buyer's own versions.
+ *
+ * A plain <a href> cannot carry the bearer token, so the file is fetched and
+ * handed to the browser as a blob. The server answers 404 when no PDF has been
+ * generated for the version yet, or when it belongs to another customer.
+ */
+export async function downloadQuotationPdf(
+  quotationId: number,
+): Promise<ApiResponse<DownloadedFile>> {
+  return downloadAuthorizedFile(
+    `/customer/quotations/${quotationId}/pdf/download`,
+    `quotation-${quotationId}.pdf`,
   );
 }

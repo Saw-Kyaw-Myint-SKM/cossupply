@@ -130,6 +130,51 @@ export function orderStatusHint(status: string, t: Translator = englishTranslato
   }
 }
 
+/**
+ * How an order status reads on the four-step card track.
+ *
+ * `stage` is the number of steps already reached (0–4), which lets the card
+ * fill the first N dots without knowing which label is "current". Statuses
+ * outside the linear workflow carry `stage: null` and show a badge only.
+ *
+ * - progress: the order is still moving (cyan)
+ * - done: the order reached the end of the workflow (green)
+ * - issue: the order hit a problem (red)
+ * - muted: the order was cancelled or returned (grey)
+ */
+export type OrderProgressTone = 'progress' | 'done' | 'issue' | 'muted';
+
+export interface OrderProgress {
+  stage: number | null;
+  tone: OrderProgressTone;
+}
+
+/** The four track labels, in the order they appear on the card. */
+export const ORDER_PROGRESS_STEP_KEYS = [
+  'stageConfirmed',
+  'stagePreparing',
+  'stageOnTheWay',
+  'stageDelivered',
+] as const satisfies readonly TranslationKey[];
+
+const ORDER_PROGRESS_BY_STATUS: Record<string, OrderProgress> = {
+  SUPPLIER_CONFIRMATION_REQUIRED: { stage: 0, tone: 'progress' },
+  ORDER_CONFIRMED: { stage: 1, tone: 'progress' },
+  PREPARING: { stage: 2, tone: 'progress' },
+  READY_TO_SHIP: { stage: 2, tone: 'progress' },
+  OUT_FOR_DELIVERY: { stage: 3, tone: 'progress' },
+  DELIVERED: { stage: 4, tone: 'done' },
+  COMPLETED: { stage: 4, tone: 'done' },
+  SUPPLIER_UNAVAILABLE: { stage: null, tone: 'issue' },
+  DELIVERY_FAILED: { stage: null, tone: 'issue' },
+  RETURNED: { stage: null, tone: 'muted' },
+  CANCELLED: { stage: null, tone: 'muted' },
+};
+
+export function orderProgress(status: string): OrderProgress {
+  return ORDER_PROGRESS_BY_STATUS[status] ?? { stage: null, tone: 'muted' };
+}
+
 /** Orders that are still moving through the workflow. */
 export const OPEN_ORDER_STATUSES = [
   'SUPPLIER_CONFIRMATION_REQUIRED',

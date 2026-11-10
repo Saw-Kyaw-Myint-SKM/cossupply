@@ -13,8 +13,11 @@ use App\Models\Order;
 use App\Models\Quotation;
 use App\Models\QuotationRequest;
 use App\Services\Quotation\CustomerQuotationService;
+use App\Services\Quotation\QuotationPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Customer quotation review and decisions (LogicFlow §8).
@@ -26,6 +29,7 @@ class CustomerQuotationController extends Controller
 {
     public function __construct(
         private readonly CustomerQuotationService $quotations,
+        private readonly QuotationPdfService $pdfs,
     ) {}
 
     /**
@@ -56,6 +60,7 @@ class CustomerQuotationController extends Controller
             'quotations' => fn ($query) => $query->orderByDesc('version'),
             'quotations.items.supplier',
             'quotations.items.product',
+            'quotations.pdfs' => fn ($query) => $query->orderByDesc('generated_at')->orderByDesc('id'),
             'quotations.actions' => fn ($query) => $query->orderByDesc('id'),
             'currentQuotation.items.supplier',
             'currentQuotation.items.product',
@@ -143,6 +148,34 @@ class CustomerQuotationController extends Controller
         return $this->successResponse(
             $this->decisionPayload($result),
             'Change request sent to the supplier team.',
+        );
+    }
+
+    /**
+     * Download the newest PDF generated for a version the customer owns.
+     *
+     * PDFs are produced by Admin when a version is sent, so this route never
+     * generates one: a version without a stored document answers 404 instead.
+     * A foreign or unknown id is a 404 as well, so ids cannot be probed.
+     */
+    public function downloadPdf(Request $request, string $quotation): StreamedResponse|JsonResponse
+    {
+        $owned = $this->resolveOwned($request, $quotation);
+
+        if ($owned === null) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        $pdf = $owned->pdfs()->orderByDesc('generated_at')->orderByDesc('id')->first();
+
+        if ($pdf === null || ! $this->pdfs->isRenderable($pdf->file_path)) {
+            return $this->notFoundResponse('This quotation PDF is not available yet.');
+        }
+
+        return Storage::disk('local')->download(
+            $pdf->file_path,
+            $pdf->file_name,
+            ['Content-Type' => 'application/pdf'],
         );
     }
 

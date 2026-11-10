@@ -17,6 +17,7 @@ function stubStorage() {
 import {
   acceptQuotation,
   createQuotationRequest,
+  downloadQuotationPdf,
   getQuotationRequest,
   listQuotationRequests,
   markQuotationRequestViewed,
@@ -505,5 +506,50 @@ describe('requestQuotationChange', () => {
     expect(response.success).toBe(false);
     expect(response.status).toBeUndefined();
     expect(response.message).toBe('Network down');
+  });
+});
+
+describe('downloadQuotationPdf', () => {
+  it('fetches the version PDF with the customer token', async () => {
+    const blob = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        'Content-Disposition': 'attachment; filename="QT-2026-0014-v11.pdf"',
+      }),
+      blob: async () => blob,
+      json: async () => ({}),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await downloadQuotationPdf(11);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/customer/quotations/11/pdf/download'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer customer-token' }),
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.fileName).toBe('QT-2026-0014-v11.pdf');
+  });
+
+  it('surfaces 404 when no PDF exists or the version belongs to another customer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          { success: false, message: 'This quotation PDF is not available yet.' },
+          404,
+        ),
+      ),
+    );
+
+    const response = await downloadQuotationPdf(999);
+
+    expect(response.success).toBe(false);
+    expect(response.status).toBe(404);
+    expect(response.message).toBe('This quotation PDF is not available yet.');
   });
 });

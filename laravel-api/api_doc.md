@@ -3459,7 +3459,7 @@ Additional additive fields:
 
 - `current_quotation_id` — the current version id (or `null`).
 - `order` — the order created when the current version was accepted (`id`, `order_number`, `order_status`, `payment_status`, `delivery_status`, `total_amount`, `created_at`), or `null`.
-- `versions` — every version visible to the customer, newest first, with the customer version shape (`discount_amount`, `cod_terms`, `delivery_date`, item snapshots and per-version `actions`). Version items also include the linked product's optional `photo` / `photo_url` for display; the line snapshot itself stays immutable.
+- `versions` — every version visible to the customer, newest first, with the customer version shape (`discount_amount`, `cod_terms`, `delivery_date`, item snapshots and per-version `actions`). Each version also carries `pdf_available` (`true` when Admin has generated a PDF for it, otherwise `false`) so the UI only offers the download it can serve. Version items also include the linked product's optional `photo` / `photo_url` for display; the line snapshot itself stays immutable.
 
 ### Error responses
 
@@ -3654,6 +3654,44 @@ Required. Customer token.
 | `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
 | `422` | `{"message": "The customer note field is required.", "errors": {"customer_note": ["The customer note field is required."]}}` | Missing or shorter than 5 characters |
 | `422` | Shared state error | Non-current, superseded, expired, accepted or already-rejected quotation |
+
+---
+
+## GET /api/v1/customer/quotations/{quotation}/pdf/download
+
+### Task
+
+Task 07 / 08 — the customer's copy of the Final Quotation PDF.
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/customer/quotations/{quotation}/pdf/download` (quotation version id)
+
+### Authentication
+
+Required. Customer token. The version must belong to a request owned by the caller; a foreign or unknown id answers `404`, never `403`, so ids cannot be probed.
+
+### Request
+
+No body.
+
+### Success response
+
+`200 OK` with `Content-Type: application/pdf` and a `Content-Disposition: attachment` header carrying the generated file name (`QT-YYYY-####-v#.pdf`). The body is the binary PDF.
+
+The newest PDF generated for the version is served. PDFs are produced by Admin when a version is sent, so this route never generates one and never writes a `quotation_pdfs` row.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-customer token |
+| `404` | `{"success": false, "message": "Quotation not found."}` | Unknown id or another customer's quotation |
+| `404` | `{"success": false, "message": "This quotation PDF is not available yet."}` | No generated PDF exists for the version, or the stored file is a legacy blank placeholder |
 
 ---
 

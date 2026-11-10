@@ -14,6 +14,7 @@ use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CustomerQuotationActionTest extends TestCase
@@ -446,5 +447,122 @@ class CustomerQuotationActionTest extends TestCase
                 'data.quotation_requests.0.current_quotation.valid_until',
                 now()->addDays(7)->toDateString(),
             );
+    }
+
+    public function test_guest_cannot_download_a_quotation_pdf(): void
+    {
+        $this->getJson('/api/v1/customer/quotations/1/pdf/download')->assertUnauthorized();
+    }
+
+    public function test_admin_token_cannot_download_a_customer_quotation_pdf(): void
+    {
+        $admin = Admin::factory()->create();
+        $token = $admin->createToken('admin-token', ['admin'])->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/customer/quotations/1/pdf/download')
+            ->assertForbidden();
+    }
+
+    public function test_owner_downloads_the_newest_pdf_for_their_version(): void
+    {
+        Storage::fake('local');
+
+        [$customer, $token] = $this->authenticate();
+        [, $quotation] = $this->requestWithQuotation($customer);
+
+        $admin = Admin::factory()->create();
+
+        Storage::disk('local')->put('quotations/older.pdf', $this->pdfBody('Older document'));
+        Storage::disk('local')->put('quotations/newer.pdf', $this->pdfBody('Newer document'));
+
+        $quotation->pdfs()->create([
+            'file_path' => 'quotations/older.pdf',
+            'file_name' => 'older.pdf',
+            'generated_by_admin_id' => $admin->id,
+            'generated_at' => now()->subDay(),
+        ]);
+        $quotation->pdfs()->create([
+            'file_path' => 'quotations/newer.pdf',
+            'file_name' => 'QT-2026-0014-v11.pdf',
+            'generated_by_admin_id' => $admin->id,
+            'generated_at' => now(),
+        ]);
+
+        $response = $this->withToken($token)->get(
+            "/api/v1/customer/quotations/{$quotation->id}/pdf/download",
+        );
+
+        $response->assertOk()->assertDownload('QT-2026-0014-v11.pdf');
+        $this->assertStringContainsString('Newer document', $response->streamedContent());
+    }
+
+    public function test_another_customers_quotation_pdf_is_not_found(): void
+    {
+        Storage::fake('local');
+
+        [$owner] = $this->authenticate();
+        [, $quotation] = $this->requestWithQuotation($owner);
+
+        $quotation->pdfs()->create([
+            'file_path' => 'quotations/owned.pdf',
+            'file_name' => 'owned.pdf',
+            'generated_by_admin_id' => Admin::factory()->create()->id,
+            'generated_at' => now(),
+        ]);
+        Storage::disk('local')->put('quotations/owned.pdf', $this->pdfBody('Owned document'));
+
+        [, $strangerToken] = $this->authenticate();
+
+        $this->withToken($strangerToken)
+            ->getJson("/api/v1/customer/quotations/{$quotation->id}/pdf/download")
+            ->assertNotFound();
+    }
+
+    public function test_version_without_a_pdf_answers_not_found(): void
+    {
+        Storage::fake('local');
+
+        [$customer, $token] = $this->authenticate();
+        [, $quotation] = $this->requestWithQuotation($customer);
+
+        $this->withToken($token)
+            ->getJson("/api/v1/customer/quotations/{$quotation->id}/pdf/download")
+            ->assertNotFound()
+            ->assertJsonPath('message', 'This quotation PDF is not available yet.');
+    }
+
+    public function test_detail_exposes_whether_each_version_has_a_pdf(): void
+    {
+        Storage::fake('local');
+
+        [$customer, $token] = $this->authenticate();
+        [$request, $quotation] = $this->requestWithQuotation($customer);
+
+        $this->withToken($token)
+            ->getJson("/api/v1/customer/quotation-requests/{$request->id}")
+            ->assertOk()
+            ->assertJsonPath('data.quotation_request.versions.0.pdf_available', false);
+
+        $quotation->pdfs()->create([
+            'file_path' => 'quotations/available.pdf',
+            'file_name' => 'available.pdf',
+            'generated_by_admin_id' => Admin::factory()->create()->id,
+            'generated_at' => now(),
+        ]);
+
+        $this->withToken($token)
+            ->getJson("/api/v1/customer/quotation-requests/{$request->id}")
+            ->assertOk()
+            ->assertJsonPath('data.quotation_request.versions.0.pdf_available', true);
+    }
+
+    /**
+     * Minimal PDF that QuotationPdfService::isRenderable() accepts.
+     */
+    private function pdfBody(string $marker): string
+    {
+        return "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+            ."2 0 obj\n<< /Contents {$marker} /FontFile2 1 >>\nendobj\n%%EOF\n";
     }
 }

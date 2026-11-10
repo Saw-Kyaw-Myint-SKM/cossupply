@@ -40,6 +40,12 @@ class CustomerQuotationVersionResource extends JsonResource
             'cod_terms' => $this->payment_terms,
             'admin_note' => $this->admin_note,
             'sent_at' => $this->sent_at?->toIso8601String(),
+            // A generated PDF exists for this version (Admin generates it on
+            // send). Older payloads omit the field, so the UI treats a missing
+            // value as "unknown" rather than "unavailable".
+            'pdf_available' => $this->relationLoaded('pdfs')
+                ? $this->pdfs->isNotEmpty()
+                : null,
             'items' => QuotationVersionItemResource::collection($this->whenLoaded('items')),
             'actions' => QuotationActionResource::collection($this->whenLoaded('actions')),
         ];

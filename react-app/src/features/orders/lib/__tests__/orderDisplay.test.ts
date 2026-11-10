@@ -9,6 +9,8 @@ import {
   formatOrderDate,
   formatOrderDateTime,
   isOpenOrderStatus,
+  ORDER_PROGRESS_STEP_KEYS,
+  orderProgress,
   orderStatusHint,
   orderStatusLabel,
   paymentMethodLabel,
@@ -116,5 +118,40 @@ describe('order status helpers', () => {
     expect(orderStatusHint('SUPPLIER_CONFIRMATION_REQUIRED', t)).toBe('orderStatusSupplierConfirmation');
     expect(orderStatusHint('CANCELLED', t)).toBe('orderStatusCancelled');
     expect(orderStatusHint('SOMETHING_NEW', t)).toBe('orderStatusDefault');
+  });
+});
+
+describe('orderProgress', () => {
+  it('counts the completed steps of an in-flight order', () => {
+    expect(orderProgress('SUPPLIER_CONFIRMATION_REQUIRED')).toEqual({ stage: 0, tone: 'progress' });
+    expect(orderProgress('ORDER_CONFIRMED')).toEqual({ stage: 1, tone: 'progress' });
+    expect(orderProgress('PREPARING')).toEqual({ stage: 2, tone: 'progress' });
+    expect(orderProgress('READY_TO_SHIP')).toEqual({ stage: 2, tone: 'progress' });
+    expect(orderProgress('OUT_FOR_DELIVERY')).toEqual({ stage: 3, tone: 'progress' });
+  });
+
+  it('marks delivered orders as done across the whole track', () => {
+    expect(orderProgress('DELIVERED')).toEqual({ stage: 4, tone: 'done' });
+    expect(orderProgress('COMPLETED')).toEqual({ stage: 4, tone: 'done' });
+  });
+
+  it('flags problem and closed statuses without a track', () => {
+    expect(orderProgress('SUPPLIER_UNAVAILABLE')).toEqual({ stage: null, tone: 'issue' });
+    expect(orderProgress('DELIVERY_FAILED')).toEqual({ stage: null, tone: 'issue' });
+    expect(orderProgress('RETURNED')).toEqual({ stage: null, tone: 'muted' });
+    expect(orderProgress('CANCELLED')).toEqual({ stage: null, tone: 'muted' });
+  });
+
+  it('falls back to a neutral entry for an unknown status', () => {
+    expect(orderProgress('SOMETHING_NEW')).toEqual({ stage: null, tone: 'muted' });
+  });
+
+  it('exposes exactly the four track labels in order', () => {
+    expect(ORDER_PROGRESS_STEP_KEYS).toEqual([
+      'stageConfirmed',
+      'stagePreparing',
+      'stageOnTheWay',
+      'stageDelivered',
+    ]);
   });
 });
