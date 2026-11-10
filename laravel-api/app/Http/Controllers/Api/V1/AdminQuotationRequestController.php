@@ -192,7 +192,7 @@ class AdminQuotationRequestController extends Controller
             'items.supplier',
             'communications' => fn ($query) => $query->with('admin')->orderByDesc('contacted_at')->orderByDesc('id'),
             'quotations' => fn ($query) => $query
-                ->with(['items.supplier', 'pdfs', 'emailLogs', 'createdByAdmin'])
+                ->with(['items.product', 'items.supplier', 'pdfs', 'emailLogs', 'createdByAdmin'])
                 ->orderByDesc('version'),
         ]);
     }

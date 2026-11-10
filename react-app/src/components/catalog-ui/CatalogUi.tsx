@@ -179,12 +179,12 @@ export function StatusBadge({ status }: { status: string }) {
   const { t } = useI18n();
   const tone = STATUS_BADGE_CLASSES[status] ?? 'bg-paper text-ink ring-gray-500/20';
   const statusKey: Record<string, TranslationKey> = {
-    NEW: 'statusNew', CONTACTING_SUPPLIER: 'statusContactingSupplier', SUPPLIER_RESPONSE_PENDING: 'statusAwaitingSupplier', PREPARING_QUOTATION: 'statusPreparingQuotation', QUOTATION_SENT: 'statusQuotationSent', CUSTOMER_REVIEWING: 'statusReviewing', CHANGE_REQUESTED: 'statusChangeRequested', ACCEPTED: 'statusAccepted', REJECTED: 'statusRejected', EXPIRED: 'statusExpired', CANCELLED: 'statusCancelled', DRAFT: 'statusDraft', SENT: 'statusSent', VIEWED: 'statusViewed', SUPERSEDED: 'statusSuperseded', SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired', ORDER_CONFIRMED: 'statusOrderConfirmed', PREPARING: 'statusPreparing', READY_TO_SHIP: 'statusReadyToShip', OUT_FOR_DELIVERY: 'statusOutForDelivery', DELIVERED: 'statusDelivered', COMPLETED: 'statusCompleted', SUPPLIER_UNAVAILABLE: 'statusSupplierUnavailable', DELIVERY_FAILED: 'statusDeliveryFailed', RETURNED: 'statusReturned', NOT_ASSIGNED: 'statusNotAssigned', NOT_PAID: 'statusNotPaid', CASH_COLLECTION_PENDING: 'statusCashCollectionPending', CASH_COLLECTED: 'statusCashCollected', PAYMENT_CONFIRMED: 'statusPaymentConfirmed', CUSTOMER_REFUSED_TO_PAY: 'statusCustomerRefusedToPay', PAYMENT_FAILED: 'statusPaymentFailed',
+    NEW: 'statusNew', CONTACTING_SUPPLIER: 'statusContactingSupplier', SUPPLIER_RESPONSE_PENDING: 'statusAwaitingSupplier', PREPARING_QUOTATION: 'statusPreparingQuotation', QUOTATION_SENT: 'statusQuotationSent', CUSTOMER_REVIEWING: 'statusReviewing', CHANGE_REQUESTED: 'statusChangeRequested', ACCEPTED: 'statusAccepted', REJECTED: 'statusRejected', EXPIRED: 'statusExpired', CANCELLED: 'statusCancelled', DRAFT: 'statusDraft', SENT: 'statusSent', VIEWED: 'statusViewed', SUPERSEDED: 'statusSuperseded', IN_STOCK: 'inStock', LOW_STOCK: 'lowStock', OUT_OF_STOCK: 'outOfStock', PRE_ORDER: 'preOrder', SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired', ORDER_CONFIRMED: 'statusOrderConfirmed', PREPARING: 'statusPreparing', READY_TO_SHIP: 'statusReadyToShip', OUT_FOR_DELIVERY: 'statusOutForDelivery', DELIVERED: 'statusDelivered', COMPLETED: 'statusCompleted', SUPPLIER_UNAVAILABLE: 'statusSupplierUnavailable', DELIVERY_FAILED: 'statusDeliveryFailed', RETURNED: 'statusReturned', NOT_ASSIGNED: 'statusNotAssigned', NOT_PAID: 'statusNotPaid', CASH_COLLECTION_PENDING: 'statusCashCollectionPending', CASH_COLLECTED: 'statusCashCollected', PAYMENT_CONFIRMED: 'statusPaymentConfirmed', CUSTOMER_REFUSED_TO_PAY: 'statusCustomerRefusedToPay', PAYMENT_FAILED: 'statusPaymentFailed',
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium leading-relaxed ring-1 ring-inset ${tone}`}
     >
       {statusKey[status] ? t(statusKey[status]) : t('statusUnknown', { status: formatStatusLabel(status) })}
     </span>
@@ -205,6 +205,24 @@ export const primaryButtonClass =
  */
 export const addedButtonClass =
   'inline-flex items-center justify-center rounded-lg border border-transparent bg-success px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-success focus:ring-offset-2 motion-reduce:transition-none';
+
+/**
+ * Elevated content panel — the default card for admin surfaces.
+ *
+ * The page sits on paper (#f8f8f8), so a white plate needs a slightly darker
+ * border *and* a soft shadow to separate from it; the hairline alone left the
+ * cards melting into the background.
+ */
+export const panelClass =
+  'rounded-xl border border-line/60 bg-plate shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.16)]';
+
+/**
+ * Small muted label used above a value in detail panels and card rows.
+ *
+ * Deliberately sentence case with no letter-spacing: uppercase does nothing
+ * for Myanmar script, and tracking breaks its syllable clusters.
+ */
+export const metaLabelClass = 'text-xs font-medium text-gray-500';
 
 /**
  * Secondary action button — subtle, supportive, ready when needed.

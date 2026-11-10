@@ -51,6 +51,7 @@ class CustomerQuotationController extends Controller
         }
 
         $owned->load([
+            'items.product',
             'items.supplier',
             'quotations' => fn ($query) => $query->orderByDesc('version'),
             'quotations.items.supplier',

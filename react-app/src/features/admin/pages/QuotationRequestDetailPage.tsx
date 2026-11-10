@@ -16,13 +16,15 @@ import {
   formatStatusLabel,
   inputClass,
   linkClass,
+  metaLabelClass,
+  panelClass,
   primaryButtonClass,
   secondaryButtonClass,
   smallButtonClass,
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { useAuth } from '../../../lib/auth-context';
-import QuotationVersionPanel from '../components/QuotationVersionPanel';
+import { useI18n } from '../../../lib/i18n-context';
 import SupplierCommunicationPanel from '../components/SupplierCommunicationPanel';
 import {
   assignQuotationRequest,
@@ -97,6 +99,7 @@ export default function QuotationRequestDetailPage() {
   const { requestId } = useParams<{ requestId: string }>();
   const id = Number(requestId);
   const { admin } = useAuth();
+  const { t } = useI18n();
   const location = useLocation();
 
   const [detail, setDetail] = useState<QuotationRequestDetailResult | null>(null);
@@ -235,7 +238,10 @@ export default function QuotationRequestDetailPage() {
 
   const request = detail.quotation_request;
   const statusActions = STATUS_ACTIONS[request.status] ?? [];
-  const canCreateVersion = !['ACCEPTED', 'REJECTED', 'CANCELLED'].includes(request.status);
+  const latestVersion = request.quotations.reduce<(typeof request.quotations)[number] | null>(
+    (latest, entry) => (!latest || entry.version > latest.version ? entry : latest),
+    null,
+  );
   const assignmentUnchanged =
     (request.assigned_admin?.id ?? null) === (assignmentId === '' ? null : Number(assignmentId));
 
@@ -251,6 +257,16 @@ export default function QuotationRequestDetailPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={request.status} />
+            <Link
+              to={
+                latestVersion
+                  ? `/admin/quotation-requests/${request.id}/versions/${latestVersion.id}`
+                  : `/admin/quotation-requests/${request.id}/versions/new`
+              }
+              className={secondaryButtonClass}
+            >
+              {t('finalQuotation')}
+            </Link>
             <Link to="/admin/quotations" className={secondaryButtonClass}>
               Back to queue
             </Link>
@@ -261,14 +277,24 @@ export default function QuotationRequestDetailPage() {
       {notice ? <Alert tone="success">{notice}</Alert> : null}
       {actionError ? <Alert tone="error">{actionError}</Alert> : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-lg border border-rule bg-plate p-4 lg:col-span-2">
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <section className={`${panelClass} p-5 lg:col-span-2`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-ink">{request.customer_name}</h2>
-              {request.company_name ? (
-                <p className="text-sm text-gray-600">{request.company_name}</p>
-              ) : null}
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-primary ring-1 ring-inset ring-primary/15"
+              >
+                {request.customer_name.trim().charAt(0)}
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold leading-snug text-ink">
+                  {request.customer_name}
+                </h2>
+                {request.company_name ? (
+                  <p className="text-sm text-gray-600">{request.company_name}</p>
+                ) : null}
+              </div>
             </div>
             <p className="text-xs text-gray-500">
               {request.items.length} {request.items.length === 1 ? 'item' : 'items'} ·{' '}
@@ -277,24 +303,18 @@ export default function QuotationRequestDetailPage() {
             </p>
           </div>
 
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <dl className="mt-5 grid gap-x-6 gap-y-4 border-t border-rule pt-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Phone
-              </dt>
-              <dd className="mt-1 text-gray-800">{request.phone}</dd>
+              <dt className={metaLabelClass}>Phone</dt>
+              <dd className="mt-0.5 leading-relaxed text-ink">{request.phone}</dd>
             </div>
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Email
-              </dt>
-              <dd className="mt-1 break-all text-gray-800">{request.email ?? '—'}</dd>
+              <dt className={metaLabelClass}>Email</dt>
+              <dd className="mt-0.5 break-all leading-relaxed text-ink">{request.email ?? '—'}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Delivery address
-              </dt>
-              <dd className="mt-1 whitespace-pre-line text-gray-800">
+              <dt className={metaLabelClass}>Delivery address</dt>
+              <dd className="mt-0.5 whitespace-pre-line leading-relaxed text-ink">
                 {request.delivery_address}
                 {request.city ? `, ${request.city}` : ''}
                 {request.township ? `, ${request.township}` : ''}
@@ -303,10 +323,8 @@ export default function QuotationRequestDetailPage() {
             </div>
             {request.customer_note ? (
               <div className="sm:col-span-2">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Customer note
-                </dt>
-                <dd className="mt-1 whitespace-pre-line rounded bg-gray-50 px-3 py-2 text-gray-700">
+                <dt className={metaLabelClass}>Customer note</dt>
+                <dd className="mt-1 whitespace-pre-line rounded-lg bg-paper px-3 py-2 leading-relaxed text-gray-700">
                   {request.customer_note}
                 </dd>
               </div>
@@ -315,7 +333,7 @@ export default function QuotationRequestDetailPage() {
         </section>
 
         <div className="space-y-4">
-          <section className="rounded-lg border border-rule bg-plate p-4">
+          <section className={`${panelClass} p-5`}>
             <h2 className="text-base font-semibold text-ink">Assignment</h2>
             <form onSubmit={saveAssignment} className="mt-3 space-y-3">
               <div>
@@ -342,7 +360,7 @@ export default function QuotationRequestDetailPage() {
                 <button
                   type="submit"
                   disabled={assignmentBusy || assignmentUnchanged}
-                  className={primaryButtonClass}
+                  className={assignmentUnchanged ? secondaryButtonClass : primaryButtonClass}
                 >
                   {assignmentBusy ? 'Saving…' : 'Save assignment'}
                 </button>
@@ -361,7 +379,7 @@ export default function QuotationRequestDetailPage() {
           </section>
 
           {statusActions.length > 0 ? (
-            <section className="rounded-lg border border-rule bg-plate p-4">
+            <section className={`${panelClass} p-5`}>
               <h2 className="text-base font-semibold text-ink">Workflow status</h2>
               <p className="mt-1 text-xs text-gray-500">
                 Current: {formatStatusLabel(request.status)}
@@ -414,18 +432,6 @@ export default function QuotationRequestDetailPage() {
           ))
         )}
       </section>
-
-      <QuotationVersionPanel
-        requestId={request.id}
-        versions={request.quotations}
-        canCreateVersion={canCreateVersion}
-        onChanged={refresh}
-        onNotice={(message) => {
-          setNotice(message);
-          setActionError(null);
-        }}
-        onError={setActionError}
-      />
     </div>
   );
 }

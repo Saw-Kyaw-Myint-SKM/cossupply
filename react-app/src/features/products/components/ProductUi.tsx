@@ -42,13 +42,15 @@ const STOCK_BADGE_CLASSES: Record<StockStatus, string> = {
   SUPPLIER_CONFIRMATION_REQUIRED: "bg-purple-50 text-purple-700",
 };
 
-export function StockBadge({
-  stock,
+export function StockStatusBadge({
+  status,
 }: {
-  stock: PublicProduct["stock"];
+  status: string | null | undefined;
 }): ReactNode {
   const { t } = useI18n();
-  if (!stock) {
+  const known = status && status in STOCK_BADGE_CLASSES ? (status as StockStatus) : null;
+
+  if (!known) {
     return (
       <span className="inline-flex items-center rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
         {t('availabilityOnRequest')}
@@ -58,11 +60,19 @@ export function StockBadge({
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STOCK_BADGE_CLASSES[stock.stock_status]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STOCK_BADGE_CLASSES[known]}`}
     >
-      {t(STOCK_LABEL_KEYS[stock.stock_status])}
+      {t(STOCK_LABEL_KEYS[known])}
     </span>
   );
+}
+
+export function StockBadge({
+  stock,
+}: {
+  stock: PublicProduct["stock"];
+}): ReactNode {
+  return <StockStatusBadge status={stock?.stock_status} />;
 }
 
 /**

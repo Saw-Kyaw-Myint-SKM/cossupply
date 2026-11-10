@@ -3,13 +3,16 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Enums\QuotationRequestStatus;
+use App\Enums\StockStatus;
 use App\Models\Admin;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\QuotationAction;
+use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
+use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -216,6 +219,40 @@ class CustomerQuotationActionTest extends TestCase
             ->assertJsonCount(0, 'data.quotation_request.quotation_history');
 
         $this->assertSame(0, QuotationAction::query()->count());
+    }
+
+    public function test_detail_includes_the_original_request_items_before_a_quotation_is_sent(): void
+    {
+        [$customer, $token] = $this->authenticate();
+        $request = QuotationRequest::factory()->create([
+            'customer_id' => $customer->id,
+            'status' => QuotationRequestStatus::NEW->value,
+        ]);
+
+        $supplier = Supplier::factory()->create(['shop_name' => 'Acme Supply']);
+        $product = Product::factory()->create(['supplier_id' => $supplier->id]);
+
+        QuotationItem::factory()
+            ->forRequest($request)
+            ->forProduct($product)
+            ->create([
+                'quantity' => 3,
+                'display_price' => 12345,
+                'stock_status' => StockStatus::IN_STOCK->value,
+            ]);
+
+        $this->withToken($token)->getJson("/api/v1/customer/quotation-requests/{$request->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.quotation_request.items')
+            ->assertJsonPath('data.quotation_request.items.0.product_name_snapshot', $product->name_en)
+            ->assertJsonPath('data.quotation_request.items.0.quantity', 3)
+            ->assertJsonPath('data.quotation_request.items.0.display_price', 12345)
+            ->assertJsonPath('data.quotation_request.items.0.stock_status', 'IN_STOCK')
+            ->assertJsonPath('data.quotation_request.items.0.sku', $product->sku)
+            ->assertJsonPath('data.quotation_request.items.0.supplier.id', $supplier->id)
+            ->assertJsonPath('data.quotation_request.items.0.supplier.shop_name', 'Acme Supply')
+            ->assertJsonPath('data.quotation_request.items.0.photo_url', null)
+            ->assertJsonCount(0, 'data.quotation_request.versions');
     }
 
     public function test_customer_can_accept_the_current_quotation(): void

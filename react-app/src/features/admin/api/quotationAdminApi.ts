@@ -77,6 +77,9 @@ export interface AdminQuotationItem {
   display_price: number | null;
   stock_status: string | null;
   sku?: string | null;
+  /** Product image snapshot; absent when the product relation is not loaded. */
+  photo?: string | null;
+  photo_url?: string | null;
   supplier?: AdminSupplierSummary | null;
 }
 
@@ -143,6 +146,9 @@ export interface QuotationVersionItem {
   delivery_date: string | null;
   warranty_note: string | null;
   supplier_note: string | null;
+  /** Product image snapshot; absent when the product relation is not loaded. */
+  photo?: string | null;
+  photo_url?: string | null;
   supplier?: { id: number; shop_name: string } | null;
 }
 

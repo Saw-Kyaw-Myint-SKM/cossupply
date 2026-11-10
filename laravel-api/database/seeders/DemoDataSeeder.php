@@ -29,13 +29,13 @@ use App\Models\ProductStock;
 use App\Models\Quotation;
 use App\Models\QuotationAction;
 use App\Models\QuotationItem;
-use App\Models\QuotationPdf;
 use App\Models\QuotationRequest;
 use App\Models\QuotationVersionItem;
 use App\Models\Supplier;
 use App\Models\SupplierCommunication;
 use App\Services\Order\OrderNumberGenerator;
 use App\Services\Quotation\QuotationNumberGenerator;
+use App\Services\Quotation\QuotationPdfService;
 use Illuminate\Database\Seeder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -1066,32 +1066,21 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * Seed a PDF record and a placeholder file for every sent version.
+     * Generate a real PDF for every sent version in the demo data.
      *
      * @param  list<Quotation>  $quotations
      * @param  list<Admin>  $admins
      */
     private function seedQuotationPdfs(array $quotations, array $admins): void
     {
-        $disk = Storage::disk('local');
+        $pdfs = app(QuotationPdfService::class);
 
         foreach ($quotations as $index => $quotation) {
             if ($quotation->sent_at === null) {
                 continue;
             }
 
-            $fileName = 'quotation-'.$quotation->quotation_number.'-v'.$quotation->version.'.pdf';
-            $path = 'quotation-pdfs/'.$fileName;
-
-            $disk->put($path, self::QUOTATION_PDF_CONTENT);
-
-            QuotationPdf::create([
-                'quotation_id' => $quotation->id,
-                'file_path' => $path,
-                'file_name' => $fileName,
-                'generated_by_admin_id' => $admins[$index % count($admins)]->id,
-                'generated_at' => $quotation->sent_at,
-            ]);
+            $pdfs->generate($quotation, $admins[$index % count($admins)]);
         }
     }
 
@@ -1602,23 +1591,4 @@ class DemoDataSeeder extends Seeder
      * 16x16 placeholder PNG for supplier logos (base64).
      */
     private const SUPPLIER_LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAANklEQVQoz2MUW+zFQApgYiARjEgNLMiclzFbkbniS7yJskF8iTdEKZr+0WDFGrhYg5WR1OQNABVdDC/EtA4OAAAAAElFTkSuQmCC';
-
-    /**
-     * Minimal placeholder PDF content for sent quotation versions.
-     */
-    private const QUOTATION_PDF_CONTENT = <<<'PDF'
-%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>
-endobj
-trailer
-<< /Root 1 0 R >>
-%%EOF
-PDF;
 }

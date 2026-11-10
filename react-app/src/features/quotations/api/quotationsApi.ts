@@ -33,11 +33,18 @@ export type QuotationRequestStatus = string;
 
 export interface QuotationRequestItem {
   product_id: number;
+  supplier_id?: number | null;
   product_name_snapshot: string;
   specification_snapshot: string | null;
   quantity: number;
   display_price: number;
   stock_status: string | null;
+  /** Present when the backend eager-loads the product relation. */
+  sku?: string | null;
+  /** Product image snapshot; absent when the product relation is not loaded. */
+  photo?: string | null;
+  photo_url?: string | null;
+  supplier?: { id?: number; shop_name?: string | null } | null;
 }
 
 export interface QuotationRequest {

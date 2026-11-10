@@ -36,6 +36,7 @@ import {
 import { useI18n, type Translator } from '../../../lib/i18n-context';
 import type { ApiResponse } from '../../../api/client';
 import QuotationStatusBadge from '../components/QuotationStatusBadge';
+import QuotationRequestItemsCard from '../components/QuotationRequestItemsCard';
 import {
   acceptQuotation,
   getQuotationRequest,
@@ -49,7 +50,6 @@ import {
 } from '../api/quotationsApi';
 import {
   CUSTOMER_NOTE_MAX_LENGTH,
-  QUOTATION_STATUS_TONE_CLASSES,
   buildAcceptPayload,
   buildChangeRequestPayload,
   buildRejectPayload,
@@ -68,7 +68,6 @@ import {
   quotationItemSupplier,
   quotationLineTotal,
   quotationStatusLabel,
-  quotationStatusTone,
   visibleQuotationVersions,
 } from '../lib/quotationView';
 
@@ -85,7 +84,6 @@ const dangerButtonClass =
 const cardClass = 'rounded-2xl border border-rule bg-plate shadow-sm';
 const cardTitleClass = 'text-base font-bold text-ink';
 const fieldLabelClass = 'text-xs text-gray-500';
-const eyebrowClass = 'text-xs font-bold text-gray-500';
 
 const noticeToneClasses: Record<'error' | 'success' | 'warning', string> = {
   error: 'border-error/30 bg-error-soft text-error',
@@ -160,10 +158,73 @@ function deliveryDateFor(version: CustomerQuotationVersion): string | null {
   return datedItem?.delivery_date ?? null;
 }
 
+const VERSION_DOT_CLASS: Record<string, string> = {
+  DRAFT: 'bg-gray-400',
+  SENT: 'bg-primary',
+  VIEWED: 'bg-primary',
+  CHANGE_REQUESTED: 'bg-warning',
+  ACCEPTED: 'bg-success',
+  REJECTED: 'bg-error',
+  EXPIRED: 'bg-gray-400',
+  SUPERSEDED: 'bg-gray-400',
+  CANCELLED: 'bg-gray-400',
+};
+
+/** Pill switcher shared by the request overview and each version page. */
+function QuotationVersionPills({
+  requestId,
+  versions,
+  request,
+  activeId,
+}: {
+  requestId: number;
+  versions: CustomerQuotationVersion[];
+  request: QuotationRequestDetail;
+  activeId?: number;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <nav aria-label={t('quotationVersions')} className="flex flex-wrap items-center gap-2">
+      {versions.map((version) => {
+        const active = version.id === activeId;
+        const current = isCurrentVersion(version, request);
+        return (
+          <Link
+            key={version.id}
+            to={`/quotations/${requestId}/versions/${version.id}`}
+            aria-current={active ? 'page' : undefined}
+            className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+              active
+                ? 'border-primary bg-primary text-white shadow-sm'
+                : 'border-line bg-plate text-ink hover:border-primary/40 hover:bg-accent-soft hover:text-primary'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 rounded-full ${
+                active ? 'bg-white/80' : VERSION_DOT_CLASS[version.status] ?? 'bg-gray-400'
+              }`}
+            />
+            <span>{t('version', { version: version.version })}</span>
+            <span className={`text-xs font-medium ${active ? 'text-white/80' : 'text-gray-500'}`}>
+              {current ? t('current') : quotationStatusLabel(version.status, t)}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function QuotationDetailPage() {
   const { t, locale } = useI18n();
-  const { id: idParam } = useParams<{ id: string }>();
+  const { id: idParam, versionId: versionIdParam } = useParams<{
+    id: string;
+    versionId?: string;
+  }>();
   const id = Number(idParam);
+  const versionId = versionIdParam ? Number(versionIdParam) : null;
   const navigate = useNavigate();
 
   const [detail, setDetail] = useState<QuotationRequestDetail | null>(null);
@@ -172,7 +233,6 @@ export default function QuotationDetailPage() {
   const [loadError, setLoadError] = useState<LoadErrorState | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
 
   const [panel, setPanel] = useState<ActionKind | null>(null);
   const [acceptAck, setAcceptAck] = useState(false);
@@ -190,7 +250,6 @@ export default function QuotationDetailPage() {
   const viewRequestedIdRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLFormElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const versionTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -240,13 +299,6 @@ export default function QuotationDetailPage() {
         const next = response.data.quotation_request;
         loadedIdRef.current = id;
         setDetail(next);
-        setSelectedVersionId((previous) => {
-          const versions = visibleQuotationVersions(next.versions);
-          if (previous !== null && versions.some((version) => version.id === previous)) {
-            return previous;
-          }
-          return (versions.find((version) => version.is_current) ?? versions[0])?.id ?? null;
-        });
         setIsLoading(false);
         setIsRefreshing(false);
         return;
@@ -479,8 +531,15 @@ export default function QuotationDetailPage() {
   // so the created order still renders after a reload or a later GET refresh.
   const orderSummary = acceptedOrder ?? request.order ?? null;
   const versions = visibleQuotationVersions(request.versions);
+  const isVersionPage = versionId !== null;
   const selectedVersion =
-    versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
+    versionId !== null
+      ? versions.find((version) => version.id === versionId) ?? null
+      : (versions.find((version) => version.is_current) ?? versions[0] ?? null);
+  const latestVersion = versions.reduce<CustomerQuotationVersion | null>(
+    (latest, version) => (!latest || version.version > latest.version ? version : latest),
+    null,
+  );
   const currentVersion = versions.find((version) => version.is_current) ?? null;
   const actionVersion =
     selectedVersion && isCurrentVersion(selectedVersion, request) ? selectedVersion : null;
@@ -531,6 +590,28 @@ export default function QuotationDetailPage() {
   const changeError = noteFieldError;
   const rejectError = noteFieldError;
 
+  if (isVersionPage && !selectedVersion) {
+    return (
+      <div className="space-y-4">
+        <Link to={`/quotations/${id}`} className={linkClass}>
+          <FiArrowLeft aria-hidden="true" className="h-4 w-4" />
+          {t('backToRequest')}
+        </Link>
+        <Alert tone="error">
+          <p className="font-bold">{t('quotationNotFound')}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link to={`/quotations/${id}`} className={secondaryButtonClass}>
+              {t('backToRequest')}
+            </Link>
+            <Link to="/quotations" className={secondaryButtonClass}>
+              {t('backToMyQuotations')}
+            </Link>
+          </div>
+        </Alert>
+      </div>
+    );
+  }
+
   const selectedMeta = selectedVersion
     ? [
         formatValidity(
@@ -556,9 +637,9 @@ export default function QuotationDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/quotations" className={linkClass}>
+      <Link to={isVersionPage ? `/quotations/${id}` : '/quotations'} className={linkClass}>
         <FiArrowLeft aria-hidden="true" className="h-4 w-4" />
-        {t('backToMyQuotations')}
+        {isVersionPage ? t('backToRequest') : t('backToMyQuotations')}
       </Link>
 
       {overallExpired && request.status !== 'ACCEPTED' ? (
@@ -595,245 +676,170 @@ export default function QuotationDetailPage() {
         </p>
       ) : null}
 
-      <header className={`${cardClass} p-4 sm:p-6`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className={eyebrowClass}>{t('quotation')}</p>
-            <div className="mt-1.5 flex flex-wrap items-baseline gap-x-6 gap-y-1.5">
-              <h1 className="flex-none font-mono text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-                {request.quotation_number}
-              </h1>
-              <dl className="flex flex-1 flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-                <div className="flex flex-1 flex-wrap items-baseline justify-center gap-1.5 text-center">
-                  <dt className="text-gray-500">{t('requestedDateLabel')}:</dt>
-                  <dd className="text-ink">
-                    {formatQuotationDate(request.created_at, locale, t)}
-                  </dd>
-                </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-mono text-xl font-bold tracking-tight text-ink sm:text-2xl">
+            {request.quotation_number}
+          </h1>
+          <p className="mt-1 text-xs text-gray-500">
+            {t('requestedDateLabel')}: {formatQuotationDate(request.created_at, locale, t)}
+            {request.required_delivery_date
+              ? ` · ${t('requiredDeliveryLabel')}: ${formatQuotationDate(
+                  request.required_delivery_date,
+                  locale,
+                  t,
+                )}`
+              : ''}
+          </p>
+        </div>
+        <QuotationStatusBadge status={headerStatus} size="md" className="flex-none" />
+      </div>
+
+      {!isVersionPage ? (
+        latestVersion ? (
+          <section
+            className={`${cardClass} border-primary/20 bg-accent-soft p-4 sm:p-5`}
+            aria-labelledby="final-quotation-title"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 id="final-quotation-title" className="text-sm font-semibold text-ink">
+                  {t('version', { version: latestVersion.version })} ·{' '}
+                  {formatValidity(
+                    latestVersion.valid_until,
+                    Boolean(latestVersion.is_expired),
+                    locale,
+                    t,
+                  )}
+                </h2>
+              </div>
+              <div className="sm:text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t('total')}
+                </p>
+                <p className="text-xl font-bold tabular-nums text-primary">
+                  {formatQuotationAmount(latestVersion.total_amount, t)}{' '}
+                  <span className="text-xs font-semibold">{t('mmk')}</span>
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-primary/15 pt-3">
+              <QuotationVersionPills requestId={id} versions={versions} request={request} />
+              <Link
+                to={`/quotations/${id}/versions/${latestVersion.id}`}
+                className={primaryButtonClass}
+              >
+                {t('viewQuotation')}
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <h2 className="text-sm font-semibold text-ink">{t('noQuotationSent')}</h2>
+            <p className="mt-1 text-sm text-gray-600">{t('noQuotationSentHint')}</p>
+          </section>
+        )
+      ) : (
+        <section className={`${cardClass} p-4 sm:p-5`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="min-w-0 text-sm font-semibold text-ink">
+              {t('version', { version: selectedVersion!.version })}
+              {selectedMeta ? (
+                <span className="font-normal text-gray-500"> · {selectedMeta}</span>
+              ) : null}
+            </h2>
+            <QuotationStatusBadge status={selectedVersion!.status} className="flex-none" />
+          </div>
+          <div className="mt-3 border-t border-rule pt-3">
+            <QuotationVersionPills
+              requestId={id}
+              versions={versions}
+              request={request}
+              activeId={selectedVersion!.id}
+            />
+          </div>
+        </section>
+      )}
+
+      {orderSummary && !isVersionPage ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-rule bg-plate px-4 py-2.5 text-sm">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            {t('order')}
+          </span>
+          <span className="font-mono text-xs font-semibold text-ink">
+            {orderSummary.order_number}
+          </span>
+          <span className="hidden text-gray-300 sm:inline" aria-hidden="true">
+            ·
+          </span>
+          <span className="tabular-nums text-gray-700">
+            {formatQuotationAmount(orderSummary.total_amount, t)} {t('mmk')}
+          </span>
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <StatusBadge status={orderSummary.payment_status} />
+            <StatusBadge status={orderSummary.delivery_status} />
+          </span>
+        </div>
+      ) : null}
+
+      {!isVersionPage ? (
+        <section className={`${cardClass} p-4 sm:p-5`}>
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+            <div>
+              <h2 className={cardTitleClass}>{t('requestDetails')}</h2>
+              <dl className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-sm">
+                <dt className="text-gray-500">{t('name')}</dt>
+                <dd className="min-w-0 text-ink">
+                  {request.customer_name}
+                  {request.company_name ? (
+                    <span className="text-gray-500"> · {request.company_name}</span>
+                  ) : null}
+                </dd>
+                <dt className="text-gray-500">{t('phone')}</dt>
+                <dd className="min-w-0 text-gray-700">{request.phone}</dd>
+                {request.email ? (
+                  <>
+                    <dt className="text-gray-500">{t('email')}</dt>
+                    <dd className="min-w-0 break-all text-gray-700">{request.email}</dd>
+                  </>
+                ) : null}
+              </dl>
+            </div>
+
+            <div className="border-t border-rule pt-3 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+              <h2 className={cardTitleClass}>{t('deliveryDetails')}</h2>
+              <dl className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-sm">
+                <dt className="text-gray-500">{t('deliverTo')}</dt>
+                <dd className="min-w-0 whitespace-pre-line text-gray-700">{summaryDeliverTo}</dd>
                 {request.required_delivery_date ? (
-                  <div className="flex flex-none flex-wrap items-baseline gap-1.5">
-                    <dt className="text-gray-500">{t('requiredDeliveryLabel')}:</dt>
-                    <dd className="text-ink">
+                  <>
+                    <dt className="text-gray-500">{t('requiredDeliveryLabel')}</dt>
+                    <dd className="min-w-0 text-gray-700">
                       {formatQuotationDate(request.required_delivery_date, locale, t)}
                     </dd>
-                  </div>
+                  </>
                 ) : null}
               </dl>
             </div>
           </div>
-          <QuotationStatusBadge
-            status={headerStatus}
-            size="md"
-            className="flex-none"
-          />
-        </div>
-      </header>
 
-      {orderSummary ? (
-        <section
-          className={`${cardClass} p-4 sm:p-6`}
-          aria-labelledby="accepted-order-title"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 id="accepted-order-title" className={cardTitleClass}>
-                {t('orderCreated')}
-              </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                {t('orderCreatedHint')}
+          {request.customer_note ? (
+            <div className="mt-4 border-t border-rule pt-3">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                {t('yourNote')}
+              </h3>
+              <p className="mt-1 whitespace-pre-line text-sm text-gray-700">
+                {request.customer_note}
               </p>
             </div>
-            <StatusBadge status={orderSummary.order_status} />
-          </div>
-
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <dt className={fieldLabelClass}>{t('orderNumber')}</dt>
-              <dd className="mt-0.5 font-mono font-semibold text-ink">
-                {orderSummary.order_number}
-              </dd>
-            </div>
-            <div>
-              <dt className={fieldLabelClass}>{t('total')}</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums text-ink">
-                {formatQuotationAmount(orderSummary.total_amount, t)} {t('mmk')}
-              </dd>
-            </div>
-            <div>
-              <dt className={fieldLabelClass}>{t('created')}</dt>
-              <dd className="mt-0.5 text-gray-700">
-                {formatQuotationDateTime(orderSummary.created_at, locale, t)}
-              </dd>
-            </div>
-            <div>
-              <dt className={fieldLabelClass}>{t('payment')}</dt>
-              <dd className="mt-0.5">
-                <StatusBadge status={orderSummary.payment_status} />
-              </dd>
-            </div>
-            <div>
-              <dt className={fieldLabelClass}>{t('delivery')}</dt>
-              <dd className="mt-0.5">
-                <StatusBadge status={orderSummary.delivery_status} />
-              </dd>
-            </div>
-          </dl>
+          ) : null}
         </section>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <section className={`${cardClass} p-4 sm:p-6`}>
-          <h2 className={cardTitleClass}>{t('requestDetails')}</h2>
-          <dl className="mt-2.5 text-sm">
-            <dt className={fieldLabelClass}>{t('contact')}</dt>
-            <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
-              <span className="text-ink">{request.customer_name}</span>
-              {request.company_name ? (
-                <span className="text-gray-500">· {request.company_name}</span>
-              ) : null}
-            </dd>
-            <dd className="mt-0.5 text-gray-600">{request.phone}</dd>
-            {request.email ? (
-              <dd className="mt-0.5 break-all text-gray-600">{request.email}</dd>
-            ) : null}
-          </dl>
-        </section>
+      {!isVersionPage ? <QuotationRequestItemsCard items={request.items} /> : null}
 
-        <section className={`${cardClass} p-4 sm:p-6`}>
-          <h2 className={cardTitleClass}>{t('deliveryDetails')}</h2>
-          <dl className="mt-2.5 text-sm">
-            <dt className={fieldLabelClass}>{t('deliverTo')}</dt>
-            <dd className="mt-0.5 whitespace-pre-line text-ink">{summaryDeliverTo}</dd>
-            {request.required_delivery_date ? (
-              <dd className="mt-1.5 text-xs text-gray-500">
-                {t('requiredDeliveryLabel')}:{' '}
-                <span className="text-gray-700">
-                  {formatQuotationDate(request.required_delivery_date, locale, t)}
-                </span>
-              </dd>
-            ) : null}
-          </dl>
-        </section>
-      </div>
-
-      {request.customer_note ? (
-        <section className={`${cardClass} p-4 sm:p-6`}>
-          <h2 className={cardTitleClass}>{t('yourNote')}</h2>
-          <p className="mt-1.5 whitespace-pre-line text-sm text-gray-700">
-            {request.customer_note}
-          </p>
-        </section>
-      ) : null}
-
-      {versions.length === 0 ? (
-        <section className={`${cardClass} px-4 py-10 text-center sm:px-6`}>
-          <p className="text-sm font-bold text-ink">{t('noQuotationSent')}</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">
-            {t('noQuotationSentHint')}
-          </p>
-        </section>
-      ) : (
-        <>
-          <section className={`${cardClass} px-4 py-3 sm:px-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className={cardTitleClass}>{t('quotationVersions')}</h2>
-              <p className="hidden text-xs text-gray-500 sm:block">
-                {t('quotationVersionsHint')}
-              </p>
-            </div>
-              <div
-                role="tablist"
-                aria-label={t('chooseQuotationVersion')}
-                className="mt-2 flex flex-wrap gap-1.5"
-              >
-                {versions.map((version) => {
-                  const selected = selectedVersion?.id === version.id;
-                  const current = isCurrentVersion(version, request);
-                  const tabExpired = overallExpired && current;
-                  const showCurrentChip =
-                    current &&
-                    !tabExpired &&
-                    (version.status === 'SENT' || version.status === 'VIEWED');
-                  const chipStatus = tabExpired ? 'EXPIRED' : version.status;
-                  const chipLabel = tabExpired
-                    ? quotationStatusLabel('EXPIRED', t)
-                    : showCurrentChip
-                      ? t('current')
-                      : quotationStatusLabel(version.status, t);
-                  const chipClasses = showCurrentChip
-                    ? QUOTATION_STATUS_TONE_CLASSES.success
-                    : QUOTATION_STATUS_TONE_CLASSES[quotationStatusTone(chipStatus)];
-
-                  return (
-                    <button
-                      key={version.id}
-                      ref={(node) => {
-                        versionTabRefs.current[version.id] = node;
-                      }}
-                      type="button"
-                      role="tab"
-                      id={`quotation-version-tab-${version.id}`}
-                      aria-selected={selected}
-                      aria-controls="quotation-version-panel"
-                      tabIndex={selected ? 0 : -1}
-                      onClick={() => setSelectedVersionId(version.id)}
-                      onKeyDown={(event) => {
-                        const handled = [
-                          'ArrowRight',
-                          'ArrowDown',
-                          'ArrowLeft',
-                          'ArrowUp',
-                          'Home',
-                          'End',
-                        ];
-                        if (!handled.includes(event.key)) return;
-                        event.preventDefault();
-                        const index = versions.findIndex((item) => item.id === version.id);
-                        let nextIndex = index;
-                        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-                          nextIndex = (index + 1) % versions.length;
-                        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-                          nextIndex = (index - 1 + versions.length) % versions.length;
-                        } else if (event.key === 'Home') {
-                          nextIndex = 0;
-                        } else {
-                          nextIndex = versions.length - 1;
-                        }
-                        const next = versions[nextIndex];
-                        if (!next) return;
-                        setSelectedVersionId(next.id);
-                        versionTabRefs.current[next.id]?.focus();
-                      }}
-                      className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1 text-left motion-safe:transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        selected
-                          ? 'border-primary bg-primary-light ring-1 ring-primary'
-                          : 'border-rule bg-plate hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-ink">
-                        {t('version', { version: version.version })}
-                      </span>
-                      <span
-                        className={`inline-flex w-fit items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${chipClasses}`}
-                      >
-                        {chipLabel}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedMeta ? (
-                <p className="mt-2 text-xs text-gray-500">{selectedMeta}</p>
-              ) : null}
-            </section>
-
-            {selectedVersion ? (
-              <div
-                id="quotation-version-panel"
-                role="tabpanel"
-                aria-labelledby={`quotation-version-tab-${selectedVersion.id}`}
-                className="space-y-4"
-              >
+      {isVersionPage && selectedVersion ? (
+        <div className="space-y-4">
                 <section className={`${cardClass} overflow-hidden`}>
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4 sm:px-6">
                     <h3 className={cardTitleClass}>{t('items')}</h3>
@@ -1057,26 +1063,27 @@ export default function QuotationDetailPage() {
                   </div>
                 </section>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <section className={`${cardClass} p-4 sm:p-6`}>
-                    <h4 className={cardTitleClass}>{t('paymentTerms')}</h4>
-                    <p className="mt-1.5 whitespace-pre-line text-sm text-gray-700">
-                      {codTermsFor(selectedVersion, t)}
-                    </p>
-                  </section>
-                  <section className={`${cardClass} p-4 sm:p-6`}>
-                    <h4 className={cardTitleClass}>{t('salesTeamNote')}</h4>
-                    <p className="mt-1.5 whitespace-pre-line text-sm text-gray-700">
-                      {selectedVersion.admin_note?.trim() || t('statusNoValue')}
-                    </p>
-                  </section>
-                </div>
+                <section className={`${cardClass} p-4 sm:p-5`} aria-label={t('quotationActions')}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <h4 className={cardTitleClass}>{t('paymentTerms')}</h4>
+                      <p className="mt-1.5 whitespace-pre-line text-sm text-gray-700">
+                        {codTermsFor(selectedVersion, t)}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className={cardTitleClass}>{t('salesTeamNote')}</h4>
+                      <p className="mt-1.5 whitespace-pre-line text-sm text-gray-700">
+                        {selectedVersion.admin_note?.trim() || t('statusNoValue')}
+                      </p>
+                    </div>
+                  </div>
 
-                <section
-                  className={`${cardClass} p-4 sm:p-6`}
-                  aria-label={t('actionHistoryVersion', { version: selectedVersion.version })}
-                >
-                  <h4 className={cardTitleClass}>{t('actionHistory')}</h4>
+                  <div
+                    className="mt-4 border-t border-rule pt-3"
+                    aria-label={t('actionHistoryVersion', { version: selectedVersion.version })}
+                  >
+                    <h4 className={cardTitleClass}>{t('actionHistory')}</h4>
                   {selectedVersion.actions.length === 0 ? (
                     <p className="mt-2 text-sm text-gray-500">{t('noActionsYet')}</p>
                   ) : (
@@ -1102,13 +1109,10 @@ export default function QuotationDetailPage() {
                       })}
                     </ol>
                   )}
-                </section>
+                  </div>
 
                 {showActionBar && actionVersion ? (
-                  <section
-                    className="rounded-2xl border border-rule bg-gray-50/70 p-4 shadow-sm sm:p-6"
-                    aria-label={t('quotationActions')}
-                  >
+                  <div className="mt-4 border-t border-rule pt-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       <button
                         type="button"
@@ -1352,12 +1356,11 @@ export default function QuotationDetailPage() {
                         </div>
                       </form>
                     ) : null}
-                  </section>
+                  </div>
                 ) : null}
-              </div>
-            ) : null}
-          </>
-        )}
+                </section>
+        </div>
+      ) : null}
     </div>
   );
 }

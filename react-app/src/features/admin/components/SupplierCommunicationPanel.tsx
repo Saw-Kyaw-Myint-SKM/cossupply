@@ -11,7 +11,10 @@ import { useI18n } from '../../../lib/i18n-context';
 import { formatLocalDate } from '../../../lib/localization';
 import {
   Alert,
+  FALLBACK_THUMB,
+  StatusBadge,
   inputClass,
+  panelClass,
   primaryButtonClass,
   secondaryButtonClass,
   smallButtonClass,
@@ -36,6 +39,11 @@ function formatMethod(value: string, t: ReturnType<typeof useI18n>['t']): string
   };
   return value in keys ? t(keys[value as SupplierContactMethod]) : value;
 }
+
+/* Burmese stacks its vowels and medials above and below the baseline, so the
+ * Latin default leading crowds labels against their fields. */
+const fieldLabelClass = 'block text-sm font-medium leading-relaxed text-gray-900';
+const fieldHintClass = 'mt-1 text-xs leading-relaxed text-gray-500';
 
 interface SupplierCommunicationPanelProps {
   requestId: number;
@@ -68,7 +76,11 @@ export default function SupplierCommunicationPanel({
   const contactBits = [
     supplier.contact_person,
     supplier.phone,
-    supplier.viber_phone ? `${t('viber')} ${supplier.viber_phone}` : null,
+    // The directory often stores the same number for phone and Viber; showing
+    // it twice makes the contact line read as noise.
+    supplier.viber_phone && supplier.viber_phone !== supplier.phone
+      ? `${t('viber')} ${supplier.viber_phone}`
+      : null,
     supplier.email,
   ].filter(Boolean);
 
@@ -127,131 +139,156 @@ export default function SupplierCommunicationPanel({
   };
 
   return (
-    <section className="overflow-hidden rounded-lg border border-rule bg-plate">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-rule bg-gray-50 px-4 py-3">
-        <div>
-          <h2 className="text-base font-semibold text-ink">
-            {supplier.shop_name ?? t('supplierNumber', { id: supplier.id })}
-          </h2>
-          <p className="mt-1 text-xs text-gray-600">
-            {contactBits.length > 0 ? contactBits.join(' · ') : t('noSupplierContactDetails')}
-          </p>
+    <section className={`overflow-hidden ${panelClass}`}>
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-rule px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-ink">
+              {supplier.shop_name ?? t('supplierNumber', { id: supplier.id })}
+            </h2>
+            <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium leading-relaxed text-muted ring-1 ring-inset ring-rule">
+              {t('itemCount', {
+                count: group.items.length,
+                noun: group.items.length === 1 ? t('item') : t('itemsPlural'),
+              })}
+            </span>
+          </div>
+
+          {contactBits.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {contactBits.map((bit) => (
+                <span key={bit} className="text-xs leading-relaxed text-gray-600">
+                  {bit}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs leading-relaxed text-gray-500">
+              {t('noSupplierContactDetails')}
+            </p>
+          )}
+
           {supplier.delivery_time || supplier.warranty_policy ? (
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs leading-relaxed text-gray-500">
               {[supplier.delivery_time, supplier.warranty_policy].filter(Boolean).join(' · ')}
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-rule">
-            {t('itemCount', {
-              count: group.items.length,
-              noun: group.items.length === 1 ? t('item') : t('itemsPlural'),
-            })}
-          </span>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={() => {
-              setOpen((value) => !value);
-              setFormError(null);
-            }}
-          >
-            {open ? t('closeLogForm') : t('logContact')}
-          </button>
-        </div>
+        <button
+          type="button"
+          className={secondaryButtonClass}
+          onClick={() => {
+            setOpen((value) => !value);
+            setFormError(null);
+          }}
+        >
+          {open ? t('closeLogForm') : t('logContact')}
+        </button>
       </header>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-rule text-sm">
-          <thead className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-4 py-2">{t('requestedItem')}</th>
-              <th className="px-4 py-2">{t('qty')}</th>
-              <th className="px-4 py-2">{t('displayPrice')}</th>
-              <th className="px-4 py-2">{t('stockSnapshot')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
-            {group.items.map((item) => (
-              <tr key={`${supplier.id}-${item.product_id}`}>
-                <td className="px-4 py-2">
-                  <p className="font-medium text-ink">{item.product_name_snapshot}</p>
-                  <p className="text-xs text-gray-500">
-                    {[item.sku, item.specification_snapshot].filter(Boolean).join(' · ') || t('noSku')}
-                  </p>
-                </td>
-                <td className="px-4 py-2 tabular-nums text-gray-700">{item.quantity}</td>
-                <td className="px-4 py-2 tabular-nums text-gray-700">
-                  {item.display_price !== null ? formatMMK(item.display_price) : t('confirm')}
-                </td>
-                <td className="px-4 py-2 text-gray-600">{item.stock_status ?? t('noData')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="border-t border-rule px-4 py-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          {t('contactHistory')}
-        </h3>
-        {group.communications.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">{t('noSupplierContact')}</p>
-        ) : (
-          <ol className="mt-2 space-y-3">
-            {group.communications.map((communication) => (
-              <li key={communication.id} className="rounded-md border border-rule bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-ink">
-                    {formatMethod(communication.contact_method, t)}
-                    {communication.admin ? (
-                      <span className="font-normal text-gray-500"> · {communication.admin.name}</span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {formatDateTime(communication.contacted_at, locale, t('noData'))}
-                  </p>
+      <ul className="divide-y divide-rule">
+        {group.items.map((item) => (
+          <li key={`${supplier.id}-${item.product_id}`} className="flex items-start gap-3 px-5 py-3.5">
+            <img
+              src={item.photo_url ?? FALLBACK_THUMB}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-12 w-12 flex-none rounded-lg border border-rule bg-paper object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium leading-relaxed text-ink">
+                {item.product_name_snapshot}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-gray-500">
+                {[item.sku, item.specification_snapshot].filter(Boolean).join(' · ') || t('noSku')}
+              </p>
+              {item.stock_status ? (
+                <div className="mt-1.5">
+                  <StatusBadge status={item.stock_status} />
                 </div>
-                {communication.message_text ? (
-                  <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
-                    {communication.message_text}
-                  </p>
-                ) : null}
-                {communication.supplier_response ? (
-                  <div className="mt-2 rounded bg-green-50 px-3 py-2 text-sm text-green-900">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-green-800">
-                      {t('supplierResponse')}
+              ) : null}
+            </div>
+            <div className="flex-none text-right">
+              <p className="text-xs text-gray-500">{t('displayPrice')}</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">
+                {item.display_price !== null ? formatMMK(item.display_price) : t('confirm')}
+              </p>
+              <p className="mt-1 text-xs tabular-nums text-gray-500">
+                {t('qty')} {item.quantity}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="border-t border-rule bg-paper/60 px-5 py-3">
+        {group.communications.length === 0 ? (
+          <p className="text-xs leading-relaxed text-gray-500">{t('noSupplierContact')}</p>
+        ) : (
+          <>
+            <h3 className="text-xs font-semibold text-gray-500">{t('contactHistory')}</h3>
+            <ol className="mt-2 space-y-2.5">
+              {group.communications.map((communication) => (
+                <li key={communication.id} className="border-l-2 border-primary/25 pl-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-ink">
+                      {formatMethod(communication.contact_method, t)}
+                      {communication.admin ? (
+                        <span className="font-normal text-gray-500">
+                          {' · '}
+                          {communication.admin.name}
+                        </span>
+                      ) : null}
                     </p>
-                    <p className="mt-1 whitespace-pre-line">{communication.supplier_response}</p>
-                    <p className="mt-1 text-xs text-green-800">
-                      {formatDateTime(communication.responded_at, locale, t('noData'))}
+                    <p className="text-xs text-gray-500">
+                      {formatDateTime(communication.contacted_at, locale, t('noData'))}
                     </p>
                   </div>
-                ) : null}
-                {communication.attachment_path ? (
-                  <button
-                    type="button"
-                    disabled={downloadingId === communication.id}
-                    onClick={() => void downloadAttachment(communication)}
-                    className={`${smallButtonClass} mt-2`}
-                  >
-                    {downloadingId === communication.id ? t('downloading') : t('downloadAttachment')}
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ol>
+                  {communication.message_text ? (
+                    <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-700">
+                      {communication.message_text}
+                    </p>
+                  ) : null}
+                  {communication.supplier_response ? (
+                    <div className="mt-2 rounded-lg bg-success-soft px-3 py-2 text-sm leading-relaxed text-green-900">
+                      <p className="text-xs font-semibold text-green-800">
+                        {t('supplierResponse')}
+                      </p>
+                      <p className="mt-1 whitespace-pre-line">
+                        {communication.supplier_response}
+                      </p>
+                      <p className="mt-1 text-xs text-green-800">
+                        {formatDateTime(communication.responded_at, locale, t('noData'))}
+                      </p>
+                    </div>
+                  ) : null}
+                  {communication.attachment_path ? (
+                    <button
+                      type="button"
+                      disabled={downloadingId === communication.id}
+                      onClick={() => void downloadAttachment(communication)}
+                      className={`${smallButtonClass} mt-2`}
+                    >
+                      {downloadingId === communication.id
+                        ? t('downloading')
+                        : t('downloadAttachment')}
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </>
         )}
       </div>
 
       {open ? (
-        <form onSubmit={submit} className="space-y-3 border-t border-rule bg-gray-50 px-4 py-4">
+        <form onSubmit={submit} className="space-y-3 border-t border-rule bg-paper px-5 py-4">
           {formError ? <Alert tone="error">{formError}</Alert> : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label htmlFor={`method-${supplier.id}`} className="block text-sm font-medium text-gray-900">
+              <label htmlFor={`method-${supplier.id}`} className={fieldLabelClass}>
                 {t('contactMethod')}
               </label>
               <select
@@ -269,7 +306,7 @@ export default function SupplierCommunicationPanel({
             </div>
 
             <div>
-              <label htmlFor={`attachment-${supplier.id}`} className="block text-sm font-medium text-gray-900">
+              <label htmlFor={`attachment-${supplier.id}`} className={fieldLabelClass}>
                 {t('attachment')} <span className="font-normal text-gray-500">({t('optional')})</span>
               </label>
               <input
@@ -279,12 +316,12 @@ export default function SupplierCommunicationPanel({
                 onChange={(event) => setAttachment(event.target.files?.[0] ?? null)}
                 className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700"
               />
-              <p className="mt-1 text-xs text-gray-500">{t('attachmentHint')}</p>
+              <p className={fieldHintClass}>{t('attachmentHint')}</p>
             </div>
           </div>
 
           <div>
-            <label htmlFor={`message-${supplier.id}`} className="block text-sm font-medium text-gray-900">
+            <label htmlFor={`message-${supplier.id}`} className={fieldLabelClass}>
               {t('messageSupplier')}
             </label>
             <textarea
@@ -299,10 +336,10 @@ export default function SupplierCommunicationPanel({
           </div>
 
           <div>
-            <label htmlFor={`response-${supplier.id}`} className="block text-sm font-medium text-gray-900">
+            <label htmlFor={`response-${supplier.id}`} className={fieldLabelClass}>
               {t('supplierResponse')}
             </label>
-            <p className="text-xs text-gray-500">
+            <p className={fieldHintClass}>
               {t('supplierResponseHint')}
             </p>
             <textarea

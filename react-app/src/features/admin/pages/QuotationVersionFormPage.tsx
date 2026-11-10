@@ -9,6 +9,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  FALLBACK_THUMB,
   LoadingPanel,
   PageHeader,
   describeLoadError,
@@ -349,13 +350,22 @@ export default function QuotationVersionFormPage() {
               {form.items.map((item, index) => (
                 <div key={item.key} className="space-y-4 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-ink">{item.product_name}</h3>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {[item.sku, item.supplier_name, item.specification]
-                          .filter(Boolean)
-                          .join(' · ') || 'No item metadata'}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <img
+                        src={item.photo_url ?? FALLBACK_THUMB}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-14 w-14 flex-none rounded-lg border border-rule bg-gray-50 object-cover"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-ink">{item.product_name}</h3>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {[item.sku, item.supplier_name, item.specification]
+                            .filter(Boolean)
+                            .join(' · ') || 'No item metadata'}
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"

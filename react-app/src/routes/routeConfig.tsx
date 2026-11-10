@@ -41,6 +41,12 @@ const QuotationRequestListPage = lazy(
 const QuotationRequestDetailPage = lazy(
   () => import('../features/admin/pages/QuotationRequestDetailPage'),
 );
+const QuotationVersionDetailPage = lazy(
+  () => import('../features/admin/pages/QuotationVersionDetailPage'),
+);
+const QuotationVersionsPage = lazy(
+  () => import('../features/admin/pages/QuotationVersionsPage'),
+);
 const QuotationVersionFormPage = lazy(
   () => import('../features/admin/pages/QuotationVersionFormPage'),
 );
@@ -214,10 +220,26 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'quotation-requests/:requestId/versions',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <QuotationVersionsPage />
+          </Suspense>
+        ),
+      },
+      {
         path: 'quotation-requests/:requestId/versions/new',
         element: (
           <Suspense fallback={<PageLoader />}>
             <QuotationVersionFormPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'quotation-requests/:requestId/versions/:versionId',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <QuotationVersionDetailPage />
           </Suspense>
         ),
       },
@@ -417,6 +439,14 @@ export const router = createBrowserRouter([
       },
       {
         path: ':id',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <QuotationDetailPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: ':id/versions/:versionId',
         element: (
           <Suspense fallback={<PageLoader />}>
             <QuotationDetailPage />

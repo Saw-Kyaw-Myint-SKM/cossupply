@@ -46,6 +46,7 @@ function request(): AdminQuotationRequest {
         display_price: 42000,
         stock_status: 'IN_STOCK',
         sku: 'CHAIR-001',
+        photo_url: 'https://example.test/storage/products/chair.jpg',
         supplier: { id: 2, shop_name: 'Yangon Trading' },
       },
     ],
@@ -95,6 +96,7 @@ function version(): QuotationVersion {
         delivery_date: addDaysISODate(5),
         warranty_note: '6 months',
         supplier_note: 'Confirmed stock',
+        photo_url: 'https://example.test/storage/products/chair.jpg',
         supplier: { id: 2, shop_name: 'Yangon Trading' },
       },
     ],
@@ -115,6 +117,7 @@ describe('createVersionFormState', () => {
       unit_price: '42000',
       discount: '0',
       supplier_name: 'Yangon Trading',
+      photo_url: 'https://example.test/storage/products/chair.jpg',
     });
     expect(state.service_fee_percentage).toBe('5');
     expect(state.valid_until).toBe(addDaysISODate(10));
@@ -248,6 +251,7 @@ describe('editVersionFormState', () => {
       discount: '5000',
       warranty_note: '6 months',
       supplier_note: 'Confirmed stock',
+      photo_url: 'https://example.test/storage/products/chair.jpg',
     });
   });
 });

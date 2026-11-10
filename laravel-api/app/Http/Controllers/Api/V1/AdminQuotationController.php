@@ -8,6 +8,7 @@ use App\Http\Resources\EmailLogResource;
 use App\Http\Resources\QuotationPdfResource;
 use App\Http\Resources\QuotationVersionResource;
 use App\Models\Quotation;
+use App\Services\Quotation\QuotationPdfService;
 use App\Services\Quotation\QuotationWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class AdminQuotationController extends Controller
 {
     public function __construct(
         private readonly QuotationWorkflowService $workflow,
+        private readonly QuotationPdfService $pdfs,
     ) {}
 
     /**
@@ -93,7 +95,7 @@ class AdminQuotationController extends Controller
     {
         $pdf = $quotation->pdfs()->orderByDesc('generated_at')->orderByDesc('id')->first();
 
-        if ($pdf === null || ! Storage::disk('local')->exists($pdf->file_path)) {
+        if ($pdf === null || ! $this->pdfs->isRenderable($pdf->file_path)) {
             $pdf = $this->workflow->generatePdf($quotation, $request->user(), $request->ip());
         }
 
@@ -103,6 +105,7 @@ class AdminQuotationController extends Controller
     private function loadVersion(Quotation $quotation): void
     {
         $quotation->load([
+            'items.product',
             'items.supplier',
             'pdfs' => fn ($query) => $query->with('generatedByAdmin')->orderByDesc('generated_at'),
             'emailLogs' => fn ($query) => $query->orderByDesc('id'),

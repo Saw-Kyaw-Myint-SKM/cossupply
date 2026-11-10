@@ -475,7 +475,9 @@ class QuotationWorkflowService
             ]);
         }
 
-        if (! $quotation->pdfs()->exists()) {
+        $latestPdf = $quotation->pdfs()->orderByDesc('generated_at')->orderByDesc('id')->first();
+
+        if ($latestPdf === null || ! $this->pdfs->isRenderable($latestPdf->file_path)) {
             $this->pdfs->generate($quotation, $admin);
             $quotation->load('pdfs');
         }

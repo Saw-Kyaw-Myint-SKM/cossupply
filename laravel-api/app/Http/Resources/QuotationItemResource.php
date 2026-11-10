@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\ExposesPublicMedia;
 use App\Models\QuotationItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -10,12 +11,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Original quotation request item snapshot.
  *
  * The snapshot was frozen at request time; nothing here reflects later
- * product, supplier, price or stock changes.
+ * product, supplier, price or stock changes. The image is presentation only
+ * and is read from the linked product when that relation is eager-loaded.
  *
  * @mixin QuotationItem
  */
 class QuotationItemResource extends JsonResource
 {
+    use ExposesPublicMedia;
+
     /**
      * Transform the item snapshot into an API representation.
      *
@@ -32,6 +36,11 @@ class QuotationItemResource extends JsonResource
             'display_price' => $this->display_price,
             'stock_status' => $this->stock_status?->value,
             'sku' => $this->whenLoaded('product', fn () => $this->product?->sku),
+            'photo' => $this->whenLoaded('product', fn (): ?string => $this->product?->photo),
+            'photo_url' => $this->whenLoaded(
+                'product',
+                fn (): ?string => $this->publicMediaUrl($this->product?->photo),
+            ),
             'supplier' => $this->whenLoaded(
                 'supplier',
                 fn () => $this->supplier !== null ? [
