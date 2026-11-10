@@ -1,0 +1,9 @@
+{
+  // Remote Figma MCP server (mirrors the "figma" entry in opencode.json).
+  // Authenticate once from the Agent Panel: Settings > MCP Servers > figma > Authenticate.
+  "context_servers": {
+    "figma": {
+      "url": "https://mcp.figma.com/mcp"
+    }
+  }
+}
