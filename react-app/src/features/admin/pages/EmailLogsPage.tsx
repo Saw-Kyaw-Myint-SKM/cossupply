@@ -213,9 +213,9 @@ export default function AdminEmailLogsPage() {
       ) : null}
 
       {logs !== null && logs.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-rule bg-plate">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-rule text-sm">
+            <table className="admin-table min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">{t('recipient')}</th>
@@ -225,7 +225,7 @@ export default function AdminEmailLogsPage() {
                   <th scope="col" className="w-28 px-4 py-3 text-right font-medium">{t('action')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-rule">
+              <tbody>
                 {logs.map((log) => (
                   <tr key={log.id} className="align-top">
                     <td className="px-4 py-3">

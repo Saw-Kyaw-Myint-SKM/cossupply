@@ -94,8 +94,11 @@ const STOCK_LINE_TONES: Record<StockStatus, { pill: string; dot: string }> = {
 
 export function StockLine({
   stock,
+  showQuantity = false,
 }: {
   stock: PublicProduct["stock"];
+  /** Appends the stock count to the word, e.g. "In stock · 40". */
+  showQuantity?: boolean;
 }): ReactNode {
   const { t } = useI18n();
   const tone = stock
@@ -104,6 +107,12 @@ export function StockLine({
   const word = stock
     ? t(STOCK_LABEL_KEYS[stock.stock_status])
     : t('availabilityOnRequest');
+  const quantity =
+    showQuantity &&
+    stock?.stock_quantity != null &&
+    (stock.stock_status === 'IN_STOCK' || stock.stock_status === 'LOW_STOCK')
+      ? stock.stock_quantity
+      : null;
 
   return (
     <span
@@ -114,6 +123,7 @@ export function StockLine({
         className={`h-1.5 w-1.5 flex-none rounded-full ${tone.dot}`}
       />
       {word}
+      {quantity !== null ? <span className="tabular-nums">· {quantity}</span> : null}
     </span>
   );
 }
@@ -217,7 +227,7 @@ export function describeCatalogError(
  *   ───────────────────────────────────────
  *   Unit price / piece          In order
  *   55,547 MMK                     9 pcs
- *   [ + Add to order list · (9) ]
+ *   [ + Add order · (9) ]
  *
  * Colors come from the app's ink + paper palette rather than flat
  * neutrals: warm rule borders, an ink-tinted hover shadow, ink text with
@@ -232,8 +242,11 @@ export function describeCatalogError(
  */
 export function ProductCard({
   product,
+  compact = false,
 }: {
   product: PublicProduct;
+  /** Tighter card for two-up mobile rails such as the home page. */
+  compact?: boolean;
 }): ReactNode {
   const { items, add, lastAdded } = useCart();
   const { t, displayName: catalogName } = useI18n();
@@ -267,6 +280,34 @@ export function ProductCard({
       ? Math.round(((retail - unitPrice) / retail) * 100)
       : null;
 
+  // Compact sizing only applies on mobile; from `sm` upward the card keeps the
+  // roomy storefront treatment used on the catalog pages.
+  const mediaHeight = compact ? "h-36 sm:h-40" : "h-52 sm:h-40";
+  const mediaPadding = compact ? "p-2 sm:p-4" : "p-4";
+  const bodyPadding = compact
+    ? "px-2.5 pb-2 pt-2 sm:px-3.5 sm:pb-3.5 sm:pt-3"
+    : "px-3.5 pb-3.5 pt-3";
+  const titleMargin = compact ? "mt-0 sm:mt-1" : "mt-1";
+  const priceMargin = compact ? "mt-1 sm:mt-2" : "mt-2";
+  const dividerMargin = compact ? "mt-1.5 sm:mt-2" : "mt-2";
+  const ctaWrapperPadding = compact ? "pt-1.5 sm:pt-3" : "pt-3";
+  const messageMargin = compact ? "mt-1 sm:mt-1.5" : "mt-1.5";
+  const metaText = compact ? "text-[10px] sm:text-[11px]" : "text-[11px]";
+  const titleText = compact
+    ? "text-[12px] leading-4 sm:text-[13px] sm:leading-[18px]"
+    : "text-[13px] leading-[18px]";
+  const priceText = compact ? "text-sm sm:text-base" : "text-base";
+  const currencyText = compact ? "text-[10px] sm:text-[11px]" : "text-[11px]";
+  const originalPriceText = compact ? "text-[11px] sm:text-[13px]" : "text-[13px]";
+  const ctaLayout = compact
+    ? "gap-1.5 px-2 py-1.5 text-[11px] leading-tight sm:gap-2 sm:px-4 sm:text-[13px]"
+    : "gap-2 px-4 py-1.5 text-[13px]";
+  const receiptLayout = compact
+    ? "gap-1.5 px-2 py-1.5 text-[11px] leading-tight sm:gap-2 sm:px-4 sm:py-2 sm:text-[13px]"
+    : "gap-2 px-4 py-2 text-[13px]";
+  const ctaContentGap = compact ? "gap-1.5 sm:gap-2" : "gap-2";
+  const iconSize = compact ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4";
+
   return (
     <article
       className={`glass-card group relative flex flex-col overflow-hidden ${
@@ -278,7 +319,7 @@ export function ProductCard({
       <div className="relative">
         <Link
           to={`/products/${product.id}`}
-          className="relative flex h-52 items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-white/70 via-white/30 to-primary-light/50 p-4 sm:h-40"
+          className={`relative flex ${mediaHeight} items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-white/70 via-white/30 to-primary-light/50 ${mediaPadding}`}
         >
           <img
             src={product.photo_url ?? FALLBACK_THUMB}
@@ -323,36 +364,51 @@ export function ProductCard({
               {t('confirm')}
             </span>
           ) : (
-            <StockLine stock={product.stock} />
+            <StockLine stock={product.stock} showQuantity={!compact} />
           )}
         </div>
 
         {discountPercent !== null ? (
           <span
             aria-label={t('discountPercent', { percent: discountPercent })}
-            className="absolute right-0 top-0 flex h-[53px] w-[51px] flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-emerald-500 text-[13px] font-semibold leading-4 text-white"
+            className={`absolute right-0 top-0 flex flex-col items-center justify-center rounded-bl-2xl rounded-tr-2xl bg-emerald-500 font-semibold leading-4 text-white ${
+              compact
+                ? 'h-10 w-10 text-[11px] sm:h-[53px] sm:w-[51px] sm:text-[13px]'
+                : 'h-[53px] w-[51px] text-[13px]'
+            }`}
           >
             {discountPercent}%
-            <span className="text-[10px] font-medium leading-3">{t('off')}</span>
+            <span className={`font-medium leading-3 ${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'}`}>
+              {t('off')}
+            </span>
           </span>
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col rounded-b-2xl px-3.5 pb-3.5 pt-3">
+      <div className={`flex flex-1 flex-col rounded-b-2xl ${bodyPadding}`}>
+        {/* Home cards keep the card lean: no quantity/MOQ line on mobile and
+            no unit/MOQ at all. Catalog pages keep the full metadata row. */}
         <p
-          className={`truncate text-[11px] font-medium ${
+          className={`truncate font-medium ${
             blocked ? "text-subtle/60" : "text-muted"
-          }`}
+          } ${metaText} ${compact ? "hidden sm:block" : ""}`}
         >
-          {product.category ? catalogName(product.category) : t('uncategorised')}
-          {` · ${product.unit}`}
-          {moq > 1 ? ` · ${t('minimumOrderShort', { count: moq })}` : null}
+          <span>
+            {product.category ? catalogName(product.category) : t('uncategorised')}
+            {compact ? null : ' · '}
+          </span>
+          {compact ? null : (
+            <>
+              {product.unit}
+              {moq > 1 ? ` · ${t('minimumOrderShort', { count: moq })}` : null}
+            </>
+          )}
         </p>
 
-        <h3 className="mt-1 text-[13px] font-medium leading-[18px]">
+        <h3 className={`font-medium ${titleMargin} ${titleText}`}>
           <Link
             to={`/products/${product.id}`}
-            className={`line-clamp-2 motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
+            className={`block truncate sm:line-clamp-2 sm:whitespace-normal motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
               blocked ? "text-ink/50" : "text-ink hover:text-primary"
             }`}
           >
@@ -360,23 +416,33 @@ export function ProductCard({
           </Link>
         </h3>
 
-        <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
+        <div className={`flex flex-wrap items-baseline gap-x-2 ${priceMargin}`}>
           {unitPrice !== null ? (
             <>
               <span
-                className={`text-base font-bold tabular-nums ${
+                className={`font-bold tabular-nums ${priceText} ${
                   blocked ? "text-ink/45" : "text-ink"
                 }`}
               >
                 {formatMMK(unitPrice)}
               </span>
-              <span className="text-[11px] font-medium text-muted">MMK</span>
+              <span className={`font-medium text-muted ${currencyText}`}>MMK</span>
               {hasReduction && retail !== null ? (
-                <span
-                  aria-label={t('originalDisplayPrice')}
-                  className="text-[13px] text-muted line-through"
-                >
-                  {formatMMK(retail)}
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-label={t('originalDisplayPrice')}
+                    className={`text-muted line-through ${originalPriceText}`}
+                  >
+                    {formatMMK(retail)} MMK
+                  </span>
+                  {discountPercent !== null ? (
+                    <span
+                      aria-label={t('discountPercent', { percent: discountPercent })}
+                      className={`rounded-full bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700 ${metaText}`}
+                    >
+                      −{discountPercent}%
+                    </span>
+                  ) : null}
                 </span>
               ) : null}
             </>
@@ -387,9 +453,9 @@ export function ProductCard({
           )}
         </div>
 
-        <div className="mt-2 border-t border-rule/60" />
+        <div className={`border-t border-rule/60 ${dividerMargin}`} />
 
-        <div className="mt-auto pt-3">
+        <div className={`mt-auto ${ctaWrapperPadding}`}>
           {/*
            * The storefront CTA: full-width primary block, "+ Add another"
            * once a line exists, a white pill tally on the right, and the
@@ -409,19 +475,19 @@ export function ProductCard({
             }
             className={
               blocked
-                ? "inline-flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-rule bg-paper px-4 py-1.5 text-[13px] font-semibold text-ink/40 focus:outline-none"
+                ? `inline-flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-rule bg-paper font-semibold text-ink/40 focus:outline-none ${ctaLayout}`
                 : receipt
-                  ? "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-success px-4 py-2 text-[13px] font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 motion-safe:transition-all"
-                  : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                  ? `inline-flex w-full items-center justify-center rounded-lg bg-success font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 motion-safe:transition-all ${receiptLayout}`
+                  : `inline-flex w-full items-center justify-center rounded-lg bg-primary font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-all disabled:cursor-not-allowed disabled:opacity-50 ${ctaLayout}`
             }
           >
-            <span className="inline-flex items-center justify-center gap-2">
+            <span className={`inline-flex items-center justify-center ${ctaContentGap}`}>
               {blocked ? (
-                <FiLock aria-hidden="true" className="h-4 w-4" />
+                <FiLock aria-hidden="true" className={iconSize} />
               ) : receipt ? (
                 <ReceiptCheckMark />
               ) : (
-                <FiPlus aria-hidden="true" className="h-4 w-4" />
+                <FiPlus aria-hidden="true" className={iconSize} />
               )}
               <span
                 key={receipt ? receipt.at : "idle"}
@@ -450,7 +516,7 @@ export function ProductCard({
             ) : null}
           </button>
 
-          <div className="mt-1.5 space-y-0.5">
+          <div className={`space-y-0.5 ${messageMargin}`}>
             {message ? (
               <p
                 key={message}

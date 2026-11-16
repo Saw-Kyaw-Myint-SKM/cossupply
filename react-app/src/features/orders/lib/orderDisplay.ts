@@ -131,6 +131,33 @@ export function orderStatusHint(status: string, t: Translator = englishTranslato
 }
 
 /**
+ * Plain-language "what happens next" line for the order detail journey band.
+ * Kept beside `orderStatusHint` so both pieces of guidance read from the same
+ * status vocabulary.
+ */
+const ORDER_JOURNEY_NEXT_STEP_KEYS: Record<string, TranslationKey> = {
+  SUPPLIER_CONFIRMATION_REQUIRED: 'journeyNextSupplier',
+  ORDER_CONFIRMED: 'journeyNextConfirmed',
+  PREPARING: 'journeyNextPreparing',
+  READY_TO_SHIP: 'journeyNextReady',
+  OUT_FOR_DELIVERY: 'journeyNextOut',
+  DELIVERED: 'journeyNextDelivered',
+  COMPLETED: 'journeyNextCompleted',
+  SUPPLIER_UNAVAILABLE: 'journeyNextUnavailable',
+  DELIVERY_FAILED: 'journeyNextFailed',
+  RETURNED: 'journeyNextReturned',
+  CANCELLED: 'journeyNextCancelled',
+};
+
+export function orderJourneyNextStep(
+  status: string,
+  t: Translator = englishTranslator,
+): string {
+  const key = ORDER_JOURNEY_NEXT_STEP_KEYS[status];
+  return key ? t(key) : t('journeyNextDefault');
+}
+
+/**
  * How an order status reads on the four-step card track.
  *
  * `stage` is the number of steps already reached (0–4), which lets the card

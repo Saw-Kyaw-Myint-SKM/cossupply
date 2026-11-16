@@ -7,6 +7,12 @@ interface AccountMenuProps {
   detail?: string | null;
   onLogout: () => void;
   className?: string;
+  /**
+   * Visibility classes for the visible name. The avatar and chevron always
+   * stay; headers with little room (the storefront's four-link nav at 1024px)
+   * hide the name until `xl` instead of letting the header overflow.
+   */
+  nameClassName?: string;
 }
 
 /**
@@ -14,7 +20,13 @@ interface AccountMenuProps {
  * popover with their identity and a single, clear log-out action. Phones keep
  * the static avatar; logging out stays in the drawer there.
  */
-export function AccountMenu({ name, detail, onLogout, className = '' }: AccountMenuProps) {
+export function AccountMenu({
+  name,
+  detail,
+  onLogout,
+  className = '',
+  nameClassName = 'max-w-[130px] truncate text-sm font-semibold text-gray-900',
+}: AccountMenuProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -67,6 +79,7 @@ export function AccountMenu({ name, detail, onLogout, className = '' }: AccountM
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={menuId}
+        aria-label={name}
         className="group inline-flex items-center gap-2 rounded-full border border-transparent px-1.5 py-1 text-left hover:border-gray-200 hover:bg-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-safe:transition-colors"
       >
         <span
@@ -75,9 +88,7 @@ export function AccountMenu({ name, detail, onLogout, className = '' }: AccountM
         >
           {initial || <FiUser className="h-4 w-4" />}
         </span>
-        <span className="max-w-[130px] truncate text-sm font-semibold text-gray-900">
-          {name}
-        </span>
+        <span className={nameClassName}>{name}</span>
         <FiChevronDown
           aria-hidden="true"
           className={`h-4 w-4 flex-none text-gray-400 motion-safe:transition-transform ${

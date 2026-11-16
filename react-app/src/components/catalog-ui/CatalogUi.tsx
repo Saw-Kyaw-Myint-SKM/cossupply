@@ -474,14 +474,18 @@ export function LoadingPanel({ label }: { label: string }) {
  * title line, dashed-rule zone, price bar, CTA) so first paint keeps the
  * layout stable instead of handing the page to an empty spinner.
  */
-export function SkeletonCard(): ReactNode {
+export function SkeletonCard({ compact = false }: { compact?: boolean } = {}): ReactNode {
   return (
     <div
       aria-hidden="true"
       className="glass-card flex flex-col overflow-hidden"
     >
-      <div className="h-44 animate-pulse border-b border-white/60 bg-white/55" />
-      <div className="flex flex-1 flex-col p-4">
+      <div
+        className={`animate-pulse border-b border-white/60 bg-white/55 ${
+          compact ? 'h-36 sm:h-44' : 'h-44'
+        }`}
+      />
+      <div className={`flex flex-1 flex-col ${compact ? 'p-2.5 sm:p-4' : 'p-4'}`}>
         <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200/70" />
         <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-white/70" />
         <div className="mt-3 flex items-center justify-between border-t border-dashed border-white/70 pt-3">

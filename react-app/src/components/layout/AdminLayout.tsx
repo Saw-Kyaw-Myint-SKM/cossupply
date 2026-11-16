@@ -18,7 +18,6 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../lib/auth-context';
 import logo from '../../assets/logo.png';
-import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { useI18n, type TranslationKey } from '../../lib/i18n-context';
 
 interface NavItem {
@@ -133,7 +132,7 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="aurora-stage flex min-h-screen">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen ? (
         <div
@@ -145,7 +144,7 @@ export function AdminLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-white border-r border-gray-200 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-gray-200 bg-white/80 backdrop-blur-xl transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -206,10 +205,8 @@ export function AdminLayout() {
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-w-0 lg:ml-64">
-        {/* Top bar: page context on the left, language control on the right.
-            Visible at every breakpoint so the locale switch is always within
-            reach — including on desktop where the sidebar has no header. */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-gray-200 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        {/* Top bar: page context on the left. */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/60 bg-white/70 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -221,7 +218,6 @@ export function AdminLayout() {
           <span className="flex-1 truncate text-sm font-semibold text-gray-900 sm:text-base">
             {t('admin')}
           </span>
-          <LanguageSwitcher />
         </header>
 
         {/* Page content */}

@@ -243,7 +243,7 @@ export default function CartPage() {
                 </span>
               </header>
 
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-100 max-sm:space-y-3 max-sm:divide-y-0 max-sm:p-3">
                 {group.lines.map((item) => {
                   const rowError = rowErrors[lineKey(item)];
                   const minimum = item.minimum_order_quantity;
@@ -257,33 +257,47 @@ export default function CartPage() {
                     .map((part) => (part ?? '').trim())
                     .filter((part) => part.length > 0);
 
+                  // Mobile cards mirror the quotation-request card meta line.
+                  const mobileMetaParts = [
+                    item.supplier_name ?? t('supplierDefault'),
+                    minimum > 1 ? t('minimumOrderShort', { count: minimum }) : null,
+                    item.sku ? t('sku', { sku: item.sku }) : null,
+                  ]
+                    .map((part) => (part ?? '').trim())
+                    .filter((part) => part.length > 0);
+
                   return (
                     <li
                       key={lineKey(item)}
-                      className="flex gap-4 p-4 transition-colors hover:bg-slate-50/70 sm:p-5"
+                      className="flex flex-col p-4 transition-colors hover:bg-slate-50/70 max-sm:rounded-xl max-sm:border max-sm:border-rule max-sm:bg-plate max-sm:shadow-sm sm:flex-row sm:gap-4 sm:p-5"
                     >
-                      <Link to={`/products/${item.product_id}`} className="flex-none">
-                        <img
-                          src={item.photo_url ?? FALLBACK_THUMB}
-                          alt={displayName(item)}
-                          loading="lazy"
-                          decoding="async"
-                          className="h-16 w-16 rounded-lg object-cover sm:h-20 sm:w-20"
-                        />
-                      </Link>
+                      {/* Header: thumbnail + product identity */}
+                      <div className="flex min-w-0 gap-4 max-sm:gap-3 sm:flex-1">
+                        <Link to={`/products/${item.product_id}`} className="flex-none">
+                          <img
+                            src={item.photo_url ?? FALLBACK_THUMB}
+                            alt={displayName(item)}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-16 w-16 rounded-lg object-cover max-sm:h-14 max-sm:w-14 sm:h-20 sm:w-20"
+                          />
+                        </Link>
 
-                      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                        {/* Left: product identity */}
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-ink">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold leading-snug text-ink">
                             <Link to={`/products/${item.product_id}`} className="hover:text-primary">
                               {displayName(item)}
                             </Link>
                           </h3>
                           {item.variant_label ? (
-                            <p className="mt-0.5 text-xs font-medium text-primary">{item.variant_label}</p>
+                            <p className="mt-0.5 text-xs font-medium text-accent">{item.variant_label}</p>
                           ) : null}
-                          <p className="mt-0.5 text-xs text-subtle">{metaParts.join(' · ')}</p>
+                          <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
+                            {mobileMetaParts.join(' · ')}
+                          </p>
+                          <p className="mt-0.5 hidden text-xs text-subtle sm:block">
+                            {metaParts.join(' · ')}
+                          </p>
                           <div className="mt-1.5">
                             <StockLine
                               stock={
@@ -298,84 +312,91 @@ export default function CartPage() {
                             />
                           </div>
                           {needsSupplierConfirmation(item.stock_status) ? (
-                            <p className="mt-1 inline-block rounded-md bg-purple-50 px-2 py-1 text-xs text-purple-800">
+                            <p className="mt-2 inline-block rounded-md bg-purple-50 px-2 py-1 text-xs text-purple-800 max-sm:block">
                               {t('supplierWillConfirm')}
                             </p>
                           ) : null}
                         </div>
+                      </div>
 
-                        {/* Right: price and quantity side by side on desktop */}
-                        <div className="flex flex-col gap-3 sm:flex-none sm:items-end">
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-3 sm:justify-end sm:gap-5 sm:border-0 sm:pt-0">
-                            {/* Unit price */}
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-ink">
+                      {/* Price, quantity and line total */}
+                      <div className="flex flex-col gap-3 max-sm:mt-3 max-sm:border-t max-sm:border-rule max-sm:pt-3 sm:flex-none sm:items-end">
+                        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-2 sm:justify-end sm:gap-5">
+                          {/* Unit price — mobile reads like the quotation-request card */}
+                          <div className="min-w-0 flex-1 text-right max-sm:text-left sm:flex-none">
+                            <p className="text-[11px] text-gray-500 sm:hidden">
+                              {t('displayPrice')} ·{' '}
+                              <span className="whitespace-nowrap">
                                 {formatMMK(item.unit_price)} MMK
-                                {item.unit ? (
-                                  <span className="text-xs font-normal text-subtle"> / {item.unit}</span>
-                                ) : null}
-                              </p>
-                              <p className="text-xs text-subtle">{t('displayPrice')}</p>
-                            </div>
-
-                            {/* Quantity — pill stepper with circular buttons */}
-                            <div className="inline-flex items-center gap-1 rounded-full border border-line/70 bg-white p-1 shadow-sm focus-within:ring-2 focus-within:ring-primary/30">
-                              <button
-                                type="button"
-                                onClick={() => handleStep(item, -1)}
-                                disabled={atMinimum}
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-primary hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-subtle/40 disabled:hover:bg-transparent disabled:hover:text-subtle/40 motion-safe:transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-                                aria-label={t('decreaseItemQuantity', { name: displayName(item) })}
-                              >
-                                <FiMinus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              </button>
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min={minimum}
-                                step={1}
-                                value={draftFor(item)}
-                                onChange={(event) => handleDraftChange(item, event.target.value)}
-                                onBlur={() => handleDraftCommit(item)}
-                                aria-label={t('itemQuantity', { name: displayName(item) })}
-                                aria-invalid={Boolean(rowError) || undefined}
-                                className="w-10 border-0 bg-transparent px-0 py-1 text-center text-sm font-semibold text-ink tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleStep(item, 1)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-primary hover:text-white active:scale-95 motion-safe:transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-                                aria-label={t('increaseItemQuantity', { name: displayName(item) })}
-                              >
-                                <FiPlus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              </button>
-                            </div>
+                                {item.unit ? ` / ${item.unit}` : ''}
+                              </span>
+                            </p>
+                            <p className="hidden text-sm font-medium text-ink sm:block">
+                              {formatMMK(item.unit_price)} MMK
+                              {item.unit ? (
+                                <span className="text-xs font-normal text-subtle"> / {item.unit}</span>
+                              ) : null}
+                            </p>
+                            <p className="hidden text-xs text-subtle sm:block">{t('displayPrice')}</p>
                           </div>
 
-                          {/* Line total + remove */}
-                          <div className="flex items-center justify-between gap-4 sm:justify-end">
-                            <div className="text-right">
-                              <p className="text-xs text-subtle">{t('lineTotal')}</p>
-                              <p className="text-sm font-semibold text-ink tabular-nums">
-                                {formatMMK(item.unit_price * item.quantity)} MMK
-                              </p>
-                            </div>
+                          {/* Quantity — pill stepper with circular buttons */}
+                          <div className="inline-flex flex-none items-center gap-1 rounded-full border border-line/70 bg-white p-1 shadow-sm focus-within:ring-2 focus-within:ring-primary/30 max-sm:gap-0.5 max-sm:p-0.5">
                             <button
                               type="button"
-                              onClick={() => handleRemove(item)}
-                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 hover:text-red-800"
+                              onClick={() => handleStep(item, -1)}
+                              disabled={atMinimum}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-primary hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-subtle/40 disabled:hover:bg-transparent disabled:hover:text-subtle/40 motion-safe:transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 max-sm:h-7 max-sm:w-7"
+                              aria-label={t('decreaseItemQuantity', { name: displayName(item) })}
                             >
-                              <FiTrash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                              {t('remove')}
+                              <FiMinus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
+                            </button>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={minimum}
+                              step={1}
+                              value={draftFor(item)}
+                              onChange={(event) => handleDraftChange(item, event.target.value)}
+                              onBlur={() => handleDraftCommit(item)}
+                              aria-label={t('itemQuantity', { name: displayName(item) })}
+                              aria-invalid={Boolean(rowError) || undefined}
+                              className="w-10 border-0 bg-transparent px-0 py-1 text-center text-sm font-semibold text-ink tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none max-sm:w-8"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleStep(item, 1)}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-primary hover:text-white active:scale-95 motion-safe:transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 max-sm:h-7 max-sm:w-7"
+                              aria-label={t('increaseItemQuantity', { name: displayName(item) })}
+                            >
+                              <FiPlus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
                             </button>
                           </div>
-
-                          {rowError ? (
-                            <p role="alert" className="text-right text-xs text-red-600 sm:max-w-[14rem]">
-                              {rowError}
-                            </p>
-                          ) : null}
                         </div>
+
+                        {/* Line total + remove */}
+                        <div className="flex items-center justify-between gap-4 sm:justify-end">
+                          <div className="text-right max-sm:text-left">
+                            <p className="text-xs text-subtle max-sm:hidden">{t('lineTotal')}</p>
+                            <p className="text-sm font-semibold text-ink tabular-nums">
+                              {formatMMK(item.unit_price * item.quantity)} MMK
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(item)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 hover:text-red-800"
+                          >
+                            <FiTrash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                            {t('remove')}
+                          </button>
+                        </div>
+
+                        {rowError ? (
+                          <p role="alert" className="text-right text-xs text-red-600 max-sm:text-left sm:max-w-[14rem]">
+                            {rowError}
+                          </p>
+                        ) : null}
                       </div>
                     </li>
                   );

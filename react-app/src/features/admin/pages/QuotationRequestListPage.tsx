@@ -226,9 +226,9 @@ export default function QuotationRequestListPage() {
           }
         />
       ) : requests ? (
-        <section className="overflow-hidden rounded-lg border border-rule bg-plate">
+        <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-rule text-sm">
+            <table className="admin-table min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-4 py-3">Number</th>
@@ -240,7 +240,7 @@ export default function QuotationRequestListPage() {
                   <th className="w-24 px-4 py-3 text-right">Open</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-rule">
+              <tbody>
                 {requests.map((request) => (
                   <tr key={request.id} className="align-top">
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">

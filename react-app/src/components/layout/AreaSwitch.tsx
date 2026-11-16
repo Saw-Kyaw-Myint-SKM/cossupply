@@ -8,6 +8,11 @@ interface AreaSwitchProps {
   icon: ReactNode;
   /** Spoken label — the visible text is hidden on phones. */
   description: string;
+  /**
+   * Visibility classes for the visible label. Headers that also carry a full
+   * nav (the storefront at 1024px) can keep the pill icon-only below `xl`.
+   */
+  labelClassName?: string;
 }
 
 /**
@@ -17,7 +22,13 @@ interface AreaSwitchProps {
  * its breathing room; `aria-label` carries the meaning for screen readers
  * once the visible label is hidden.
  */
-export function AreaSwitch({ to, label, icon, description }: AreaSwitchProps) {
+export function AreaSwitch({
+  to,
+  label,
+  icon,
+  description,
+  labelClassName = 'hidden text-sm font-semibold sm:inline',
+}: AreaSwitchProps) {
   return (
     <Link
       to={to}
@@ -28,7 +39,7 @@ export function AreaSwitch({ to, label, icon, description }: AreaSwitchProps) {
       <span aria-hidden="true" className="text-[18px]">
         {icon}
       </span>
-      <span className="hidden text-sm font-semibold sm:inline">{label}</span>
+      <span className={labelClassName}>{label}</span>
     </Link>
   );
 }

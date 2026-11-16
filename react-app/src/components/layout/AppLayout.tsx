@@ -5,13 +5,13 @@ import {
   FiClipboard,
   FiGrid,
   FiHome,
+  FiMail,
   FiMenu,
   FiShoppingCart,
   FiUser,
   FiX,
 } from 'react-icons/fi';
 import logo from '../../assets/logo.png';
-import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { useI18n } from '../../lib/i18n-context';
 import { AccountMenu } from './AccountMenu';
 import { AreaSwitch } from './AreaSwitch';
@@ -39,7 +39,24 @@ const MENU_LINKS = [
   { to: '/', icon: <FiHome />, key: 'home' },
   { to: '/products', icon: <FiBox />, key: 'products' },
   { to: '/categories', icon: <FiGrid />, key: 'categories' },
+  // The contact content is the home page's closing section, so the header
+  // link is an in-page anchor rather than a separate route.
+  { to: '/', hash: '#contact', icon: <FiMail />, key: 'contactNav' },
 ] as const;
+
+type MenuLink = (typeof MENU_LINKS)[number];
+
+/** Smooth-scrolls to an in-page section, honouring reduced-motion settings. */
+function scrollToSection(hash: string) {
+  const target = document.getElementById(hash.replace(/^#/, ''));
+  if (!target) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({
+    behavior: reduceMotion ? 'auto' : 'smooth',
+    block: 'start',
+  });
+}
 
 export function AppLayout() {
   const location = useLocation();
@@ -50,9 +67,10 @@ export function AppLayout() {
 
   useEffect(() => {
     // Any navigation closes the drawer; keeping state across routes would
-    // leave the sheet open over a changed page.
+    // leave the sheet open over a changed page. The hash is included because
+    // Contact navigates within the home page.
     setMenuOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -123,17 +141,26 @@ export function AppLayout() {
 
             {/* Center: Desktop nav links */}
             <nav className="hidden items-center gap-1 lg:flex" aria-label={t('primaryNavigation')}>
-              {MENU_LINKS.map((item) => {
-                const active =
-                  item.to === '/'
-                    ? location.pathname === '/'
+              {MENU_LINKS.map((item: MenuLink) => {
+                const hash = 'hash' in item ? item.hash : undefined;
+                const active = hash
+                  ? location.pathname === item.to && location.hash === hash
+                  : item.to === '/'
+                    ? location.pathname === '/' && !location.hash
                     : location.pathname.startsWith(item.to);
                 return (
                   <Link
-                    key={item.to}
-                    to={item.to}
+                    key={`${item.to}${hash ?? ''}`}
+                    to={`${item.to}${hash ?? ''}`}
                     aria-current={active ? 'page' : undefined}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                    onClick={() => {
+                      // Re-clicking Contact while already at `/#contact` is a
+                      // same-location navigation, so nothing would scroll.
+                      if (hash && location.pathname === item.to && location.hash === hash) {
+                        scrollToSection(hash);
+                      }
+                    }}
+                    className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all xl:px-4 ${
                       active
                         ? 'bg-primary/10 text-primary'
                         : 'text-slate-600 hover:bg-white/60 hover:text-ink'
@@ -155,16 +182,17 @@ export function AppLayout() {
                   label={t('dashboard')}
                   icon={<FiGrid />}
                   description={t('goToDashboard')}
+                  labelClassName="hidden text-sm font-semibold sm:inline lg:hidden xl:inline"
                 />
               ) : null}
               {/* Order list - the hero accent moment */}
               <Link
                 to="/cart"
                 aria-label={`${t('orderList')}${count > 0 ? `, ${count}` : ''}`}
-                className="group relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-700 active:scale-95 motion-safe:transition-all lg:w-auto lg:gap-2.5 lg:px-4 lg:pr-5"
+                className="group relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-700 active:scale-95 motion-safe:transition-all xl:w-auto xl:gap-2.5 xl:px-4 xl:pr-5"
               >
                 <FiShoppingCart aria-hidden="true" className="h-5 w-5" />
-                <span className="hidden lg:inline text-sm font-medium">{t('orderList')}</span>
+                <span className="hidden text-sm font-medium xl:inline">{t('orderList')}</span>
                 {count > 0 ? (
                   <span
                     aria-hidden="true"
@@ -174,8 +202,6 @@ export function AppLayout() {
                   </span>
                 ) : null}
               </Link>
-
-              <LanguageSwitcher className="lg:ml-1" />
 
               {/* Account: on desktop the customer's name opens a small
                   account popover with log-out; phones keep the compact avatar
@@ -188,6 +214,7 @@ export function AppLayout() {
                     detail={accountDetail}
                     onLogout={handleLogout}
                     className="hidden md:block"
+                    nameClassName="max-w-[130px] truncate text-sm font-semibold text-gray-900 lg:hidden xl:inline"
                   />
                   <span
                     aria-hidden="true"
@@ -226,16 +253,23 @@ export function AppLayout() {
             className="relative max-h-full overflow-y-auto rounded-b-2xl border-b border-gray-200 bg-white shadow-xl motion-safe:animate-drawer-in"
           >
             <nav aria-label={t('primaryNavigation')} className="flex flex-col gap-1 px-4 py-4">
-              {MENU_LINKS.map((item) => {
-                const active =
-                  item.to === '/'
-                    ? location.pathname === '/'
+              {MENU_LINKS.map((item: MenuLink) => {
+                const hash = 'hash' in item ? item.hash : undefined;
+                const active = hash
+                  ? location.pathname === item.to && location.hash === hash
+                  : item.to === '/'
+                    ? location.pathname === '/' && !location.hash
                     : location.pathname.startsWith(item.to);
                 return (
                   <Link
-                    key={item.to}
-                    to={item.to}
+                    key={`${item.to}${hash ?? ''}`}
+                    to={`${item.to}${hash ?? ''}`}
                     aria-current={active ? 'page' : undefined}
+                    onClick={() => {
+                      if (hash && location.pathname === item.to && location.hash === hash) {
+                        scrollToSection(hash);
+                      }
+                    }}
                     className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
                       active
                         ? 'bg-primary/10 text-primary'
@@ -261,7 +295,6 @@ export function AppLayout() {
               </Link>
 
               <div className="mt-3 border-t border-gray-100 pt-4">
-                <LanguageSwitcher className="mb-3" />
                 {isAuthenticated ? (
                   <button
                     type="button"

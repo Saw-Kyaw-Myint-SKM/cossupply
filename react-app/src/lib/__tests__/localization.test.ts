@@ -9,10 +9,10 @@ import {
 } from '../localization';
 
 describe('locale storage', () => {
-  it('defaults missing and invalid values to Myanmar', () => {
+  it('defaults missing and invalid values to the default locale', () => {
     expect(normalizeLocale(null)).toBe(DEFAULT_LOCALE);
     expect(normalizeLocale('fr')).toBe(DEFAULT_LOCALE);
-    expect(readStoredLocale({ getItem: () => 'invalid' } as unknown as Storage)).toBe('my');
+    expect(readStoredLocale({ getItem: () => 'invalid' } as unknown as Storage)).toBe(DEFAULT_LOCALE);
   });
 
   it('reads and persists only a valid locale under the versioned key', () => {

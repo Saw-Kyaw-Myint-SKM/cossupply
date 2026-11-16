@@ -72,7 +72,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { isAuthenticated, userType } = useAuth();
   const { add, lastAdded } = useCart();
-  const { displayName: catalogName } = useI18n();
+  const { displayName: catalogName, t } = useI18n();
 
   const [product, setProduct] = useState<PublicProduct | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<PublicProductVariant | null>(null);
@@ -271,7 +271,11 @@ export default function ProductDetailPage() {
           key={receipt ? receipt.at : 'idle'}
           className="motion-safe:animate-rise-in"
         >
-          {blocked ? 'Unavailable' : receipt ? `Added — ${receipt.quantity}` : 'Add to order list'}
+          {blocked
+            ? t('unavailable')
+            : receipt
+              ? t('added', { quantity: receipt.quantity })
+              : t('addToOrderList')}
         </span>
       </span>
       {receipt && !blocked ? (

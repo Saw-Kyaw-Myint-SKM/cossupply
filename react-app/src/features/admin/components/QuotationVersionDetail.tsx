@@ -26,9 +26,9 @@ export default function QuotationVersionDetail({ version }: QuotationVersionDeta
   ];
 
   return (
-    <article className="overflow-hidden rounded-xl border border-rule bg-plate shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.16)]">
+    <article className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-180 text-sm">
+        <table className="admin-table w-full min-w-180 text-sm">
           <caption className="sr-only">
             {t('quotationVersionItems', { version: version.version })}
           </caption>
@@ -42,7 +42,7 @@ export default function QuotationVersionDetail({ version }: QuotationVersionDeta
               <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right">{t('lineTotal')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-rule">
+          <tbody>
             {version.items.map((item, index) => (
               <tr key={item.id} className="align-top">
                 <td className="px-4 py-3 tabular-nums text-gray-400">{index + 1}</td>

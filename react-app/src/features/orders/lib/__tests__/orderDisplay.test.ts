@@ -10,6 +10,7 @@ import {
   formatOrderDateTime,
   isOpenOrderStatus,
   ORDER_PROGRESS_STEP_KEYS,
+  orderJourneyNextStep,
   orderProgress,
   orderStatusHint,
   orderStatusLabel,
@@ -118,6 +119,24 @@ describe('order status helpers', () => {
     expect(orderStatusHint('SUPPLIER_CONFIRMATION_REQUIRED', t)).toBe('orderStatusSupplierConfirmation');
     expect(orderStatusHint('CANCELLED', t)).toBe('orderStatusCancelled');
     expect(orderStatusHint('SOMETHING_NEW', t)).toBe('orderStatusDefault');
+  });
+
+  it('gives every workflow status a next-step line', () => {
+    expect(orderJourneyNextStep('SUPPLIER_CONFIRMATION_REQUIRED', t)).toBe('journeyNextSupplier');
+    expect(orderJourneyNextStep('ORDER_CONFIRMED', t)).toBe('journeyNextConfirmed');
+    expect(orderJourneyNextStep('PREPARING', t)).toBe('journeyNextPreparing');
+    expect(orderJourneyNextStep('READY_TO_SHIP', t)).toBe('journeyNextReady');
+    expect(orderJourneyNextStep('OUT_FOR_DELIVERY', t)).toBe('journeyNextOut');
+    expect(orderJourneyNextStep('DELIVERED', t)).toBe('journeyNextDelivered');
+    expect(orderJourneyNextStep('COMPLETED', t)).toBe('journeyNextCompleted');
+  });
+
+  it('gives terminal and problem statuses their own next-step line', () => {
+    expect(orderJourneyNextStep('SUPPLIER_UNAVAILABLE', t)).toBe('journeyNextUnavailable');
+    expect(orderJourneyNextStep('DELIVERY_FAILED', t)).toBe('journeyNextFailed');
+    expect(orderJourneyNextStep('RETURNED', t)).toBe('journeyNextReturned');
+    expect(orderJourneyNextStep('CANCELLED', t)).toBe('journeyNextCancelled');
+    expect(orderJourneyNextStep('SOMETHING_NEW', t)).toBe('journeyNextDefault');
   });
 });
 

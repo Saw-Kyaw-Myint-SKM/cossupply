@@ -543,7 +543,10 @@ export default function ProductListPage() {
         </form>
       </section>
 
-      <section className="rounded-lg bg-white shadow" aria-busy={isLoading || undefined}>
+      <section
+        className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm"
+        aria-busy={isLoading || undefined}
+      >
         {loadError ? (
           <Alert tone="warning" className="rounded-b-none border-x-0 border-t-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -599,7 +602,7 @@ export default function ProductListPage() {
         {products !== null && products.length > 0 ? (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -611,7 +614,7 @@ export default function ProductListPage() {
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
                       Category
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
                       Price
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -628,7 +631,7 @@ export default function ProductListPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {products.map((product) => {
                     const rowBusy = actionsBusy;
                     return (
@@ -650,7 +653,7 @@ export default function ProductListPage() {
                                 {(product.name_en || product.name_mm).charAt(0).toUpperCase() || '#'}
                               </span>
                             )}
-                            <div className="min-w-0">
+                            <div className="min-w-0 max-w-52">
                               <Link
                                 to={`/admin/products/${product.id}/edit`}
                                 className="truncate text-sm font-medium text-accent hover:text-accent/80"
@@ -672,18 +675,22 @@ export default function ProductListPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {product.supplier?.shop_name ??
-                            (product.supplier_id ? `Supplier #${product.supplier_id}` : '—')}
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <span className="block max-w-36 truncate">
+                            {product.supplier?.shop_name ??
+                              (product.supplier_id ? `Supplier #${product.supplier_id}` : '—')}
+                          </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {product.category
-                            ? product.category.name_en || product.category.name_mm
-                            : product.category_id
-                              ? `Category #${product.category_id}`
-                              : '—'}
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <span className="block max-w-32 truncate">
+                            {product.category
+                              ? product.category.name_en || product.category.name_mm
+                              : product.category_id
+                                ? `Category #${product.category_id}`
+                                : '—'}
+                          </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">
                           {product.price ? formatMmk(product.price.retail_price) : '—'}
                           {product.price?.discount_price ? (
                             <span className="block text-xs text-gray-500">

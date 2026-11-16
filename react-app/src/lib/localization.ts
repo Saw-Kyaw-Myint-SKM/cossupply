@@ -1,7 +1,7 @@
 export const LOCALES = ['en', 'my'] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const DEFAULT_LOCALE: Locale = 'my';
+export const DEFAULT_LOCALE: Locale = 'en';
 export const LOCALE_STORAGE_KEY = 'cos_locale_v1';
 
 type BilingualName = {

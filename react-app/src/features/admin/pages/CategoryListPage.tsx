@@ -365,7 +365,10 @@ export default function CategoryListPage() {
         </form>
       </section>
 
-      <section className="rounded-lg bg-white shadow" aria-busy={isLoading || undefined}>
+      <section
+        className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm"
+        aria-busy={isLoading || undefined}
+      >
         {loadError ? (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -421,7 +424,7 @@ export default function CategoryListPage() {
         {categories !== null && categories.length > 0 ? (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -444,7 +447,7 @@ export default function CategoryListPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {categories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">

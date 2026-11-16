@@ -254,12 +254,12 @@ export default function OrderListPage() {
 
       {rows.length > 0 ? (
         <section
-          className="overflow-hidden rounded-lg border border-rule bg-plate"
+          className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm"
           aria-busy={isLoading}
           aria-label="Order queue"
         >
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-rule text-sm">
+            <table className="admin-table min-w-full text-sm">
               <thead className="bg-paper text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">
@@ -279,7 +279,7 @@ export default function OrderListPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-rule">
+              <tbody>
                 {rows.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">

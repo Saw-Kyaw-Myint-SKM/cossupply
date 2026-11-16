@@ -14,7 +14,6 @@ import { useAuth } from '../../lib/auth-context';
 import logo from '../../assets/logo.png';
 import { AccountMenu } from './AccountMenu';
 import { AreaSwitch } from './AreaSwitch';
-import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { useI18n, type TranslationKey } from '../../lib/i18n-context';
 
 interface NavItem {
@@ -174,7 +173,6 @@ export function CustomerLayout() {
             onLogout={handleLogout}
             className="hidden md:block"
           />
-          <LanguageSwitcher />
           <AreaSwitch
             to="/"
             label={t('shop')}

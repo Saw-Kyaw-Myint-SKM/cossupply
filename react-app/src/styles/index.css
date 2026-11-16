@@ -303,6 +303,62 @@
   }
 }
 
+/*
+ * Admin data tables.
+ *
+ * One shared treatment for every admin list: a quiet slate-tinted header,
+ * generous row rhythm, hairline dividers, and a soft indigo row highlight.
+ * Unlayered on purpose — it sets the structural defaults (spacing, borders,
+ * hover) while per-page utilities still control alignment and typography.
+ */
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.admin-table thead th {
+  padding: 0.75rem;
+  background-image: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.98),
+    rgba(241, 245, 249, 0.92)
+  );
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.admin-table thead th:first-child {
+  border-top-left-radius: 1rem;
+}
+
+.admin-table thead th:last-child {
+  border-top-right-radius: 1rem;
+}
+
+.admin-table tbody td {
+  padding: 0.875rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.admin-table tbody tr {
+  transition: background-color 160ms var(--ease-settle);
+}
+
+.admin-table tbody tr:hover {
+  background-color: rgba(238, 242, 255, 0.6);
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 /* Horizontal chip rails and hidden scroll regions never show scrollbars. */
 @utility no-scrollbar {
   -ms-overflow-style: none;

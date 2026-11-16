@@ -333,6 +333,11 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        // Old /contact bookmarks now land on the home page's contact section.
+        path: 'contact',
+        element: <Navigate to="/#contact" replace />,
+      },
+      {
         path: 'cart',
         element: (
           <Suspense fallback={<PageLoader />}>

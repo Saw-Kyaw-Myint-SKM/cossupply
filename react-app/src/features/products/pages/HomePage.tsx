@@ -2,27 +2,21 @@
  * Home Page — storefront landing.
  *
  * The composition follows the supplied storefront design: a promo carousel,
- * the product deals rail, the category ring index, featured suppliers, the
- * collection row, and the service promises. Everything data-bearing comes
+ * the product deals rail, the category ring index, the customer benefits band,
+ * the service flow, and the full contact page as the closing section.
+ * Everything data-bearing comes
  * from the public catalog endpoints; copy that states a policy (display
  * prices, quotation confirmation, cash on delivery) mirrors the product
  * specification and is never invented.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  FiArrowRight,
-  FiBox,
-  FiChevronLeft,
-  FiChevronRight,
-} from 'react-icons/fi';
+import { FiArrowRight, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import {
   listCategories,
   listProducts,
-  listSuppliers,
   type PublicCategory,
   type PublicProduct,
-  type PublicSupplier,
 } from '../../../api/catalog';
 import {
   categoryFallbackImage,
@@ -34,33 +28,40 @@ import {
 } from '../../../components/catalog-ui/CatalogUi';
 import { displayUnitPrice } from '../../../lib/cart-storage';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
-import { useI18n } from '../../../lib/i18n-context';
+import { CustomerBenefits } from '../components/CustomerBenefits';
+import { ServiceFlow } from '../components/ServiceFlow';
+import { ContactSection } from '../../content/components/ContactSection';
+import { useI18n, type TranslationKey } from '../../../lib/i18n-context';
 
 interface Slide {
-  eyebrow: string;
-  headline: string;
-  offer: string;
-  cta: { label: string; to: string };
+  eyebrowKey: TranslationKey;
+  headlineKey: TranslationKey;
+  offerKey: TranslationKey;
+  ctaKey: TranslationKey;
+  to: string;
 }
 
-const SLIDES: Slide[] = [
+const SLIDES: readonly Slide[] = [
   {
-    eyebrow: 'Office supplies for every desk in Myanmar',
-    headline: 'Build your order list',
-    offer: 'Priced by quotation',
-    cta: { label: 'Shop the catalog', to: '/products' },
+    eyebrowKey: 'homeSlide1Eyebrow',
+    headlineKey: 'homeSlide1Headline',
+    offerKey: 'homeSlide1Offer',
+    ctaKey: 'homeSlide1Cta',
+    to: '/products',
   },
   {
-    eyebrow: 'One list, every department',
-    headline: 'Stock the whole office',
-    offer: 'Paper, ink, furniture & more',
-    cta: { label: 'Browse categories', to: '/categories' },
+    eyebrowKey: 'homeSlide2Eyebrow',
+    headlineKey: 'homeSlide2Headline',
+    offerKey: 'homeSlide2Offer',
+    ctaKey: 'homeSlide2Cta',
+    to: '/categories',
   },
   {
-    eyebrow: 'Cash on delivery, nationwide',
-    headline: 'Pay when it arrives',
-    offer: 'Quotation support over Viber',
-    cta: { label: 'Start your order list', to: '/products' },
+    eyebrowKey: 'homeSlide3Eyebrow',
+    headlineKey: 'homeSlide3Headline',
+    offerKey: 'homeSlide3Offer',
+    ctaKey: 'homeSlide3Cta',
+    to: '/products',
   },
 ];
 
@@ -71,7 +72,7 @@ function SectionHeading({
   lead,
   emphasis,
   to,
-  linkLabel = 'View all',
+  linkLabel,
 }: {
   id: string;
   lead: string;
@@ -79,6 +80,9 @@ function SectionHeading({
   to: string;
   linkLabel?: string;
 }) {
+  const { t } = useI18n();
+  const label = linkLabel ?? t('viewAll');
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
@@ -89,7 +93,7 @@ function SectionHeading({
           to={to}
           className="inline-flex flex-none items-center gap-2 text-sm font-medium text-ink hover:text-primary"
         >
-          {linkLabel}
+          {label}
           <FiChevronRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       </div>
@@ -108,9 +112,8 @@ function discountPercent(product: PublicProduct): number | null {
 }
 
 export default function HomePage() {
-  const { displayName } = useI18n();
+  const { displayName, t } = useI18n();
   const [categories, setCategories] = useState<PublicCategory[]>([]);
-  const [suppliers, setSuppliers] = useState<PublicSupplier[]>([]);
   const [products, setProducts] = useState<PublicProduct[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -124,17 +127,12 @@ export default function HomePage() {
     Promise.all([
       listCategories({ per_page: 12 }),
       listProducts({ per_page: 10 }),
-      listSuppliers({ per_page: 6 }),
     ])
-      .then(([categoryResponse, productResponse, supplierResponse]) => {
+      .then(([categoryResponse, productResponse]) => {
         if (cancelled) return;
 
         if (categoryResponse.success && categoryResponse.data) {
           setCategories(categoryResponse.data.categories);
-        }
-
-        if (supplierResponse.success && supplierResponse.data) {
-          setSuppliers(supplierResponse.data.suppliers);
         }
 
         if (productResponse.success && productResponse.data) {
@@ -175,6 +173,7 @@ export default function HomePage() {
   const activeSlide = SLIDES[slide];
   const slideImage =
     products?.[slide % Math.max(products.length, 1)]?.photo_url ?? FALLBACK_BANNER;
+  const activeSlideHeadline = t(activeSlide.headlineKey);
 
   const goToSlide = (index: number) => {
     setSlide((index + SLIDES.length) % SLIDES.length);
@@ -185,7 +184,7 @@ export default function HomePage() {
       {/* Hero carousel */}
       <section
         aria-roledescription="carousel"
-        aria-label="Store highlights"
+        aria-label={t('homeCarouselLabel')}
         className="relative overflow-hidden rounded-3xl shadow-glass ring-1 ring-white/60"
       >
         <div className="relative h-[280px] sm:h-[320px] lg:h-[380px]">
@@ -206,16 +205,16 @@ export default function HomePage() {
           {/* Content */}
           <div className="relative z-10 flex h-full items-center">
             <div className="w-full px-8 sm:px-12 lg:px-16 max-w-xl">
-              <p className="text-xs font-semibold text-sky-300 mb-2 tracking-wider uppercase">{activeSlide.eyebrow}</p>
+              <p className="text-xs font-semibold text-sky-300 mb-2 tracking-wider uppercase">{t(activeSlide.eyebrowKey)}</p>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-3 drop-shadow-lg">
-                {activeSlide.headline}
+                {activeSlideHeadline}
               </h1>
-              <p className="text-base sm:text-lg text-gray-100 mb-5 drop-shadow">{activeSlide.offer}</p>
+              <p className="text-base sm:text-lg text-gray-100 mb-5 drop-shadow">{t(activeSlide.offerKey)}</p>
               <Link
-                to={activeSlide.cta.to}
+                to={activeSlide.to}
                 className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-sky-500 px-5 py-1.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:brightness-105 active:scale-[0.98] transition-all"
               >
-                {activeSlide.cta.label}
+                {t(activeSlide.ctaKey)}
                 <FiArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>
             </div>
@@ -226,13 +225,13 @@ export default function HomePage() {
         <div className="absolute bottom-0 left-0 right-0 z-20">
           <div className="flex items-center justify-between border-t border-white/15 bg-white/10 px-6 py-3 backdrop-blur-xl">
             {/* Indicators */}
-            <div className="flex items-center gap-2" role="group" aria-label="Choose a slide">
+            <div className="flex items-center gap-2" role="group" aria-label={t('homeChooseSlide')}>
               {SLIDES.map((item, index) => (
                 <button
-                  key={item.headline}
+                  key={item.headlineKey}
                   type="button"
                   onClick={() => setSlide(index)}
-                  aria-label={`Show slide ${index + 1}`}
+                  aria-label={t('homeShowSlide', { number: index + 1 })}
                   aria-current={index === slide ? 'true' : undefined}
                   className="flex items-center justify-center"
                 >
@@ -251,7 +250,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => goToSlide(slide - 1)}
-                aria-label="Previous slide"
+                aria-label={t('homePreviousSlide')}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
               >
                 <FiChevronLeft aria-hidden="true" className="h-4 w-4" />
@@ -259,7 +258,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => goToSlide(slide + 1)}
-                aria-label="Next slide"
+                aria-label={t('homeNextSlide')}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
               >
                 <FiChevronRight aria-hidden="true" className="h-4 w-4" />
@@ -269,7 +268,11 @@ export default function HomePage() {
         </div>
 
         <p aria-live="polite" className="sr-only">
-          Slide {slide + 1} of {SLIDES.length}: {activeSlide.headline}
+          {t('homeSlideStatus', {
+            current: slide + 1,
+            total: SLIDES.length,
+            title: activeSlideHeadline,
+          })}
         </p>
       </section>
 
@@ -277,28 +280,27 @@ export default function HomePage() {
       <section aria-labelledby="home-products-heading" className="space-y-6">
         <SectionHeading
           id="home-products-heading"
-          lead={hasDeals ? 'Grab the best deals on' : 'Fresh from'}
-          emphasis={hasDeals ? 'office essentials' : 'our suppliers'}
+          lead={t(hasDeals ? 'homeDealsLead' : 'homeFreshLead')}
+          emphasis={t(hasDeals ? 'homeDealsEmphasis' : 'homeFreshEmphasis')}
           to="/products"
-          linkLabel="View all"
         />
 
         <PricingNotice />
 
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
             {Array.from({ length: 10 }, (_, index) => (
-              <SkeletonCard key={index} />
+              <SkeletonCard key={index} compact />
             ))}
           </div>
         ) : null}
 
         {!isLoading && loadError ? (
           <div className="space-y-4">
-            <EmptyState title="Products could not be loaded" hint={loadError} />
+            <EmptyState title={t('homeProductsUnavailable')} hint={loadError} />
             <div className="text-center">
               <Link to="/products" className={`${primaryButtonClass} inline-block`}>
-                Try the full catalog
+                {t('homeTryFullCatalog')}
               </Link>
             </div>
           </div>
@@ -306,15 +308,15 @@ export default function HomePage() {
 
         {!isLoading && !loadError && products !== null && products.length === 0 ? (
           <EmptyState
-            title="No products published yet"
-            hint="New products will appear here as soon as suppliers publish them."
+            title={t('homeNoProductsTitle')}
+            hint={t('homeNoProductsHint')}
           />
         ) : null}
 
         {!isLoading && featuredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
             {featuredProducts.slice(0, 10).map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} compact />
             ))}
           </div>
         ) : null}
@@ -325,8 +327,8 @@ export default function HomePage() {
         <section aria-labelledby="home-categories-heading" className="space-y-7">
           <SectionHeading
             id="home-categories-heading"
-            lead="Shop by"
-            emphasis="category"
+            lead={t('homeShopByLead')}
+            emphasis={t('homeShopByEmphasis')}
             to="/categories"
           />
 
@@ -355,84 +357,13 @@ export default function HomePage() {
         </section>
       ) : null}
 
-      {/* Featured suppliers. */}
-      {suppliers.length > 0 ? (
-        <section aria-labelledby="home-suppliers-heading" className="space-y-7">
-          <SectionHeading
-            id="home-suppliers-heading"
-            lead="Featured"
-            emphasis="suppliers"
-            to="/products"
-            linkLabel="Browse all"
-          />
+      <CustomerBenefits />
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {suppliers.slice(0, 3).map((supplier) => {
-              const supplierProducts = (products ?? []).filter(
-                (product) => product.supplier_id === supplier.id,
-              );
-              const photo = supplierProducts.find((product) => product.photo_url)?.photo_url;
-              const bestDiscount = supplierProducts.reduce<number | null>((best, product) => {
-                const percent = discountPercent(product);
-                if (percent === null) return best;
-                return best === null ? percent : Math.max(best, percent);
-              }, null);
-              const tag = supplier.verified ? 'Verified supplier' : 'Supplier';
+      <ServiceFlow />
 
-              return (
-                <Link
-                  key={supplier.id}
-                  to={`/products?supplier_id=${supplier.id}`}
-                  className="group relative flex min-h-[206px] items-start overflow-hidden rounded-2xl bg-gradient-to-br from-night via-indigo-950 to-slate-950 p-6 text-white shadow-glass ring-1 ring-white/10 motion-safe:transition-shadow hover:shadow-glass-hover"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="absolute -top-20 right-0 h-[250px] w-[250px] rounded-full border-[22px] border-white/5"
-                  />
-                  <div className="relative z-10 flex max-w-[200px] flex-col gap-5">
-                    <span className="w-fit rounded-md bg-white/15 px-2.5 py-1.5 text-[9px] uppercase tracking-wide">
-                      {tag}
-                    </span>
-                    <p className="line-clamp-2 break-words text-[22px] font-extrabold leading-[1.15] lg:text-[26px]">
-                      {supplier.shop_name}
-                    </p>
-                    <p className="text-[15px] font-medium text-white/90 lg:text-[19px]">
-                      {bestDiscount !== null
-                        ? `Up to ${bestDiscount}% OFF`
-                        : supplier.delivery_area
-                          ? `Delivers to ${supplier.delivery_area}`
-                          : 'Browse their catalog'}
-                    </p>
-                  </div>
-
-                  <div className="absolute right-4 top-8 z-10 hidden h-[140px] w-[140px] items-center justify-center sm:flex">
-                    {photo ? (
-                      <img
-                        src={photo}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-contain"
-                      />
-                    ) : supplier.logo_url ? (
-                      <img
-                        src={supplier.logo_url}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-24 w-24 rounded-xl bg-white object-contain p-2"
-                      />
-                    ) : (
-                      <FiBox aria-hidden="true" className="h-16 w-16 text-white/25" />
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
+      {/* Closing contact section: the whole contact content lives here, so the
+          header's Contact link can scroll to it instead of opening a page. */}
+      <ContactSection />
     </div>
   );
 }
