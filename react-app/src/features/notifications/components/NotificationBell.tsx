@@ -265,7 +265,7 @@ export function NotificationBell() {
           role="dialog"
           tabIndex={-1}
           aria-label={t('notifications')}
-          className="fixed inset-x-3 top-[4.75rem] z-50 origin-top overflow-hidden rounded-[22px] border border-gray-200/80 bg-white/[0.98] shadow-[0_24px_60px_-20px_rgba(15,23,42,0.4)] outline-none backdrop-blur-xl motion-safe:animate-rise-in sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-[22rem] sm:origin-top-right"
+          className="fixed inset-x-3 top-[63px] z-50 origin-top overflow-hidden rounded-[22px] border border-gray-200/80 bg-white/[0.98] shadow-[0_24px_60px_-20px_rgba(15,23,42,0.4)] outline-none backdrop-blur-xl motion-safe:animate-rise-in sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-[22rem] sm:origin-top-right"
         >
           <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
             <div className="min-w-0">

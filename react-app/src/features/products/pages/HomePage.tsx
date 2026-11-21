@@ -199,23 +199,38 @@ export default function HomePage() {
           )}
           
           {/* Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-indigo-950/45 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-indigo-950/50 to-transparent" />
           <div className="absolute inset-0 bg-[radial-gradient(65%_85%_at_12%_100%,rgba(0,142,204,0.38),transparent_60%)]" />
           
-          {/* Content */}
-          <div className="relative z-10 flex h-full items-center">
-            <div className="w-full px-8 sm:px-12 lg:px-16 max-w-xl">
-              <p className="text-xs font-semibold text-sky-300 mb-2 tracking-wider uppercase">{t(activeSlide.eyebrowKey)}</p>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-3 drop-shadow-lg">
+          {/* Content — headline, gradient rule, offer, CTA. The rule carries
+              the brand accent the old eyebrow pill used to provide. */}
+          <div className="relative z-10 flex h-full items-end pb-[81px]">
+            <div className="w-full max-w-[620px] px-6 sm:px-10 lg:px-14">
+              <h1
+                key={activeSlide.headlineKey}
+                className="whitespace-nowrap text-[22px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white drop-shadow-lg motion-safe:animate-rise-in max-[359px]:whitespace-normal sm:text-[34px] lg:text-[40px]"
+              >
                 {activeSlideHeadline}
               </h1>
-              <p className="text-base sm:text-lg text-gray-100 mb-5 drop-shadow">{t(activeSlide.offerKey)}</p>
+              <span
+                key={`rule-${activeSlide.headlineKey}`}
+                aria-hidden="true"
+                className="mt-4 mb-3 block h-[3px] w-10 origin-left rounded-full bg-gradient-to-r from-primary via-sky-400 to-violet-400 motion-safe:animate-rule-grow sm:w-14"
+              />
+              <p className="max-w-[44ch] text-[14px] leading-relaxed text-white/80 drop-shadow sm:text-[15px] lg:text-base">
+                {t(activeSlide.offerKey)}
+              </p>
               <Link
                 to={activeSlide.to}
-                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-sky-500 px-5 py-1.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:brightness-105 active:scale-[0.98] transition-all"
+                className="group mt-4 inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-primary to-sky-500 py-1.5 pl-4 pr-1.5 text-xs font-semibold text-white shadow-md shadow-primary/30 transition-all hover:brightness-105 hover:shadow-primary/40 active:scale-[0.98] sm:mt-6 sm:gap-2.5 sm:py-2 sm:pl-5 sm:pr-2 sm:text-sm"
               >
                 {t(activeSlide.ctaKey)}
-                <FiArrowRight aria-hidden="true" className="h-4 w-4" />
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform group-hover:translate-x-0.5 sm:h-7 sm:w-7"
+                >
+                  <FiArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </span>
               </Link>
             </div>
           </div>

@@ -282,7 +282,7 @@ export function clearCartItems(): CartItem[] {
   return [];
 }
 
-/** Header badge value: the total number of units across all lines. */
+/** Total number of units across all lines (quantity, not item count). */
 export function cartUnitCount(items: CartItem[]): number {
   return items.reduce((total, item) => total + item.quantity, 0);
 }

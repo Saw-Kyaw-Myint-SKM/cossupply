@@ -19,7 +19,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useCart } from '../../lib/cart-context';
 import { NotificationBell } from '../../features/notifications/components/NotificationBell';
 
-/** The order-list badge: the one accent-inked spot, rolling on every unit. */
+/** The order-list badge: the one accent-inked spot, rolling on every item. */
 function OrderListCount({ count, tone = 'solid' }: { count: number; tone?: 'solid' | 'soft' }) {
   const { t } = useI18n();
   return (
@@ -108,7 +108,7 @@ export function AppLayout() {
           the frosted glass treatment is kept from `lg` up. */}
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] lg:border-white/60 lg:bg-white/70 lg:backdrop-blur-xl">
         <div className="w-full px-4 sm:px-6 lg:px-10">
-          <div className="flex h-[68px] items-center justify-between gap-4 lg:gap-8">
+          <div className="flex h-[55px] items-center justify-between gap-4 lg:gap-8">
             {/* Left: Menu + Logo */}
             <div className="flex items-center gap-3">
               <button
@@ -242,7 +242,7 @@ export function AppLayout() {
       {/* Mobile menu overlay: floats above the page content instead of
           pushing it down, with a dimmed backdrop that closes on tap. */}
       {menuOpen ? (
-        <div className="fixed inset-x-0 top-[68px] bottom-0 z-50 lg:hidden">
+        <div className="fixed inset-x-0 top-[55px] bottom-0 z-50 lg:hidden">
           <div
             className="absolute inset-0 bg-slate-950/25 backdrop-blur-[1px]"
             onClick={() => setMenuOpen(false)}

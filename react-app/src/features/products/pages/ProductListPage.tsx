@@ -613,11 +613,11 @@ export default function ProductListPage() {
             from covering the first row when the filter set changes. */}
         <section
           ref={resultsRef}
-          className="min-w-0 scroll-mt-[7.5rem] space-y-6 lg:scroll-mt-24"
+          className="min-w-0 scroll-mt-[106px] space-y-6 lg:scroll-mt-24"
         >
           {/* Mobile filter bar: pinned below the site header so the filter
               and clear actions stay reachable while the grid scrolls. */}
-          <div className="sticky top-[68px] z-30 -mx-4 flex items-center justify-between gap-3 border-b border-white/60 bg-white/95 px-4 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur-xl sm:-mx-6 sm:px-6 lg:hidden">
+          <div className="sticky top-[55px] z-30 -mx-4 flex items-center justify-between gap-3 border-b border-white/60 bg-white/95 px-4 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur-xl sm:-mx-6 sm:px-6 lg:hidden">
             <button
               type="button"
               onClick={() => setSheetOpen(true)}

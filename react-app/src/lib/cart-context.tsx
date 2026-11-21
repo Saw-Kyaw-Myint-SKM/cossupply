@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import type { PublicProduct, PublicProductVariant } from '../api/catalog';
 import {
   addProductToCart,
-  cartUnitCount,
   clearCartItems,
   lineKey as cartLineKey,
   loadCart,
@@ -30,7 +29,11 @@ export interface LastAddedCartLine {
 
 interface CartContextType {
   items: CartItem[];
-  /** Total units across every line; drives the header badge. */
+  /**
+   * Number of distinct products (cart lines), not units. Adding the Chair
+   * product once must read "1 item" even though its MOQ puts 30 units on the
+   * line; unit totals stay on the card tally and cart summary.
+   */
   count: number;
   /** Snapshot of the most recent successful add, or null when the list starts session. */
   lastAdded: LastAddedCartLine | null;
@@ -99,7 +102,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ items, count: cartUnitCount(items), lastAdded, add, setQuantity, remove, clear }}
+      value={{ items, count: items.length, lastAdded, add, setQuantity, remove, clear }}
     >
       {children}
     </CartContext.Provider>

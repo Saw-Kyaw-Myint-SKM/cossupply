@@ -60,7 +60,7 @@ export function ContactChannelGrid({ className = '' }: { className?: string }) {
   const { t } = useI18n();
 
   return (
-    <ul className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-4 ${className}`}>
+    <ul className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${className}`}>
       {CONTACT_CHANNEL_ORDER.map((id) => {
         const detail = CONTACT_DETAILS[id];
         const { Icon, titleKey, bodyKey, tileClass } = CHANNEL_VISUALS[id];
@@ -73,26 +73,26 @@ export function ContactChannelGrid({ className = '' }: { className?: string }) {
               {...(external
                 ? { target: '_blank', rel: 'noreferrer noopener' }
                 : {})}
-              className="group flex w-full flex-col rounded-2xl border border-white/80 bg-white/85 p-3.5 shadow-glass backdrop-blur-md transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-glass-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:hover:translate-y-0"
+              className="group flex w-full flex-col rounded-2xl border border-white/80 bg-white/85 p-2.5 shadow-glass backdrop-blur-md transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-glass-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:hover:translate-y-0 sm:p-3.5"
             >
-              <span className="flex items-center gap-3">
+              <span className="flex items-center gap-2 sm:gap-3">
                 <span
                   aria-hidden="true"
-                  className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl text-white ${tileClass}`}
+                  className={`flex h-8 w-8 flex-none items-center justify-center rounded-xl text-white sm:h-10 sm:w-10 ${tileClass}`}
                 >
-                  <Icon className="h-[18px] w-[18px]" />
+                  <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold leading-snug text-ink">
                     {t(titleKey)}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs font-medium text-primary group-hover:text-primary-hover">
+                  <span className="mt-0.5 block break-words text-[11px] font-medium leading-snug text-primary group-hover:text-primary-hover sm:text-xs">
                     {detail.handle}
                   </span>
                 </span>
                 <FiArrowUpRight
                   aria-hidden="true"
-                  className="h-4 w-4 flex-none text-subtle transition-colors group-hover:text-primary"
+                  className="hidden h-4 w-4 flex-none text-subtle transition-colors group-hover:text-primary sm:block"
                 />
               </span>
 
