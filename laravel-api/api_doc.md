@@ -9,7 +9,7 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - Authentication: Laravel Sanctum bearer tokens. `Authorization: Bearer <token>`.
 - Token abilities: `admin` (Admin account) and `customer` (Customer account).
 - Success envelope: `{"success": true, "data": {...}, "message": "..."}` (`message` optional).
-- Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`).
+- Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`, `/settings/public`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
 - Validation errors use Laravel's default 422 shape: `{"message": "...", "errors": {"field": ["..."]}}`.
 - Rate-limited requests use the standard error envelope with `429 Too Many Requests` and a `Retry-After` header. Limits: `POST /auth/register` 10/min per IP; `POST /auth/login` (email identifier) and `POST /admin/login` (email identifier) 5/min per identifier + IP; notification polling routes 120/min per user + IP.
@@ -163,6 +163,7 @@ Per-key validation:
 | `payment_method` | string | `required`, in `CASH_ON_DELIVERY` |
 | `require_full_payment` | boolean | `required`, boolean |
 | `require_receipt_number` | boolean | `required`, boolean |
+| `storefront_supplier_display` | string | `required`, in `CARD`, `NAME`, `HIDDEN` |
 
 ### Success response
 
@@ -2057,6 +2058,84 @@ Notes:
 
 ---
 
+## POST /api/v1/admin/products/generate-sku
+
+### Task
+
+Task 04 — Catalog, Suppliers, Products, and Media.
+
+### Specification
+
+- `specification/BusinessRequirements.md` §5 (product requirements: `products.sku` and `product_variants.sku`)
+
+### Method
+
+`POST`
+
+### Path
+
+`/api/v1/admin/products/generate-sku`
+
+### Authentication
+
+Required. `auth:sanctum` bearer token with the `admin` ability.
+
+### Roles
+
+Admin (any authenticated admin; no `super_admin` restriction).
+
+### Request
+
+JSON body:
+
+| Parameter | Rules |
+| --- | --- |
+| `scope` | required; one of `product` or `variant` |
+| `base` | optional string, max 100; the SKU currently typed into the form, preferred as a variant prefix |
+| `name_en` | optional string, max 255; English product name, first prefix source |
+| `brand` | optional string, max 255; second prefix source |
+| `model` | optional string, max 255; third prefix source |
+| `product_id` | optional integer, must exist in `products`; whose stored variants to compare against |
+| `variant_name` | optional string, max 255; the variant label the suffix is derived from |
+| `variant_index` | optional integer, 1–50; 1-based row number, used when `variant_name` has no A–Z0–9 characters |
+| `exclude_variant_id` | optional integer, must exist in `product_variants`; left out of the collision check so a row can keep its own code |
+| `existing_skus` | optional array of at most 50 strings, each max 100; the SKUs already shown in the form |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "sku": "OFFICE-CHAIR-7K2P"
+  }
+}
+```
+
+Notes:
+
+- `scope = product` builds `<PREFIX>-<CODE>`. The prefix is the first usable of `name_en`, `brand`, `model` — uppercased, non-alphanumerics folded to `-`, and non-Latin-authored text skipped so a Burmese name never becomes a mangled prefix — falling back to `SKU`. The code is 4 characters drawn from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `I`, `O`, `0`, `1`), retried until it is not already in `products.sku` (case-insensitive), then counted as `-1`, `-2`, … if the random codes keep colliding.
+- `scope = variant` builds `<PRODUCT>-<VARIANT NAME>`. The prefix is the first usable of `base`, the stored product's `sku`, `name_en`, the stored product's `name_en`, `brand`, `model`, falling back to `SKU`; the suffix is the first usable segment of `variant_name`, falling back to `V<variant_index>` when the label has no A–Z0–9 characters — the normal case for a Burmese label such as `အနီ` → `V1`. Candidates are compared with `existing_skus` and the product's stored `product_variants.sku` rows (case-insensitive, matching the unique index on (`product_id`, `sku`)); collisions append `-2`, `-3`, … .
+- The value is only generated, never saved: the form still submits it through `POST`/`PATCH /api/v1/admin/products`.
+- Both `sku` columns are `string(100)`, and a generated value never exceeds 100 characters.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Admin access required."}` | Token without the `admin` ability |
+| `409` | `{"success": false, "message": "A free SKU could not be generated. Adjust the name and try again."}` | No free product SKU left after every attempt |
+| `409` | `{"success": false, "message": "A free SKU could not be generated. Rename the variant and try again."}` | No free variant SKU left after every attempt |
+| `422` | `{"message": "The scope field is required.", "errors": {"scope": ["The scope field is required."]}}` | Missing `scope` |
+| `422` | `{"message": "The selected scope is invalid.", "errors": {"scope": ["The selected scope is invalid."]}}` | `scope` is not `product` or `variant` |
+| `422` | `{"message": "The selected product id is invalid.", "errors": {"product_id": ["The selected product id is invalid."]}}` | `product_id` does not exist |
+| `422` | `{"message": "The variant index must be at least 1.", "errors": {"variant_index": ["The variant index must be at least 1."]}}` | `variant_index` below 1 |
+
+---
+
 ## GET /api/v1/admin/files/{path}
 
 ### Task
@@ -2238,6 +2317,7 @@ Notes:
 - A published product whose stock row reads `OUT_OF_STOCK` is still listed here: browsing is allowed and only cart eligibility is withheld. `stock_status` is an optional narrowing filter, not a visibility rule.
 - `price` and `stock` are `null` when no row exists. Only the first (oldest) price row is embedded; all money values are integer MMK.
 - Never exposed on this endpoint: `wholesale_price`, `supplier_note`, `created_by_admin_id`, product `created_at`/`updated_at`, category `status`/timestamps, and every supplier contact field (`contact_person`, `phone`, `viber_phone`, `email`, `address`, `city`, `township`, `status`, `created_by_admin_id`).
+- The `supplier` object follows the `storefront_supplier_display` master setting (see `GET /api/v1/settings/public`): `CARD` returns the full public supplier object, `NAME` returns only `{id, shop_name}`, and `HIDDEN` omits the `supplier` key entirely (the relation is not loaded).
 
 ### Error responses
 
@@ -2342,7 +2422,7 @@ Notes:
 - `variants` is `null` when the product has no variants. Each variant exposes its own media URL, attributes, display price and stock. When a variant has no photo, `photo_url` falls back to the product photo URL.
 - The list endpoint does not embed variants; call the detail endpoint to load them.
 - Browsing is not cart eligibility. When `stock.stock_status` is `OUT_OF_STOCK` the client must not offer *Add to cart*; every other stock status — including `SUPPLIER_CONFIRMATION_REQUIRED` — is addable (LogicFlow §4). A product with no `stock` row is addable as well.
-- The supplier block carries only `shop_name`, `company_name`, `logo`, `business_description`, `delivery_area`, `delivery_time` and `verified` — no phone/Viber/email/address, per RolesPermissions §3.
+- The supplier block carries only `shop_name`, `company_name`, `logo`, `business_description`, `delivery_area`, `delivery_time` and `verified` — no phone/Viber/email/address, per RolesPermissions §3. The `storefront_supplier_display` setting narrows it further: `NAME` returns only `{id, shop_name}`, `HIDDEN` omits the key entirely.
 
 ### Error responses
 
@@ -2514,12 +2594,75 @@ Notes:
 - Only `status = ACTIVE` suppliers are returned (`INACTIVE` and `SUSPENDED` are excluded).
 - Ordered by `shop_name`, then `id`.
 - Never exposed: `contact_person`, `phone`, `viber_phone`, `email`, `address`, `city`, `township`, `warranty_policy`, `return_policy`, `status`, `created_by_admin_id`, `created_at`, `updated_at`.
+- The `storefront_supplier_display` setting filters this endpoint: `CARD` returns the full public object, `NAME` returns only `{id, shop_name}`, and `HIDDEN` returns an empty list (`meta.total = 0`) so the directory cannot be used to enumerate suppliers.
 
 ### Error responses
 
 | Status | Body | Cause |
 | --- | --- | --- |
 | `422` | `{"message": "The search field must not be greater than 100 characters.", "errors": {"search": ["The search field must not be greater than 100 characters."]}}` | `search` over 100 characters or `per_page` outside 1–100 |
+
+---
+
+## GET /api/v1/settings/public
+
+### Task
+
+Task 05 — Public Catalog and Cart (storefront display preferences).
+
+### Specification
+
+- `specification/ImplementationNotes.md` (master settings screen)
+- `specification/RolesPermissions.md` §1 (Guest), §3 (supplier identity is exposed only as far as needed)
+
+### Method
+
+`GET`
+
+### Path
+
+`/api/v1/settings/public`
+
+### Authentication
+
+None — public endpoint. No token is required.
+
+### Roles
+
+Guest, Customer, Admin.
+
+### Request
+
+No parameters.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "settings": {
+      "company_address": "Yangon, Myanmar",
+      "company_email": "info@cos.local",
+      "company_name": "CoSupply",
+      "company_phone": "09-000000000",
+      "storefront_supplier_display": "CARD"
+    }
+  }
+}
+```
+
+Notes:
+
+- Only settings rows with `is_public = true` are returned, as a typed key → value map (booleans, integers and strings are cast by `value_type`).
+- `storefront_supplier_display` is `CARD`, `NAME` or `HIDDEN` and controls how supplier identity appears on the public catalog, product detail and supplier directory. Admin endpoints always return full supplier data regardless of this setting.
+- Internal operational settings (`quotation_*`, `payment_method`, `order_number_prefix`, …) are never included; read those from `GET /api/v1/admin/settings` with an admin token.
+
+### Error responses
+
+None — the endpoint always answers `200 OK`.
 
 ---
 
@@ -4198,6 +4341,75 @@ Status effect:
 | `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
 | `422` | Laravel validation shape | Supplier not in request, unsupported file or invalid dates |
 | `404` | Not found | Unknown request id |
+
+---
+
+## POST /api/v1/admin/quotation-requests/{quotationRequest}/communications/bulk
+
+### Task
+
+Task 07 — Admin Quotation Workflow.
+
+### Authentication
+
+Required. Admin token.
+
+### Request
+
+`Content-Type: multipart/form-data`
+
+| Field | Rules |
+| --- | --- |
+| `supplier_ids` | optional array, at least 1 item; each id must be a supplier with an item in this request. Omit to log every supplier in the request |
+| `contact_method` | required: `VIBER`, `PHONE`, `EMAIL`, `TELEGRAM`, `OTHER` |
+| `message_text` | required, string, max 5000 |
+| `contacted_at` | nullable, date, defaults to now |
+| `attachment` | nullable file: PDF, JPG, JPEG, PNG, WebP, max 5 MB |
+
+One append-only row is written per selected supplier with the same method, message and contact time. The attachment is stored once and every row references the same private path, so a broadcast note does not leave a duplicate file per supplier. This endpoint records no supplier response; per-supplier responses stay on the single-supplier endpoint.
+
+### Success response
+
+`201 Created`
+
+```json
+{
+  "success": true,
+  "data": {
+    "communications": [
+      {
+        "id": 88,
+        "supplier_id": 3,
+        "contact_method": "VIBER",
+        "message_text": "Please confirm stock and the delivery date.",
+        "supplier_response": null,
+        "attachment_path": "supplier-communications/31/list.pdf",
+        "attachment_url": "/admin/files/supplier-communications/31/list.pdf",
+        "contacted_at": "2026-10-20T11:00:00+00:00",
+        "responded_at": null,
+        "created_at": "2026-10-20T11:00:00+00:00",
+        "admin": { "id": 4, "name": "Daw Admin" }
+      }
+    ],
+    "request_status": "SUPPLIER_RESPONSE_PENDING"
+  },
+  "message": "Supplier communication logged for the selected suppliers."
+}
+```
+
+Status effect:
+
+- A broadcast entry carries no response, so the request moves toward `SUPPLIER_RESPONSE_PENDING`, the same rule as a single no-response entry.
+- The movement follows valid transition paths; an already closed request keeps its status.
+- One `supplier_communication.created` audit row is written per supplier.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Laravel not-found shape | Unknown request id |
+| `422` | Laravel validation shape | Missing message or method, empty `supplier_ids`, a supplier without an item in this request, unsupported file or invalid date |
 
 ---
 

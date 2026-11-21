@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Setting\SettingService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -15,7 +16,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The settings service memoizes reads. A scoped binding shares that
+        // memo inside one request or queued job, then discards it, so long
+        // running workers never serve a stale master setting.
+        $this->app->scoped(SettingService::class);
     }
 
     /**

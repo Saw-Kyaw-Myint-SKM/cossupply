@@ -34,7 +34,7 @@ class SettingServiceTest extends TestCase
     {
         $values = app(SettingService::class)->values();
 
-        $this->assertCount(15, $values);
+        $this->assertCount(16, $values);
         $this->assertSame(7, $values['quotation_validity_days']);
         $this->assertSame(0, $values['quotation_service_fee_percentage']);
         $this->assertTrue($values['require_receipt_number']);
@@ -51,6 +51,7 @@ class SettingServiceTest extends TestCase
             'company_email',
             'company_name',
             'company_phone',
+            'storefront_supplier_display',
         ], $publicSettings);
 
         $publicValues = app(SettingService::class)->publicValues();
@@ -60,6 +61,7 @@ class SettingServiceTest extends TestCase
             'company_email',
             'company_name',
             'company_phone',
+            'storefront_supplier_display',
         ], array_keys($publicValues));
 
         $this->assertArrayNotHasKey('quotation_validity_days', $publicValues);

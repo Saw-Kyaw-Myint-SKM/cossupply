@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { FiSearch } from 'react-icons/fi';
 import type { ApiResponse } from '../../../api/client';
 import { listCategories, type Category } from '../api/categoriesApi';
 import { listSuppliers, type Supplier } from '../api/suppliersApi';
@@ -21,9 +22,9 @@ import {
   describeLoadError,
   describeRequestError,
   formatStatusLabel,
-  filterSelectClass,
   inputClass,
   linkClass,
+  panelClass,
   primaryButtonClass,
   secondaryButtonClass,
   type LoadErrorState,
@@ -222,6 +223,7 @@ export default function ProductListPage() {
   }, [page, search, status, categoryId, supplierId, sort, reloadToken]);
 
   const hasFilters = search !== '' || status !== '' || categoryId !== '' || supplierId !== '';
+  const activeFilterCount = [search, status, categoryId, supplierId].filter(Boolean).length;
   const actionsBusy = updatingId !== null || isDeleting;
 
   const clearFilters = () => {
@@ -420,125 +422,165 @@ export default function ProductListPage() {
         </Alert>
       ) : null}
 
-      <section className="rounded-lg bg-white p-4 shadow sm:p-6">
+      <section className={`${panelClass} p-4 sm:p-5`}>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-ink">Filters</h2>
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-primary-light px-2 py-0.5 text-xs font-medium text-primary">
+                {activeFilterCount} active
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-3">
+            {meta ? (
+              <p className="text-sm text-muted" aria-live="polite">
+                <span className="font-semibold tabular-nums text-ink">{meta.total}</span>{' '}
+                {meta.total === 1 ? 'product' : 'products'}
+              </p>
+            ) : null}
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded text-sm font-medium text-primary hover:text-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 motion-safe:transition-colors"
+              >
+                Clear all
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <form
           onSubmit={handleSearchSubmit}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          className="mt-4 space-y-4"
           role="search"
           aria-label="Filter products"
         >
-          <div className="sm:col-span-2">
-            <label htmlFor="product-search" className="block text-sm font-medium text-gray-700">
+          <div>
+            <label
+              htmlFor="product-search"
+              className="mb-1 block text-xs font-medium text-muted"
+            >
               Search
             </label>
-            <div className="mt-1 flex gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-line bg-white shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 motion-safe:transition-all">
+              <FiSearch
+                aria-hidden="true"
+                className="ml-3 h-4 w-4 flex-none self-center text-subtle"
+              />
               <input
                 id="product-search"
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Name, SKU, brand, or model"
-                className={`${inputClass(false)} min-w-0 flex-1`}
+                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-subtle"
               />
-              <button type="submit" className={secondaryButtonClass}>
+              <button
+                type="submit"
+                className="flex-none bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-hover active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 motion-safe:transition-colors"
+              >
                 Search
               </button>
             </div>
           </div>
 
-          <div>
-            <label
-              htmlFor="product-status-filter"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Status
-            </label>
-            <select
-              id="product-status-filter"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value as StatusFilter);
-                setPage(1);
-                resetActionFeedback();
-              }}
-              className={`${filterSelectClass} mt-1`}
-            >
-              <option value="">All statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="HIDDEN">Hidden</option>
-              <option value="OUT_OF_STOCK">Out of stock</option>
-            </select>
-          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label
+                htmlFor="product-status-filter"
+                className="mb-1 block text-xs font-medium text-muted"
+              >
+                Status
+              </label>
+              <select
+                id="product-status-filter"
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value as StatusFilter);
+                  setPage(1);
+                  resetActionFeedback();
+                }}
+                className={inputClass(false)}
+              >
+                <option value="">All statuses</option>
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="HIDDEN">Hidden</option>
+                <option value="OUT_OF_STOCK">Out of stock</option>
+              </select>
+            </div>
 
-          <div>
-            <label
-              htmlFor="product-category-filter"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Category
-            </label>
-            <select
-              id="product-category-filter"
-              value={categoryId}
-              onChange={(event) => {
-                setCategoryId(event.target.value);
-                setPage(1);
-                resetActionFeedback();
-              }}
-              className={`${filterSelectClass} mt-1`}
-            >
-              <option value="">All categories</option>
-              {categoryOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {categoryOptionLabel(option)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label
+                htmlFor="product-category-filter"
+                className="mb-1 block text-xs font-medium text-muted"
+              >
+                Category
+              </label>
+              <select
+                id="product-category-filter"
+                value={categoryId}
+                onChange={(event) => {
+                  setCategoryId(event.target.value);
+                  setPage(1);
+                  resetActionFeedback();
+                }}
+                className={inputClass(false)}
+              >
+                <option value="">All categories</option>
+                {categoryOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {categoryOptionLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label
-              htmlFor="product-supplier-filter"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Supplier
-            </label>
-            <select
-              id="product-supplier-filter"
-              value={supplierId}
-              onChange={(event) => {
-                setSupplierId(event.target.value);
-                setPage(1);
-                resetActionFeedback();
-              }}
-              className={`${filterSelectClass} mt-1`}
-            >
-              <option value="">All suppliers</option>
-              {supplierOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {supplierOptionLabel(option)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label
+                htmlFor="product-supplier-filter"
+                className="mb-1 block text-xs font-medium text-muted"
+              >
+                Supplier
+              </label>
+              <select
+                id="product-supplier-filter"
+                value={supplierId}
+                onChange={(event) => {
+                  setSupplierId(event.target.value);
+                  setPage(1);
+                  resetActionFeedback();
+                }}
+                className={inputClass(false)}
+              >
+                <option value="">All suppliers</option>
+                {supplierOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {supplierOptionLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label
-              htmlFor="product-sort"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Sort by
-            </label>
-            <select
-              id="product-sort"
-              value={sort}
-              onChange={(event) => handleSortChange(event.target.value)}
-              className={`${filterSelectClass} mt-1`}
-            >
-              <option value="created_at:desc">Newest first</option>
-              <option value="created_at:asc">Oldest first</option>
-            </select>
+            <div>
+              <label
+                htmlFor="product-sort"
+                className="mb-1 block text-xs font-medium text-muted"
+              >
+                Sort by
+              </label>
+              <select
+                id="product-sort"
+                value={sort}
+                onChange={(event) => handleSortChange(event.target.value)}
+                className={inputClass(false)}
+              >
+                <option value="created_at:desc">Newest first</option>
+                <option value="created_at:asc">Oldest first</option>
+              </select>
+            </div>
           </div>
         </form>
       </section>

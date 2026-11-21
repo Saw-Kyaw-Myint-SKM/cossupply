@@ -61,6 +61,7 @@ class AdminCatalogAuthorizationTest extends TestCase
             ['PATCH', "/api/v1/admin/products/{$product->id}", []],
             ['DELETE', "/api/v1/admin/products/{$product->id}", []],
             ['PATCH', "/api/v1/admin/products/{$product->id}/status", ['status' => 'DRAFT']],
+            ['POST', '/api/v1/admin/products/generate-sku', ['scope' => 'product']],
             ['GET', '/api/v1/admin/files/receipts/receipt-001.txt', []],
         ];
     }

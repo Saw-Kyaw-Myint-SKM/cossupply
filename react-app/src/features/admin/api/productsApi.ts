@@ -384,3 +384,43 @@ export async function updateProductStatus(
 export async function deleteProduct(id: number): Promise<ApiResponse<null>> {
   return apiRequest<null>(`/admin/products/${id}`, { method: 'DELETE' });
 }
+
+/**
+ * Payload for POST /admin/products/generate-sku.
+ *
+ * Every field is optional apart from `scope`; the server only uses what the
+ * scope needs, so `product` sends the product's own identity fields and
+ * `variant` sends the base, the variant name, and the SKUs already in the form.
+ */
+export interface GenerateSkuPayload {
+  scope: 'product' | 'variant';
+  /** SKU currently typed into the form; a variant code builds on it. */
+  base?: string;
+  name_en?: string;
+  brand?: string;
+  model?: string;
+  /** Saved product id; omitted while the product is still being created. */
+  product_id?: number;
+  variant_name?: string;
+  /** 1-based row number, used when the variant name has no ASCII. */
+  variant_index?: number;
+  /** Keeps this row's own stored SKU out of the collision check. */
+  exclude_variant_id?: number;
+  /** SKUs shown in the variant rows, including this one being replaced. */
+  existing_skus?: string[];
+}
+
+/**
+ * POST /admin/products/generate-sku
+ *
+ * The server builds the code so it can be checked against stored SKUs before
+ * it lands in the field. A 409 means no free value could be found.
+ */
+export async function generateSku(
+  payload: GenerateSkuPayload,
+): Promise<ApiResponse<{ sku: string }>> {
+  return apiRequest<{ sku: string }>('/admin/products/generate-sku', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

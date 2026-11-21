@@ -5,7 +5,10 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use App\Models\Supplier;
+use App\Services\Setting\SettingService;
+use Database\Seeders\SettingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -357,5 +360,65 @@ class PublicCatalogTest extends TestCase
             ->assertJsonCount(1, 'data.products')
             ->assertJsonPath('data.meta.current_page', 2)
             ->assertJsonPath('data.meta.total', 3);
+    }
+
+    public function test_hidden_supplier_display_strips_supplier_from_products_and_directory(): void
+    {
+        $this->seed(SettingSeeder::class);
+        $this->setSupplierDisplay(SettingService::SUPPLIER_DISPLAY_HIDDEN);
+
+        $supplier = Supplier::factory()->create(['shop_name' => 'Hidden Supplier']);
+        $product = Product::factory()->for($supplier)->published()->create();
+
+        foreach (['/api/v1/products', "/api/v1/products/{$product->id}"] as $path) {
+            $json = $this->getJson($path)->assertOk()->json('data');
+            $item = $path === '/api/v1/products' ? $json['products'][0] : $json['product'];
+
+            $this->assertArrayNotHasKey('supplier', $item);
+        }
+
+        $this->getJson('/api/v1/suppliers')
+            ->assertOk()
+            ->assertJsonCount(0, 'data.suppliers')
+            ->assertJsonPath('data.meta.total', 0);
+    }
+
+    public function test_name_only_supplier_display_limits_the_public_payload(): void
+    {
+        $this->seed(SettingSeeder::class);
+        $this->setSupplierDisplay(SettingService::SUPPLIER_DISPLAY_NAME);
+
+        $supplier = Supplier::factory()->verified()->create([
+            'shop_name' => 'Name Only Trading',
+            'delivery_area' => 'Yangon',
+        ]);
+        $product = Product::factory()->for($supplier)->published()->create();
+
+        $json = $this->getJson("/api/v1/products/{$product->id}")
+            ->assertOk()
+            ->json('data.product.supplier');
+
+        $this->assertSame([
+            'id' => $supplier->id,
+            'shop_name' => 'Name Only Trading',
+        ], $json);
+
+        $this->getJson('/api/v1/suppliers')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.suppliers')
+            ->assertJsonMissingPath('data.suppliers.0.logo_url')
+            ->assertJsonPath('data.suppliers.0.shop_name', 'Name Only Trading');
+    }
+
+    /**
+     * Persist the supplier display mode and drop the request-scoped memo.
+     */
+    private function setSupplierDisplay(string $mode): void
+    {
+        Setting::query()
+            ->where('key', SettingService::SUPPLIER_DISPLAY_KEY)
+            ->update(['value' => $mode]);
+
+        $this->app->forgetInstance(SettingService::class);
     }
 }

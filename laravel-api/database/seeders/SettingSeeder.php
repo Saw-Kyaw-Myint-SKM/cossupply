@@ -148,6 +148,15 @@ class SettingSeeder extends Seeder
             'description' => 'Cash collection must record a receipt number.',
             'is_public' => false,
         ],
+        [
+            'key' => 'storefront_supplier_display',
+            'value' => 'CARD',
+            'value_type' => 'string',
+            'group_name' => 'storefront',
+            'label' => 'Supplier Display',
+            'description' => 'How supplier identity appears to customers: the full supplier card, the shop name only, or hidden.',
+            'is_public' => true,
+        ],
     ];
 
     /**

@@ -42,6 +42,7 @@ const GROUP_TITLES: Record<string, TranslationKey> = {
   quotation: 'quotationGroup',
   order: 'orderGroup',
   payment: 'paymentGroup',
+  storefront: 'storefrontGroup',
 };
 
 const SELECT_OPTIONS: Record<string, readonly { value: string; labelKey: TranslationKey }[]> = {
@@ -49,6 +50,11 @@ const SELECT_OPTIONS: Record<string, readonly { value: string; labelKey: Transla
   timezone: [{ value: 'Asia/Yangon', labelKey: 'yangonTime' }],
   delivery_fee_mode: [{ value: 'MANUAL_PER_QUOTATION', labelKey: 'manualPerQuotation' }],
   payment_method: [{ value: 'CASH_ON_DELIVERY', labelKey: 'cashOnDelivery' }],
+  storefront_supplier_display: [
+    { value: 'CARD', labelKey: 'supplierDisplayCard' },
+    { value: 'NAME', labelKey: 'supplierDisplayName' },
+    { value: 'HIDDEN', labelKey: 'supplierDisplayHidden' },
+  ],
 };
 
 const TEXT_FIELD_RULES: Record<

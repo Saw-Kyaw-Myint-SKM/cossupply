@@ -1,9 +1,26 @@
 /**
  * Unit tests for the admin product multipart builder, including optional
- * nested variants (Task 04).
+ * nested variants (Task 04), and the SKU generation endpoint.
  */
-import { describe, expect, it } from 'vitest';
-import { buildProductFormData, type ProductInput } from '../productsApi';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildProductFormData, generateSku, type ProductInput } from '../productsApi';
+
+/** `node` has no localStorage, and the client reads the bearer token from it. */
+function stubStorage() {
+  vi.stubGlobal('localStorage', {
+    getItem: () => 'admin-token',
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  });
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as unknown as Response;
+}
 
 function baseInput(overrides: Partial<ProductInput> = {}): ProductInput {
   return {
@@ -105,5 +122,102 @@ describe('buildProductFormData with variants', () => {
     const form = buildProductFormData(baseInput({ syncVariants: false }));
 
     expect(form.get('variants_sync')).toBeNull();
+  });
+});
+
+describe('generateSku', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    stubStorage();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('posts the scope payload and returns the generated sku', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: true, data: { sku: 'OFFICE-CHAIR-7K2P' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await generateSku({
+      scope: 'product',
+      name_en: 'Office Chair',
+      brand: 'Acme',
+      model: 'M-1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/products/generate-sku'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          scope: 'product',
+          name_en: 'Office Chair',
+          brand: 'Acme',
+          model: 'M-1',
+        }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer admin-token',
+          'Content-Type': 'application/json',
+        }),
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(response.data?.sku).toBe('OFFICE-CHAIR-7K2P');
+  });
+
+  it('carries the variant payload so the server can avoid taken codes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: true, data: { sku: 'CHAIR-001-RED-2' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await generateSku({
+      scope: 'variant',
+      base: 'CHAIR-001',
+      product_id: 7,
+      variant_name: 'Red / M',
+      variant_index: 1,
+      exclude_variant_id: 12,
+      existing_skus: ['CHAIR-001-RED-M', 'CHAIR-001-BLUE-L'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/products/generate-sku'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          scope: 'variant',
+          base: 'CHAIR-001',
+          product_id: 7,
+          variant_name: 'Red / M',
+          variant_index: 1,
+          exclude_variant_id: 12,
+          existing_skus: ['CHAIR-001-RED-M', 'CHAIR-001-BLUE-L'],
+        }),
+      }),
+    );
+    expect(response.data?.sku).toBe('CHAIR-001-RED-2');
+  });
+
+  it('surfaces a conflict when the server finds no free sku', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          success: false,
+          message: 'A free SKU could not be generated. Adjust the name and try again.',
+        },
+        409,
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await generateSku({ scope: 'product', name_en: 'Office Chair' });
+
+    expect(response.success).toBe(false);
+    expect(response.status).toBe(409);
+    expect(response.message).toContain('A free SKU could not be generated');
   });
 });

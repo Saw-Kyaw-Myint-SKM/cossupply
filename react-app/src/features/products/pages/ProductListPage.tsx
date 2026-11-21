@@ -37,6 +37,7 @@ import {
 } from '../../../components/catalog-ui/CatalogUi';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
 import { useI18n } from '../../../lib/i18n-context';
+import { usePublicSettings } from '../../../lib/public-settings-context';
 
 const STOCK_FILTERS: Array<{ value: StockStatus | ''; label: string; dot?: string }> = [
   { value: '', label: 'All availability', dot: 'bg-subtle' },
@@ -192,11 +193,19 @@ function LoadingMoreRow({ label }: { label: string }) {
 export default function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { displayName } = useI18n();
+  const { supplierDisplay, isLoading: settingsLoading } = usePublicSettings();
 
   const search = searchParams.get('search') ?? '';
   const categoryId = searchParams.get('category_id') ?? '';
   const supplierId = searchParams.get('supplier_id') ?? '';
   const stockStatus = (searchParams.get('stock_status') ?? '') as StockStatus | '';
+
+  // Hidden supplier mode removes the filter too: the directory endpoint is
+  // empty in that mode, so a leftover `supplier_id` link must not be honoured.
+  const supplierVisible = supplierDisplay !== 'HIDDEN';
+  const effectiveSupplierId = supplierVisible ? supplierId : '';
+  // While the mode is still loading, keep supplier UI out to avoid a flash.
+  const showSupplierFilters = supplierVisible && !settingsLoading;
 
   const [searchInput, setSearchInput] = useState(search);
 
@@ -220,7 +229,7 @@ export default function ProductListPage() {
    * like leafing through a paper catalog. Seeded on mount from the URL so
    * a deep link never fetches the unfiltered page first.
    */
-  const filterKey = `${search}|${categoryId}|${supplierId}|${stockStatus}`;
+  const filterKey = `${search}|${categoryId}|${effectiveSupplierId}|${stockStatus}`;
   const [request, setRequest] = useState<{ filterKey: string; page: number }>(() => ({
     filterKey,
     page: 1,
@@ -290,7 +299,7 @@ export default function ProductListPage() {
       per_page: 12,
       search: search || undefined,
       category_id: categoryId || undefined,
-      supplier_id: supplierId || undefined,
+      supplier_id: effectiveSupplierId || undefined,
       stock_status: stockStatus || undefined,
     })
       .then((response) => {
@@ -365,11 +374,21 @@ export default function ProductListPage() {
     updateParams({ search: searchInput.trim() });
   };
 
-  const hasFilters = Boolean(search || categoryId || supplierId || stockStatus);
+  // A deep link can still carry `supplier_id`; strip it when suppliers are
+  // hidden so the URL matches the filters the page actually applies.
+  useEffect(() => {
+    if (supplierVisible || !searchParams.get('supplier_id')) return;
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('supplier_id');
+    setSearchParams(next, { replace: true });
+  }, [supplierVisible, searchParams, setSearchParams]);
+
+  const hasFilters = Boolean(search || categoryId || effectiveSupplierId || stockStatus);
   const activeFilterCount = [
     Boolean(search),
     Boolean(categoryId),
-    Boolean(supplierId),
+    Boolean(effectiveSupplierId),
     Boolean(stockStatus),
   ].filter(Boolean).length;
 
@@ -453,24 +472,26 @@ export default function ProductListPage() {
         </select>
       </div>
 
-      <div>
-        <label htmlFor="sheet-supplier" className="block text-xs font-medium text-muted">
-          Supplier
-        </label>
-        <select
-          id="sheet-supplier"
-          value={supplierId}
-          onChange={(event) => updateParams({ supplier_id: event.target.value })}
-          className={`${filterSelectClass} mt-1`}
-        >
-          <option value="">All suppliers</option>
-          {suppliers.map((supplier) => (
-            <option key={supplier.id} value={supplier.id}>
-              {supplier.shop_name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {showSupplierFilters ? (
+        <div>
+          <label htmlFor="sheet-supplier" className="block text-xs font-medium text-muted">
+            Supplier
+          </label>
+          <select
+            id="sheet-supplier"
+            value={supplierId}
+            onChange={(event) => updateParams({ supplier_id: event.target.value })}
+            className={`${filterSelectClass} mt-1`}
+          >
+            <option value="">All suppliers</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.shop_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <div>
         <label htmlFor="sheet-stock" className="block text-xs font-medium text-muted">
@@ -557,18 +578,20 @@ export default function ProductListPage() {
               />
             </RailSection>
 
-            <RailSection title="Supplier">
-              {/* Once expanded, long supplier lists scroll inside the rail,
-                  never the page. */}
-              <RailRadioList
-                name="rail-supplier"
-                label="Supplier"
-                options={supplierOptions}
-                value={supplierId}
-                onPick={(value) => updateParams({ supplier_id: value })}
-                scroll
-              />
-            </RailSection>
+            {showSupplierFilters ? (
+              <RailSection title="Supplier">
+                {/* Once expanded, long supplier lists scroll inside the rail,
+                    never the page. */}
+                <RailRadioList
+                  name="rail-supplier"
+                  label="Supplier"
+                  options={supplierOptions}
+                  value={supplierId}
+                  onPick={(value) => updateParams({ supplier_id: value })}
+                  scroll
+                />
+              </RailSection>
+            ) : null}
 
             <RailSection title="Availability">
               <RailRadioList

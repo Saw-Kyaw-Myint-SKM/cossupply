@@ -6,6 +6,7 @@ use App\Enums\QuotationRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\AssignQuotationRequestRequest;
 use App\Http\Requests\Api\V1\SaveQuotationVersionRequest;
+use App\Http\Requests\Api\V1\StoreBulkSupplierCommunicationRequest;
 use App\Http\Requests\Api\V1\StoreSupplierCommunicationRequest;
 use App\Http\Requests\Api\V1\UpdateQuotationRequestStatusRequest;
 use App\Http\Resources\AdminQuotationRequestResource;
@@ -158,6 +159,31 @@ class AdminQuotationRequestController extends Controller
                 'request_status' => $quotationRequest->refresh()->status->value,
             ],
             'Supplier communication logged.',
+            201,
+        );
+    }
+
+    /**
+     * Append the same contact entry to every selected supplier group.
+     */
+    public function storeBulkCommunication(
+        StoreBulkSupplierCommunicationRequest $request,
+        QuotationRequest $quotationRequest,
+    ): JsonResponse {
+        $communications = $this->workflow->logCommunicationForAllSuppliers(
+            $quotationRequest,
+            $request->validated(),
+            $request->file('attachment'),
+            $request->user(),
+            $request->ip(),
+        );
+
+        return $this->successResponse(
+            [
+                'communications' => SupplierCommunicationResource::collection($communications),
+                'request_status' => $quotationRequest->refresh()->status->value,
+            ],
+            'Supplier communication logged for the selected suppliers.',
             201,
         );
     }

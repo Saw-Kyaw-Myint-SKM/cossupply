@@ -159,6 +159,101 @@ class QuotationWorkflowService
     }
 
     /**
+     * Log one append-only communication for every selected supplier, or for
+     * every supplier in the request when no selection is sent.
+     *
+     * The attachment is stored once and every row points at the same private
+     * path, so a broadcast note does not leave a duplicate file per supplier.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<SupplierCommunication>
+     */
+    public function logCommunicationForAllSuppliers(
+        QuotationRequest $quotationRequest,
+        array $data,
+        ?UploadedFile $attachment,
+        Admin $admin,
+        ?string $ip = null,
+    ): array {
+        return DB::transaction(function () use ($quotationRequest, $data, $attachment, $admin, $ip): array {
+            $request = QuotationRequest::query()
+                ->whereKey($quotationRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $requestSupplierIds = $request->items()
+                ->distinct()
+                ->pluck('supplier_id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+
+            $selected = array_map('intval', (array) ($data['supplier_ids'] ?? []));
+
+            $supplierIds = $selected === []
+                ? $requestSupplierIds
+                : array_values(array_intersect($selected, $requestSupplierIds));
+
+            // The form request already rejects unknown suppliers; this guard
+            // keeps direct service callers from writing a meaningless batch.
+            if ($supplierIds === []) {
+                throw ValidationException::withMessages([
+                    'supplier_ids' => ['Select at least one supplier that is part of this quotation request.'],
+                ]);
+            }
+
+            $attachmentPath = $attachment?->store(
+                'supplier-communications/'.$request->id,
+                'local',
+            );
+
+            $contactedAt = $data['contacted_at'] ?? now();
+            $communicationIds = [];
+
+            foreach ($supplierIds as $supplierId) {
+                $communication = SupplierCommunication::create([
+                    'quotation_request_id' => $request->id,
+                    'supplier_id' => $supplierId,
+                    'admin_id' => $admin->id,
+                    'contact_method' => (string) $data['contact_method'],
+                    'message_text' => $data['message_text'] ?? null,
+                    'supplier_response' => null,
+                    'attachment_path' => $attachmentPath,
+                    'contacted_at' => $contactedAt,
+                    'responded_at' => null,
+                ]);
+
+                $communicationIds[] = $communication->id;
+
+                $this->auditLogs->log(
+                    $admin,
+                    'supplier_communication.created',
+                    'quotation_request',
+                    (string) $request->id,
+                    [],
+                    [
+                        'communication_id' => $communication->id,
+                        'supplier_id' => $communication->supplier_id,
+                        'contact_method' => $communication->contact_method,
+                        'has_response' => false,
+                    ],
+                    $ip,
+                );
+            }
+
+            // A broadcast note carries no per-supplier response yet, so it
+            // follows the same status rule as a single no-response entry.
+            $this->moveRequestTo($request, QuotationRequestStatus::SUPPLIER_RESPONSE_PENDING, false);
+
+            return SupplierCommunication::query()
+                ->with(['supplier', 'admin'])
+                ->whereKey($communicationIds)
+                ->orderBy('id')
+                ->get()
+                ->all();
+        });
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     public function createVersion(

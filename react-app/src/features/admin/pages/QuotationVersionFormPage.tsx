@@ -30,6 +30,7 @@ import {
   type QuotationVersion,
   type QuotationVersionInput,
 } from '../api/quotationAdminApi';
+import { QuotationVersionGuide } from '../components/QuotationVersionGuide';
 import {
   buildVersionPayload,
   createVersionFormState,
@@ -298,12 +299,15 @@ export default function QuotationVersionFormPage() {
         }
         description={`${context.quotationNumber} · ${context.customerName}`}
         action={
-          <Link
-            to={`/admin/quotation-requests/${context.requestId}`}
-            className={secondaryButtonClass}
-          >
-            Cancel
-          </Link>
+          <div className="flex items-center gap-2">
+            <QuotationVersionGuide />
+            <Link
+              to={`/admin/quotation-requests/${context.requestId}`}
+              className={secondaryButtonClass}
+            >
+              Cancel
+            </Link>
+          </div>
         }
       />
 

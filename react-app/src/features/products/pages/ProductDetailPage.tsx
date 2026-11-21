@@ -34,6 +34,7 @@ import {
 } from '../../../components/catalog-ui/CatalogUi';
 import { useAuth } from '../../../lib/auth-context';
 import { useCart } from '../../../lib/cart-context';
+import { usePublicSettings } from '../../../lib/public-settings-context';
 import { formatMMK } from '../../../lib/money';
 import {
   ConfirmationNote,
@@ -73,6 +74,9 @@ export default function ProductDetailPage() {
   const { isAuthenticated, userType } = useAuth();
   const { add, lastAdded } = useCart();
   const { displayName: catalogName, t } = useI18n();
+  // Render no supplier chip until the mode is known, so HIDDEN mode never
+  // flashes a supplier card before the public settings request settles.
+  const { supplierDisplay, isLoading: settingsLoading } = usePublicSettings();
 
   const [product, setProduct] = useState<PublicProduct | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<PublicProductVariant | null>(null);
@@ -340,45 +344,59 @@ export default function ProductDetailPage() {
                   ) : null}
                 </div>
 
-                {product.supplier ? (
-                  <Link
-                    to={`/products?supplier_id=${product.supplier.id}`}
-                    className="group flex max-w-full items-center gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-r from-primary-light/70 via-white to-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-primary/40 hover:shadow"
-                  >
-                    {product.supplier.logo_url ? (
-                      <img
-                        src={product.supplier.logo_url}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-10 w-10 flex-none rounded-lg object-cover ring-1 ring-black/5"
-                      />
-                    ) : (
-                      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white text-sm font-semibold text-primary ring-1 ring-primary/10">
-                        {product.supplier.shop_name.charAt(0)}
+                {product.supplier && !settingsLoading ? (
+                  supplierDisplay === 'CARD' ? (
+                    <Link
+                      to={`/products?supplier_id=${product.supplier.id}`}
+                      className="group flex max-w-full items-center gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-r from-primary-light/70 via-white to-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-primary/40 hover:shadow"
+                    >
+                      {product.supplier.logo_url ? (
+                        <img
+                          src={product.supplier.logo_url}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-10 w-10 flex-none rounded-lg object-cover ring-1 ring-black/5"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white text-sm font-semibold text-primary ring-1 ring-primary/10">
+                          {product.supplier.shop_name.charAt(0)}
+                        </span>
+                      )}
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span className="max-w-[150px] truncate text-[13px] font-semibold text-ink group-hover:text-primary">
+                            {product.supplier.shop_name}
+                          </span>
+                          {product.supplier.verified ? (
+                            <span className="rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                              Verified
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block max-w-[190px] truncate text-[11px] text-muted">
+                          {[product.supplier.delivery_area, product.supplier.delivery_time]
+                            .filter(Boolean)
+                            .join(' · ') || 'Delivery confirmed in quotation'}
+                        </span>
                       </span>
-                    )}
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5">
-                        <span className="max-w-[150px] truncate text-[13px] font-semibold text-ink group-hover:text-primary">
+                      <span className="ml-1 flex-none rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-primary ring-1 ring-primary/15 transition group-hover:bg-primary group-hover:text-white">
+                        View store
+                      </span>
+                    </Link>
+                  ) : supplierDisplay === 'NAME' ? (
+                    <Link
+                      to={`/products?supplier_id=${product.supplier.id}`}
+                      className="inline-flex max-w-full items-center rounded-lg border border-line/60 bg-white px-3 py-1.5 text-[13px] text-muted shadow-sm transition hover:border-primary/30 hover:text-ink"
+                    >
+                      <span className="truncate">
+                        {t('soldBy')}{' '}
+                        <span className="font-semibold text-ink">
                           {product.supplier.shop_name}
                         </span>
-                        {product.supplier.verified ? (
-                          <span className="rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success">
-                            Verified
-                          </span>
-                        ) : null}
                       </span>
-                      <span className="mt-0.5 block max-w-[190px] truncate text-[11px] text-muted">
-                        {[product.supplier.delivery_area, product.supplier.delivery_time]
-                          .filter(Boolean)
-                          .join(' · ') || 'Delivery confirmed in quotation'}
-                      </span>
-                    </span>
-                    <span className="ml-1 flex-none rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-primary ring-1 ring-primary/15 transition group-hover:bg-primary group-hover:text-white">
-                      View store
-                    </span>
-                  </Link>
+                    </Link>
+                  ) : null
                 ) : null}
               </div>
 

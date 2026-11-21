@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicProductResource;
 use App\Http\Traits\PaginationMeta;
 use App\Models\Product;
+use App\Services\Setting\SettingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,10 +20,17 @@ use Illuminate\Validation\Rule;
  * Every endpoint is public: no token is required. Only PUBLISHED products
  * are exposed; a published product whose stock row reads OUT_OF_STOCK stays
  * browsable here and is filtered out of cart eligibility instead.
+ *
+ * The supplier relation is only eager-loaded while the storefront is allowed
+ * to show supplier identity (see `storefront_supplier_display`).
  */
 class PublicProductController extends Controller
 {
     use PaginationMeta;
+
+    public function __construct(
+        private readonly SettingService $settings,
+    ) {}
 
     /**
      * List published products with optional guest filters.
@@ -39,7 +47,7 @@ class PublicProductController extends Controller
 
         $products = Product::query()
             ->where('status', ProductStatus::PUBLISHED->value)
-            ->with(['category', 'supplier', 'prices', 'stock'])
+            ->with($this->catalogRelations())
             ->when(filled($filters['category_id'] ?? null), fn (Builder $query): Builder => $query->where('category_id', $filters['category_id']))
             ->when(filled($filters['supplier_id'] ?? null), fn (Builder $query): Builder => $query->where('supplier_id', $filters['supplier_id']))
             ->when(filled($filters['stock_status'] ?? null), fn (Builder $query): Builder => $query->whereHas(
@@ -80,7 +88,7 @@ class PublicProductController extends Controller
             ? Product::query()
                 ->whereKey((int) $productId)
                 ->where('status', ProductStatus::PUBLISHED->value)
-                ->with(['category', 'supplier', 'prices', 'stock', 'variants.product'])
+                ->with([...$this->catalogRelations(), 'variants.product'])
                 ->first()
             : null;
 
@@ -89,5 +97,24 @@ class PublicProductController extends Controller
         }
 
         return $this->successResponse(['product' => new PublicProductResource($product)]);
+    }
+
+    /**
+     * Base eager-loaded relations for a public product payload.
+     *
+     * `supplier` is withheld entirely in HIDDEN mode so the API never leaks
+     * supplier identity through the network response.
+     *
+     * @return array<int, string>
+     */
+    private function catalogRelations(): array
+    {
+        $relations = ['category', 'prices', 'stock'];
+
+        if ($this->settings->supplierDisplay() !== SettingService::SUPPLIER_DISPLAY_HIDDEN) {
+            $relations[] = 'supplier';
+        }
+
+        return $relations;
     }
 }

@@ -29,6 +29,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { useToast } from '../../../components/ui/Toast';
+import { slugify } from '../../../lib/slug';
 
 interface CategoryFormState {
   parent_id: string;
@@ -105,6 +106,8 @@ export default function CategoryFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  /** True once the admin typed a slug, which stops the name from overwriting it. */
+  const [slugEdited, setSlugEdited] = useState(isEdit);
 
   const formAlertRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +119,7 @@ export default function CategoryFormPage() {
         setForm(EMPTY_FORM);
         setCurrent(null);
         setLoadError(null);
+        setSlugEdited(false);
         setIsLoading(false);
         return;
       }
@@ -230,6 +234,35 @@ export default function CategoryFormPage() {
     setForm((previous) => ({ ...previous, [key]: value }));
     setFormError(null);
     clearFieldError(key);
+  };
+
+  /**
+   * Keep the slug in step with the English name until the admin types their
+   * own slug. An existing category keeps its slug, because changing it would
+   * break every existing link to that category.
+   */
+  const handleNameChange = (key: 'name_mm' | 'name_en', value: string) => {
+    setForm((previous) => {
+      const next = { ...previous, [key]: value };
+
+      if (key === 'name_en' && !isEdit && !slugEdited) {
+        next.slug = slugify(value);
+      }
+
+      return next;
+    });
+    setFormError(null);
+    clearFieldError(key);
+
+    if (key === 'name_en' && !isEdit && !slugEdited) {
+      clearFieldError('slug');
+    }
+  };
+
+  const handleSlugChange = (value: string) => {
+    // Clearing the field hands control back to the name-driven generation.
+    setSlugEdited(value.trim() !== '');
+    updateField('slug', value);
   };
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -442,7 +475,7 @@ export default function CategoryFormPage() {
                   aria-describedby={joinIds(
                     Boolean(fieldErrors.name_mm) && fieldErrorId('name_mm'),
                   )}
-                  onChange={(event) => updateField('name_mm', event.target.value)}
+                  onChange={(event) => handleNameChange('name_mm', event.target.value)}
                   className={inputClass(Boolean(fieldErrors.name_mm))}
                 />
               </Field>
@@ -464,7 +497,7 @@ export default function CategoryFormPage() {
                   aria-describedby={joinIds(
                     Boolean(fieldErrors.name_en) && fieldErrorId('name_en'),
                   )}
-                  onChange={(event) => updateField('name_en', event.target.value)}
+                  onChange={(event) => handleNameChange('name_en', event.target.value)}
                   className={inputClass(Boolean(fieldErrors.name_en))}
                 />
               </Field>
@@ -504,7 +537,11 @@ export default function CategoryFormPage() {
               label="Slug"
               htmlFor={fieldId('slug')}
               error={fieldErrors.slug}
-              hint="Optional. Lowercase letters, numbers, and hyphens. Generated from the English name when left empty."
+              hint={
+                isEdit
+                  ? 'Optional. Lowercase letters, numbers, and hyphens. Leave empty to keep the current slug.'
+                  : 'Lowercase letters, numbers, and hyphens. Filled from the English name until you edit it.'
+              }
               hintId={`${fieldId('slug')}-hint`}
             >
               <input
@@ -520,7 +557,7 @@ export default function CategoryFormPage() {
                   `${fieldId('slug')}-hint`,
                   Boolean(fieldErrors.slug) && fieldErrorId('slug'),
                 )}
-                onChange={(event) => updateField('slug', event.target.value)}
+                onChange={(event) => handleSlugChange(event.target.value)}
                 className={inputClass(Boolean(fieldErrors.slug))}
               />
             </Field>

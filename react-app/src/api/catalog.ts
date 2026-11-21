@@ -59,13 +59,14 @@ export interface PublicCategory {
 export interface PublicSupplier {
   id: number;
   shop_name: string;
-  company_name: string | null;
-  logo: string | null;
-  logo_url: string | null;
-  business_description: string | null;
-  delivery_area: string | null;
-  delivery_time: string | null;
-  verified: boolean;
+  /** Present only when the storefront shows the full supplier card. */
+  company_name?: string | null;
+  logo?: string | null;
+  logo_url?: string | null;
+  business_description?: string | null;
+  delivery_area?: string | null;
+  delivery_time?: string | null;
+  verified?: boolean;
 }
 
 export interface PublicProductVariant {

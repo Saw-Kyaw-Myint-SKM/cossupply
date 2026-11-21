@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiLoader, FiPlus, FiTrash2, FiZap } from 'react-icons/fi';
 import { listCategories, type Category } from '../api/categoriesApi';
 import { listSuppliers, type Supplier } from '../api/suppliersApi';
 import {
   PRODUCT_FIELDS,
   buildProductFormData,
   createProduct,
+  generateSku,
   getProduct,
   updateProduct,
+  type GenerateSkuPayload,
   type Product,
   type ProductInput,
   type ProductStatus,
@@ -39,6 +41,7 @@ import {
 import { ProductFormGuide } from '../components/ProductFormGuide';
 import { useToast } from '../../../components/ui/Toast';
 import { useI18n } from '../../../lib/i18n-context';
+import { slugify } from '../../../lib/slug';
 
 interface VariantFormState {
   key: string;
@@ -130,6 +133,15 @@ const EMPTY_FORM: ProductFormState = {
 
 const CREATE_STATUS_OPTIONS: ProductStatus[] = ['DRAFT', 'PUBLISHED'];
 
+/** One-click color choices for the product color field. */
+const COLOR_PRESETS: ReadonlyArray<{ name: string; swatch: string }> = [
+  { name: 'Black', swatch: '#111827' },
+  { name: 'White', swatch: '#ffffff' },
+  { name: 'Blue', swatch: '#2563eb' },
+  { name: 'Red', swatch: '#dc2626' },
+  { name: 'Green', swatch: '#16a34a' },
+];
+
 const STOCK_STATUS_OPTIONS: StockStatus[] = [
   'IN_STOCK',
   'LOW_STOCK',
@@ -196,6 +208,45 @@ function VariantPhotoField({
 
 function numberText(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value);
+}
+
+/**
+ * Icon button that fills a SKU field from `POST /admin/products/generate-sku`.
+ *
+ * It sits inside the input's wrapper so the field keeps one focusable row, and
+ * swaps to a spinner while the server picks a value that is not already in use.
+ */
+function SkuGenerateButton({
+  busy,
+  disabled,
+  label,
+  onClick,
+}: {
+  busy: boolean;
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || busy}
+      title={label}
+      aria-label={label}
+      aria-busy={busy}
+      className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-subtle transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {busy ? (
+        <FiLoader
+          aria-hidden="true"
+          className="h-4 w-4 animate-spin motion-reduce:animate-none"
+        />
+      ) : (
+        <FiZap aria-hidden="true" className="h-4 w-4" />
+      )}
+    </button>
+  );
 }
 
 function newVariantKey(): string {
@@ -345,6 +396,10 @@ export default function ProductFormPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [variantErrors, setVariantErrors] = useState<Record<string, string[]>>({});
+  /** True once the admin typed a slug, which stops the name from overwriting it. */
+  const [slugEdited, setSlugEdited] = useState(isEdit);
+  /** Which generate button is waiting on the server: 'product' or a row index. */
+  const [generatingSku, setGeneratingSku] = useState<'product' | number | null>(null);
 
   const formAlertRef = useRef<HTMLDivElement>(null);
 
@@ -394,6 +449,7 @@ export default function ProductFormPage() {
         setCurrent(null);
         setLoadError(null);
         setVariantErrors({});
+        setSlugEdited(false);
         setIsLoading(false);
         return;
       }
@@ -499,6 +555,36 @@ export default function ProductFormPage() {
     clearFieldError(key);
   };
 
+  /**
+   * Keep the slug in step with the English name until the admin types their
+   * own slug. The Burmese field never writes the slug, matching the server,
+   * which derives from `name_en` only. A product being edited keeps its slug,
+   * because changing it would break every existing link to that product.
+   */
+  const handleNameChange = (key: 'name_mm' | 'name_en', value: string) => {
+    setForm((previous) => {
+      const next = { ...previous, [key]: value };
+
+      if (key === 'name_en' && !isEdit && !slugEdited) {
+        next.slug = slugify(value);
+      }
+
+      return next;
+    });
+    setFormError(null);
+    clearFieldError(key);
+
+    if (key === 'name_en' && !isEdit && !slugEdited) {
+      clearFieldError('slug');
+    }
+  };
+
+  const handleSlugChange = (value: string) => {
+    // Clearing the field hands control back to the name-driven generation.
+    setSlugEdited(value.trim() !== '');
+    updateField('slug', value);
+  };
+
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target;
     const file = input.files?.[0] ?? null;
@@ -552,6 +638,76 @@ export default function ProductFormPage() {
     }));
     setVariantErrors({});
     setFormError(null);
+  };
+
+  /**
+   * Ask the server for an unused SKU and replace whatever is in the field.
+   * Only a successful response writes, so a failed request leaves the
+   * admin's own value untouched.
+   */
+  const requestGeneratedSku = async (
+    payload: GenerateSkuPayload,
+    target: 'product' | number,
+    apply: (sku: string) => void,
+  ) => {
+    // One request at a time; the field being filled shows the spinner.
+    if (isSaving || generatingSku !== null) return;
+
+    setGeneratingSku(target);
+    const response = await generateSku(payload);
+
+    if (response.success && typeof response.data?.sku === 'string') {
+      apply(response.data.sku);
+    } else {
+      showToast({
+        tone: 'error',
+        title: t('generateSkuFailed'),
+        description: describeRequestError(response, t('generateSkuFailed'), t),
+      });
+    }
+
+    setGeneratingSku(null);
+  };
+
+  const handleGenerateProductSku = () => {
+    void requestGeneratedSku(
+      {
+        scope: 'product',
+        name_en: form.name_en,
+        brand: form.brand,
+        model: form.model,
+      },
+      'product',
+      (sku) => updateField('sku', sku),
+    );
+  };
+
+  const handleGenerateVariantSku = (index: number) => {
+    const variant = form.variants[index];
+    if (!variant) return;
+
+    void requestGeneratedSku(
+      {
+        scope: 'variant',
+        // The product SKU currently in the form is what the code builds on.
+        base: form.sku.trim() || undefined,
+        name_en: form.name_en,
+        brand: form.brand,
+        model: form.model,
+        product_id: productId ?? undefined,
+        variant_name: variant.name,
+        variant_index: index + 1,
+        // Keeps this row's stored code from counting against its own refresh.
+        exclude_variant_id: variant.id ?? undefined,
+        // Every value on screen counts as taken, including this row's, so a
+        // click always lands on something visibly different.
+        existing_skus: form.variants
+          .map((row) => row.sku.trim())
+          .filter((sku) => sku !== ''),
+      },
+      index,
+      (sku) => updateVariantRow(index, { sku }),
+    );
   };
 
   const handleVariantPhotoChange = (index: number, event: ChangeEvent<HTMLInputElement>) => {
@@ -973,7 +1129,7 @@ export default function ProductFormPage() {
                   disabled={isSaving}
                   aria-invalid={Boolean(fieldErrors.name_mm) || undefined}
                   aria-describedby={joinIds(Boolean(fieldErrors.name_mm) && fieldErrorId('name_mm'))}
-                  onChange={(event) => updateField('name_mm', event.target.value)}
+                  onChange={(event) => handleNameChange('name_mm', event.target.value)}
                   className={inputClass(Boolean(fieldErrors.name_mm))}
                 />
               </Field>
@@ -991,7 +1147,7 @@ export default function ProductFormPage() {
                   disabled={isSaving}
                   aria-invalid={Boolean(fieldErrors.name_en) || undefined}
                   aria-describedby={joinIds(Boolean(fieldErrors.name_en) && fieldErrorId('name_en'))}
-                  onChange={(event) => updateField('name_en', event.target.value)}
+                  onChange={(event) => handleNameChange('name_en', event.target.value)}
                   className={inputClass(Boolean(fieldErrors.name_en))}
                 />
               </Field>
@@ -1003,7 +1159,9 @@ export default function ProductFormPage() {
                 hint={
                   isEdit
                     ? 'Lowercase letters, numbers, and dashes. Leave empty to keep the current slug.'
-                    : 'Lowercase letters, numbers, and dashes. Leave empty to generate it from the English name.'
+                    : form.slug === '' && form.name_mm.trim() !== '' && form.name_en.trim() === ''
+                      ? 'Burmese script has no URL transliteration — type a slug here, or add an English name.'
+                      : 'Lowercase letters, numbers, and dashes. Filled from the English name until you edit it.'
                 }
                 hintId={`${fieldId('slug')}-hint`}
               >
@@ -1019,23 +1177,31 @@ export default function ProductFormPage() {
                     `${fieldId('slug')}-hint`,
                     Boolean(fieldErrors.slug) && fieldErrorId('slug'),
                   )}
-                  onChange={(event) => updateField('slug', event.target.value)}
+                  onChange={(event) => handleSlugChange(event.target.value)}
                   className={inputClass(Boolean(fieldErrors.slug))}
                 />
               </Field>
 
               <Field label="SKU" htmlFor={fieldId('sku')} error={fieldErrors.sku}>
-                <input
-                  id={fieldId('sku')}
-                  type="text"
-                  maxLength={100}
-                  value={form.sku}
-                  disabled={isSaving}
-                  aria-invalid={Boolean(fieldErrors.sku) || undefined}
-                  aria-describedby={joinIds(Boolean(fieldErrors.sku) && fieldErrorId('sku'))}
-                  onChange={(event) => updateField('sku', event.target.value)}
-                  className={inputClass(Boolean(fieldErrors.sku))}
-                />
+                <div className="relative">
+                  <input
+                    id={fieldId('sku')}
+                    type="text"
+                    maxLength={100}
+                    value={form.sku}
+                    disabled={isSaving}
+                    aria-invalid={Boolean(fieldErrors.sku) || undefined}
+                    aria-describedby={joinIds(Boolean(fieldErrors.sku) && fieldErrorId('sku'))}
+                    onChange={(event) => updateField('sku', event.target.value)}
+                    className={`${inputClass(Boolean(fieldErrors.sku))} pr-11`}
+                  />
+                  <SkuGenerateButton
+                    busy={generatingSku === 'product'}
+                    disabled={isSaving || generatingSku !== null}
+                    label={t('generateSku')}
+                    onClick={handleGenerateProductSku}
+                  />
+                </div>
               </Field>
 
               <Field label="Brand" htmlFor={fieldId('brand')} error={fieldErrors.brand}>
@@ -1125,7 +1291,46 @@ export default function ProductFormPage() {
                 />
               </Field>
 
-              <Field label="Color" htmlFor={fieldId('color')} error={fieldErrors.color}>
+              <Field
+                label="Color"
+                htmlFor={fieldId('color')}
+                error={fieldErrors.color}
+                labelAdornment={
+                  <div
+                    role="group"
+                    aria-label="Quick color choices"
+                    className="flex items-center gap-1.5"
+                  >
+                    {COLOR_PRESETS.map((preset) => {
+                      const isSelected =
+                        form.color.trim().toLowerCase() === preset.name.toLowerCase();
+
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          disabled={isSaving}
+                          aria-pressed={isSelected}
+                          aria-label={`Use ${preset.name}`}
+                          title={`Use ${preset.name}`}
+                          onClick={() => updateField('color', preset.name)}
+                          className={`flex h-6 w-6 flex-none items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            isSelected
+                              ? 'border-primary ring-2 ring-primary/30'
+                              : 'border-line hover:border-primary/50'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="h-3.5 w-3.5 rounded-full border border-black/15"
+                            style={{ backgroundColor: preset.swatch }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                }
+              >
                 <input
                   id={fieldId('color')}
                   type="text"
@@ -1340,17 +1545,25 @@ export default function ProductFormPage() {
 
                       <div>
                         <label className="block text-xs font-medium text-gray-600">SKU</label>
-                        <input
-                          type="text"
-                          value={variant.sku}
-                          maxLength={100}
-                          disabled={isSaving}
-                          aria-label={`SKU for ${variant.name || `variant ${index + 1}`}`}
-                          onChange={(event) =>
-                            updateVariantRow(index, { sku: event.target.value })
-                          }
-                          className={`${inputClass(Boolean(variantFieldError(index, 'sku')))} mt-1`}
-                        />
+                        <div className="relative mt-1">
+                          <input
+                            type="text"
+                            value={variant.sku}
+                            maxLength={100}
+                            disabled={isSaving}
+                            aria-label={`SKU for ${variant.name || `variant ${index + 1}`}`}
+                            onChange={(event) =>
+                              updateVariantRow(index, { sku: event.target.value })
+                            }
+                            className={`${inputClass(Boolean(variantFieldError(index, 'sku')))} pr-11`}
+                          />
+                          <SkuGenerateButton
+                            busy={generatingSku === index}
+                            disabled={isSaving || generatingSku !== null}
+                            label={t('generateSku')}
+                            onClick={() => handleGenerateVariantSku(index)}
+                          />
+                        </div>
                         {variantFieldError(index, 'sku') ? (
                           <p className="mt-1 text-xs text-red-600">
                             {variantFieldError(index, 'sku')?.[0]}

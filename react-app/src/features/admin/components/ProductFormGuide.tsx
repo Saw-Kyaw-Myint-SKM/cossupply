@@ -59,7 +59,7 @@ function guideSections(isEdit: boolean): GuideSection[] {
         {
           name: 'SKU',
           description:
-            'ရွေးချယ်နိုင်တဲ့ ကုန်ပစ္စည်းကုဒ်။ ထပ်မနေအောင် သတိထားပြီး ထည့်ပါ။',
+            'ရွေးချယ်နိုင်တဲ့ ကုန်ပစ္စည်းကုဒ်။ ထပ်မနေအောင် သတိထားပြီး ထည့်ပါ။ ကုဒ်ရှာမဝံ့ရင် input အတွင်းက ⚡ ခလုတ်ကို နှိပ်လိုက်ရုံနဲ့ နာမည်ကိုအခြေခံတဲ့ SKU အသစ်ကို အလိုအလျောက် ဖန်တီးပေးပါတယ်။',
         },
         {
           name: 'Brand',
@@ -135,7 +135,8 @@ function guideSections(isEdit: boolean): GuideSection[] {
         },
         {
           name: 'Variant SKU',
-          description: 'ဒီ variant အတွက် ရွေးချယ်နိုင်တဲ့ ကုဒ်။',
+          description:
+            'ဒီ variantအတွက် ရွေးချယ်နိုင်တဲ့ ကုဒ်။ ⚡ ခလုတ်နဲ့ ထို variant အတွက် မတူညီတဲ့ SKU အသစ်ကို အလိုအလျောက် ဖန်တီးနိုင်ပါတယ်။',
         },
         {
           name: 'Retail (MMK)',

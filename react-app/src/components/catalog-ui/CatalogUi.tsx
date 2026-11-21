@@ -570,6 +570,8 @@ export interface FieldProps {
   error?: string[] | null;
   hint?: ReactNode;
   hintId?: string;
+  /** Optional controls shown beside the label, e.g. quick color swatches. */
+  labelAdornment?: ReactNode;
   children: ReactNode;
 }
 
@@ -577,24 +579,36 @@ export interface FieldProps {
  * Label + hint + error wrapper for form controls. The error paragraph gets the
  * id `<htmlFor>-error`, which callers reference from `aria-describedby`.
  */
-export function Field({ label, htmlFor, required = false, error, hint, hintId, children }: FieldProps) {
+export function Field({
+  label,
+  htmlFor,
+  required = false,
+  error,
+  hint,
+  hintId,
+  labelAdornment,
+  children,
+}: FieldProps) {
   const { t } = useI18n();
   const message = error && error.length > 0 ? error[0] : null;
 
   return (
     <div>
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
-        {label}
-        {required ? (
-          <>
-            <span aria-hidden="true" className="text-red-600">
-              {' '}
-              *
-            </span>
-            <span className="sr-only"> ({t('required')})</span>
-          </>
-        ) : null}
-      </label>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
+          {label}
+          {required ? (
+            <>
+              <span aria-hidden="true" className="text-red-600">
+                {' '}
+                *
+              </span>
+              <span className="sr-only"> ({t('required')})</span>
+            </>
+          ) : null}
+        </label>
+        {labelAdornment ? <div className="flex items-center gap-1.5">{labelAdornment}</div> : null}
+      </div>
       {hint ? (
         <p id={hintId} className="mt-1 text-xs text-subtle">
           {hint}

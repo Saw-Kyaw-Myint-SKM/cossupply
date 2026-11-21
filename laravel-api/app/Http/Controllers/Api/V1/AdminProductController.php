@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ProductStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\GenerateSkuRequest;
 use App\Http\Requests\Api\V1\StoreProductRequest;
 use App\Http\Requests\Api\V1\UpdateProductRequest;
 use App\Http\Requests\Api\V1\UpdateProductStatusRequest;
@@ -11,6 +12,7 @@ use App\Http\Resources\ProductResource;
 use App\Http\Traits\PaginationMeta;
 use App\Models\Product;
 use App\Services\Catalog\ProductService;
+use App\Services\Catalog\SkuGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -21,6 +23,7 @@ class AdminProductController extends Controller
 
     public function __construct(
         private readonly ProductService $products,
+        private readonly SkuGenerator $skus,
     ) {}
 
     /**
@@ -110,6 +113,26 @@ class AdminProductController extends Controller
             ['product' => new ProductResource($product)],
             'Product status updated.',
         );
+    }
+
+    /**
+     * Build an unused SKU for the generate icon on the product form.
+     *
+     * `scope = product` returns `<PREFIX>-<CODE>` from the product's own name,
+     * brand and model; `scope = variant` returns `<PRODUCT>-<VARIANT NAME>`,
+     * compared against the stored variants plus the rows sent in
+     * `existing_skus`.
+     */
+    public function generateSku(GenerateSkuRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $product = isset($data['product_id']) ? Product::find($data['product_id']) : null;
+
+        $sku = $data['scope'] === 'variant'
+            ? $this->skus->generateForVariant($data, $product)
+            : $this->skus->generateForProduct($data);
+
+        return $this->successResponse(['sku' => $sku]);
     }
 
     /**

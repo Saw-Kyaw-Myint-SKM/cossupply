@@ -19,6 +19,26 @@ use Illuminate\Support\Facades\DB;
 class SettingService
 {
     /**
+     * Storefront setting that controls how supplier identity is exposed to
+     * customers: `CARD` (full card), `NAME` (shop name only) or `HIDDEN`.
+     */
+    public const SUPPLIER_DISPLAY_KEY = 'storefront_supplier_display';
+
+    public const SUPPLIER_DISPLAY_CARD = 'CARD';
+
+    public const SUPPLIER_DISPLAY_NAME = 'NAME';
+
+    public const SUPPLIER_DISPLAY_HIDDEN = 'HIDDEN';
+
+    /**
+     * Read-through cache for the current request, so public resources can ask
+     * for the same setting without repeating the query per row.
+     *
+     * @var array<string, mixed>
+     */
+    private array $memo = [];
+
+    /**
      * Validation rules for every documented setting key. Keys missing
      * from this map cannot be updated through the API.
      *
@@ -40,6 +60,7 @@ class SettingService
         'payment_method' => ['string', 'in:CASH_ON_DELIVERY'],
         'require_full_payment' => ['boolean'],
         'require_receipt_number' => ['boolean'],
+        'storefront_supplier_display' => ['string', 'in:CARD,NAME,HIDDEN'],
     ];
 
     public function __construct(
@@ -69,9 +90,26 @@ class SettingService
      */
     public function get(string $key, mixed $default = null): mixed
     {
-        $setting = Setting::query()->where('key', $key)->first();
+        if (! array_key_exists($key, $this->memo)) {
+            $setting = Setting::query()->where('key', $key)->first();
+            $this->memo[$key] = $setting?->typedValue();
+        }
 
-        return $setting?->typedValue() ?? $default;
+        return $this->memo[$key] ?? $default;
+    }
+
+    /**
+     * Storefront supplier display mode, always one of the documented values.
+     */
+    public function supplierDisplay(): string
+    {
+        $value = $this->get(self::SUPPLIER_DISPLAY_KEY, self::SUPPLIER_DISPLAY_CARD);
+
+        return in_array($value, [
+            self::SUPPLIER_DISPLAY_CARD,
+            self::SUPPLIER_DISPLAY_NAME,
+            self::SUPPLIER_DISPLAY_HIDDEN,
+        ], true) ? $value : self::SUPPLIER_DISPLAY_CARD;
     }
 
     /**
@@ -195,6 +233,8 @@ class SettingService
             'value' => $normalized,
             'updated_by_admin_id' => $admin->id,
         ]);
+
+        $this->memo[$setting->key] = $setting->typedValue();
 
         $this->auditLogs->log(
             $admin,

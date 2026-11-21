@@ -145,6 +145,122 @@ class AdminQuotationWorkflowTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'supplier_communication.created']);
     }
 
+    public function test_admin_can_log_one_communication_for_the_selected_suppliers(): void
+    {
+        $this->actingAsAdmin();
+        [$request, $first, $second] = $this->quotationRequestWithTwoSuppliers();
+
+        $response = $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'supplier_ids' => [$second->id],
+            'contact_method' => 'VIBER',
+            'message_text' => 'Please confirm stock and the delivery date.',
+        ])->assertCreated();
+
+        $response->assertJsonCount(1, 'data.communications')
+            ->assertJsonPath('data.communications.0.supplier_id', $second->id)
+            ->assertJsonPath('data.request_status', 'SUPPLIER_RESPONSE_PENDING');
+
+        $this->assertDatabaseCount('supplier_communications', 1);
+        $this->assertDatabaseHas('supplier_communications', [
+            'quotation_request_id' => $request->id,
+            'supplier_id' => $second->id,
+        ]);
+        $this->assertDatabaseMissing('supplier_communications', [
+            'quotation_request_id' => $request->id,
+            'supplier_id' => $first->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'supplier_communication.created']);
+
+        // The entry lands in the selected group's history only.
+        $groups = $this->getJson("/api/v1/admin/quotation-requests/{$request->id}")
+            ->assertOk()
+            ->json('data.quotation_request.suppliers');
+
+        $secondGroup = collect($groups)->firstWhere('supplier.id', $second->id);
+        $firstGroup = collect($groups)->firstWhere('supplier.id', $first->id);
+
+        $this->assertCount(1, $secondGroup['communications']);
+        $this->assertCount(0, $firstGroup['communications']);
+    }
+
+    public function test_bulk_communication_defaults_to_every_supplier_and_shares_one_attachment(): void
+    {
+        $this->actingAsAdmin();
+        [$request, $first, $second] = $this->quotationRequestWithTwoSuppliers();
+
+        $response = $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'contact_method' => 'PHONE',
+            'message_text' => 'Hello, please confirm your stock.',
+            'attachment' => UploadedFile::fake()->create('list.pdf', 100, 'application/pdf'),
+        ])->assertCreated();
+
+        $response->assertJsonCount(2, 'data.communications');
+        $this->assertDatabaseCount('supplier_communications', 2);
+        $this->assertDatabaseHas('supplier_communications', ['supplier_id' => $first->id]);
+        $this->assertDatabaseHas('supplier_communications', ['supplier_id' => $second->id]);
+
+        // Every row points at the same private file instead of a copy each.
+        $paths = collect($response->json('data.communications'))->pluck('attachment_path')->unique();
+        $this->assertCount(1, $paths);
+        $this->assertIsString($paths->first());
+        Storage::disk('local')->assertExists($paths->first());
+        $this->assertCount(
+            1,
+            Storage::disk('local')->allFiles('supplier-communications/'.$request->id),
+        );
+    }
+
+    public function test_bulk_communication_validates_the_selection_and_message(): void
+    {
+        $this->actingAsAdmin();
+        [$request] = $this->quotationRequestWithTwoSuppliers();
+        $outside = Supplier::factory()->create();
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'contact_method' => 'VIBER',
+            'message_text' => '',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['message_text']);
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'contact_method' => 'VIBER',
+            'message_text' => 'Hi',
+            'supplier_ids' => [],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['supplier_ids']);
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'contact_method' => 'VIBER',
+            'message_text' => 'Hi',
+            'supplier_ids' => [$outside->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['supplier_ids']);
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", [
+            'message_text' => 'Hi',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['contact_method']);
+
+        $this->postJson('/api/v1/admin/quotation-requests/999999/communications/bulk', [
+            'contact_method' => 'VIBER',
+            'message_text' => 'Hi',
+        ])->assertNotFound();
+
+        $this->assertDatabaseCount('supplier_communications', 0);
+    }
+
+    public function test_bulk_communication_requires_an_admin_token(): void
+    {
+        $request = QuotationRequest::factory()->create();
+        $payload = ['contact_method' => 'VIBER', 'message_text' => 'Hi'];
+
+        $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", $payload)
+            ->assertUnauthorized();
+
+        $customer = Customer::factory()->create();
+        $token = $customer->createToken('customer-token', ['customer'])->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/quotation-requests/{$request->id}/communications/bulk", $payload)
+            ->assertForbidden();
+    }
+
     public function test_version_calculates_totals_server_side_and_does_not_change_request_items(): void
     {
         $admin = $this->actingAsAdmin();
@@ -703,6 +819,32 @@ PDF);
 
         $this->assertStringContainsString('/Contents', $content);
         $this->assertStringContainsString('/Type /Page', $content);
+    }
+
+    /**
+     * A request whose items belong to two different suppliers.
+     *
+     * @return array{0: QuotationRequest, 1: Supplier, 2: Supplier}
+     */
+    private function quotationRequestWithTwoSuppliers(): array
+    {
+        $request = $this->quotationRequest();
+        $first = $request->items()->first()->supplier;
+
+        $second = Supplier::factory()->create();
+        $product = Product::factory()
+            ->for($second)
+            ->for(Category::factory())
+            ->published()
+            ->withPrice(['retail_price' => 12000])
+            ->create();
+
+        QuotationItem::factory()
+            ->forRequest($request)
+            ->forProduct($product)
+            ->create(['quantity' => 1, 'display_price' => 12000]);
+
+        return [$request->fresh(), $first, $second];
     }
 
     private function actingAsAdmin(): Admin

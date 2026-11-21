@@ -26,6 +26,8 @@ import {
 import { useAuth } from '../../../lib/auth-context';
 import { useI18n } from '../../../lib/i18n-context';
 import SupplierCommunicationPanel from '../components/SupplierCommunicationPanel';
+import BulkSupplierCommunicationForm from '../components/BulkSupplierCommunicationForm';
+import { QuotationRequestGuide } from '../components/QuotationRequestGuide';
 import {
   assignQuotationRequest,
   getAdminQuotationRequest,
@@ -110,6 +112,7 @@ export default function QuotationRequestDetailPage() {
   const [assignmentId, setAssignmentId] = useState('');
   const [assignmentBusy, setAssignmentBusy] = useState(false);
   const [statusBusy, setStatusBusy] = useState<QuotationRequestStatus | null>(null);
+  const [bulkContactOpen, setBulkContactOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(() => {
     const state = location.state as { notice?: string } | null;
@@ -256,6 +259,7 @@ export default function QuotationRequestDetailPage() {
         }`}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <QuotationRequestGuide />
             <StatusBadge status={request.status} />
             <Link
               to={
@@ -407,12 +411,42 @@ export default function QuotationRequestDetailPage() {
       </div>
 
       <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">Supplier contact</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Request items are grouped by supplier. Every contact entry is append-only.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">Supplier contact</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Request items are grouped by supplier. Every contact entry is append-only.
+            </p>
+          </div>
+          {request.suppliers.length > 0 ? (
+            <button
+              type="button"
+              className={secondaryButtonClass}
+              onClick={() => setBulkContactOpen((open) => !open)}
+            >
+              {bulkContactOpen ? t('closeLogForm') : t('logContactAll')}
+            </button>
+          ) : null}
         </div>
+
+        {bulkContactOpen && request.suppliers.length > 0 ? (
+          <BulkSupplierCommunicationForm
+            requestId={request.id}
+            groups={request.suppliers}
+            onLogged={(count) => {
+              setBulkContactOpen(false);
+              setNotice(
+                t('bulkContactLogged', {
+                  count,
+                  groups: count === 1 ? t('supplierGroup') : t('supplierGroups'),
+                }),
+              );
+              setActionError(null);
+              refresh();
+            }}
+            onCancel={() => setBulkContactOpen(false)}
+          />
+        ) : null}
 
         {request.suppliers.length === 0 ? (
           <Alert tone="warning">No supplier group could be derived from this request.</Alert>

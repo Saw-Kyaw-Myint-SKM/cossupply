@@ -3,6 +3,7 @@ import { AuthProvider } from '../lib/auth-context';
 import { CartProvider } from '../lib/cart-context';
 import { NotificationProvider } from '../features/notifications/notification-context';
 import { I18nProvider } from '../lib/i18n-context';
+import { PublicSettingsProvider } from '../lib/public-settings-context';
 import { ToastProvider } from '../components/ui/Toast';
 
 interface ProvidersProps {
@@ -12,13 +13,15 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <I18nProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <CartProvider>{children}</CartProvider>
-          </NotificationProvider>
-        </AuthProvider>
-      </ToastProvider>
+      <PublicSettingsProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <CartProvider>{children}</CartProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </PublicSettingsProvider>
     </I18nProvider>
   );
 }

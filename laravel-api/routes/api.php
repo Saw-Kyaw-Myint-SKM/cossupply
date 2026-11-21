@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\PublicProductController;
+use App\Http\Controllers\Api\V1\PublicSettingController;
 use App\Http\Controllers\Api\V1\PublicSupplierController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +53,13 @@ Route::get('/products', [PublicProductController::class, 'index']);
 Route::get('/products/{productId}', [PublicProductController::class, 'show']);
 Route::get('/categories', [PublicCategoryController::class, 'index']);
 Route::get('/suppliers', [PublicSupplierController::class, 'index']);
+
+/*
+|--------------------------------------------------------------------------
+| Public Settings (Guest read-only subset)
+|--------------------------------------------------------------------------
+*/
+Route::get('/settings/public', [PublicSettingController::class, 'index']);
 
 /*
 |--------------------------------------------------------------------------
@@ -147,6 +155,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::apiResource('/admin/suppliers', AdminSupplierController::class)->except('destroy');
     Route::apiResource('/admin/products', AdminProductController::class);
     Route::patch('/admin/products/{product}/status', [AdminProductController::class, 'updateStatus']);
+    Route::post('/admin/products/generate-sku', [AdminProductController::class, 'generateSku']);
 
     // Quotation request queue, assignment, supplier logs and version drafts
     Route::get('/admin/admins', [AdminQuotationRequestController::class, 'admins']);
@@ -155,6 +164,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::patch('/admin/quotation-requests/{quotationRequest}/assignment', [AdminQuotationRequestController::class, 'assign']);
     Route::patch('/admin/quotation-requests/{quotationRequest}/status', [AdminQuotationRequestController::class, 'updateStatus']);
     Route::post('/admin/quotation-requests/{quotationRequest}/communications', [AdminQuotationRequestController::class, 'storeCommunication']);
+    Route::post('/admin/quotation-requests/{quotationRequest}/communications/bulk', [AdminQuotationRequestController::class, 'storeBulkCommunication']);
     Route::post('/admin/quotation-requests/{quotationRequest}/quotations', [AdminQuotationRequestController::class, 'storeVersion']);
 
     // Quotation version draft lifecycle, PDF and email resend

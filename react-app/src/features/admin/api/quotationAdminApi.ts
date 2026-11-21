@@ -297,6 +297,45 @@ export async function createSupplierCommunication(
   });
 }
 
+export interface BulkSupplierCommunicationInput {
+  /** Selected suppliers; omit or leave empty to log every supplier in the request. */
+  supplier_ids?: number[];
+  contact_method: SupplierContactMethod;
+  message_text: string;
+  attachment: File | null;
+}
+
+/**
+ * POST /admin/quotation-requests/{id}/communications/bulk
+ *
+ * Appends the same contact entry to every selected supplier group. The server
+ * stores the attachment once and shares its path across the created rows.
+ */
+export async function createBulkSupplierCommunication(
+  requestId: number,
+  input: BulkSupplierCommunicationInput,
+): Promise<
+  ApiResponse<{
+    communications: SupplierCommunication[];
+    request_status: QuotationRequestStatus;
+  }>
+> {
+  const form = new FormData();
+  form.append('contact_method', input.contact_method);
+  form.append('message_text', input.message_text.trim());
+
+  for (const supplierId of input.supplier_ids ?? []) {
+    form.append('supplier_ids[]', String(supplierId));
+  }
+
+  if (input.attachment) form.append('attachment', input.attachment);
+
+  return apiRequest(`/admin/quotation-requests/${requestId}/communications/bulk`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
 export interface QuotationVersionItemInput {
   product_id: number;
   quantity: number;

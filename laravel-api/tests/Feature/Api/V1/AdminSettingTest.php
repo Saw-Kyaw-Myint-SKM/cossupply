@@ -31,7 +31,7 @@ class AdminSettingTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonCount(15, 'data.settings')
+            ->assertJsonCount(16, 'data.settings')
             ->assertJsonStructure([
                 'data' => [
                     'settings' => [
