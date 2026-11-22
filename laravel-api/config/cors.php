@@ -32,6 +32,8 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => true,
+    // Bearer-token auth only: the SPA does not send cookies, so CORS does not
+    // need to allow credentials. Set this to true only if cookie auth is added.
+    'supports_credentials' => false,
 
 ];

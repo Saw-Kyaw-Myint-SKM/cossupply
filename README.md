@@ -1,14 +1,16 @@
 # CoSupply
 
-B2B quotation and order platform for `cos.shop` (React SPA) and `api.cos.shop`
-(Laravel REST API).
+B2B quotation and order platform for `cosupplymm.com` (React SPA) and
+`api.cosupplymm.com` (Laravel REST API).
 
 - `laravel-api/` — Laravel 12 API, Sanctum tokens, MySQL, `/api/v1`.
 - `react-app/` — React 19 + Vite + Tailwind SPA.
 - `specification/` — business, data, status, money and permission rules.
 - `tasks/` — implementation task list (01–13).
-- `docs/deployment.md` — cPanel production checklist, secrets, HTTPS/CORS,
-  storage, backups and rollback.
+- `docs/deployment.md` — production checklist, secrets, HTTPS/CORS, storage,
+  backups and rollback.
+- `docs/cpanel-deployment.md` — step-by-step cPanel deployment for the real
+  host, paths, domains, and production troubleshooting.
 
 ## Local development
 

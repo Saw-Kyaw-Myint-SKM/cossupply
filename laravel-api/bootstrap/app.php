@@ -18,7 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
+        // Token-only API: the SPA sends `Authorization: Bearer ...` and never
+        // uses Sanctum's cookie/CSRF flow. Do not call `statefulApi()` here;
+        // it adds ValidateCsrfToken to API requests whose Origin matches
+        // SANCTUM_STATEFUL_DOMAINS, which makes login fail with HTTP 419.
 
         // Register aliases for custom middleware
         $middleware->alias([

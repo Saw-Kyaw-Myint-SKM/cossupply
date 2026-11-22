@@ -4,11 +4,16 @@ Production layout:
 
 | Piece | Domain | Document root |
 | --- | --- | --- |
-| React SPA | `https://cos.shop` | cPanel public HTML folder for `cos.shop` (static build output) |
-| Laravel API | `https://api.cos.shop` | `laravel-api/public` — **never** the project root |
+| React SPA | `https://cosupplymm.com` | cPanel public HTML folder for `cosupplymm.com` (static build output) |
+| Laravel API | `https://api.cosupplymm.com` | `laravel-api/public` — **never** the project root. On the current Z.com cPanel the document root is fixed at `public_html/api.cosupplymm.com` with a custom `index.php`; see [`cpanel-deployment.md`](./cpanel-deployment.md#api-document-root). |
 
 The API is a Laravel 12 application on PHP 8.2+, MySQL, and local file storage.
 There is **no scheduler, queue worker, or WebSocket process** in the MVP.
+
+For the concrete cPanel account, real paths, upload steps, and the failures we
+have already hit in production, use
+[`cpanel-deployment.md`](./cpanel-deployment.md). This file is the generic
+checklist.
 
 ---
 
@@ -27,12 +32,12 @@ There is **no scheduler, queue worker, or WebSocket process** in the MVP.
 ```bash
 cd react-app
 # .env.production (or the shell environment):
-# VITE_API_URL=https://api.cos.shop/api/v1
+# VITE_API_URL=https://api.cosupplymm.com/api/v1
 npm ci
 npm run build
 ```
 
-Upload the contents of `react-app/dist/` to the `cos.shop` document root. The
+Upload the contents of `react-app/dist/` to the `cosupplymm.com` document root. The
 build is static; no Node process runs in production.
 
 ## 3. Environment configuration
@@ -44,10 +49,13 @@ APP_NAME=CoSupply
 APP_ENV=production
 APP_DEBUG=false
 APP_KEY=base64:...              # php artisan key:generate --show
-APP_URL=https://api.cos.shop
+APP_URL=https://api.cosupplymm.com
 
-FRONTEND_URL=https://cos.shop
-SANCTUM_STATEFUL_DOMAINS=cos.shop,www.cos.shop
+FRONTEND_URL=https://cosupplymm.com
+# Token auth only (Authorization: Bearer ...). Keep this empty: listing the
+# SPA domain makes Sanctum run its cookie/CSRF middleware and Bearer-token
+# requests then fail with HTTP 419 "CSRF token mismatch".
+SANCTUM_STATEFUL_DOMAINS=
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -69,7 +77,7 @@ MAIL_PORT=587
 MAIL_SCHEME=null                 # STARTTLS on 587; use "smtps" for implicit TLS
 MAIL_USERNAME=<smtp_user>
 MAIL_PASSWORD=<smtp_password>
-MAIL_FROM_ADDRESS=no-reply@cos.shop
+MAIL_FROM_ADDRESS=no-reply@cosupplymm.com
 MAIL_FROM_NAME="CoSupply"
 ```
 
@@ -93,6 +101,10 @@ php artisan migrate --force
 php artisan storage:link
 ```
 
+Create `.env` first (section 3): `key:generate` writes the key into that file.
+If `.env` is not writable, use `php artisan key:generate --show` and paste the
+value manually.
+
 ## 5. Storage and writable directories
 
 The public catalog images and supplier logos live on the `public` disk and are
@@ -105,11 +117,20 @@ chmod -R ug+rwX storage bootstrap/cache
 # Directories 775, files 664; do not use 777.
 ```
 
+If the document root is a copy of `public/` (the current Z.com cPanel setup),
+`php artisan storage:link` is not enough — create the symlink in the served
+folder as well:
+
+```bash
+cd /home/zufpszw2/public_html/api.cosupplymm.com
+ln -s /home/zufpszw2/cosupply/laravel-api/storage/app/public storage
+```
+
 If the host blocks symlinks, create the `public/storage` link from the cPanel
 File Manager or a one-off PHP script that calls `symlink()`. Verify with:
 
 ```bash
-curl -I https://api.cos.shop/storage/products/<file>.png
+curl -I https://api.cosupplymm.com/storage/products/<file>.png
 ```
 
 ## 6. Database
@@ -124,7 +145,10 @@ php artisan migrate:status
   explicitly; migrations alone do not seed.
 - Back up the database immediately before every migration.
 - For the first deploy, create the default admin through the documented seeding
-  path, then change its password before announcing the site.
+  path, then **replace its password immediately**. There is no admin
+  change-password endpoint yet, so update the bcrypt hash in the database (see
+  [`cpanel-deployment.md`](./cpanel-deployment.md#admin-account)).
+- Never leave `admin@cos.local` / `password` active on a public site.
 
 ## 7. Cache and optimization
 
@@ -138,23 +162,34 @@ Whenever `.env` or config changes, run `php artisan optimize:clear` and rebuild
 the caches. Keep `APP_DEBUG=false` so stack traces are never returned by the
 API; errors use the `{"success": false, "message": "..."}` envelope.
 
+`bootstrap/cache/config.php` overrides `.env` while it exists. If a changed
+value has no effect, delete that file or run `php artisan optimize:clear`
+before rebuilding the cache.
+
 ## 8. HTTPS and CORS
 
 - Force HTTPS at the cPanel/Apache level for both domains; set `APP_URL` and
   `FRONTEND_URL` to `https://`.
-- Enable `SESSION_SECURE_COOKIE=true` so session/CSRF cookies are HTTPS-only.
-- CORS allows exactly the `FRONTEND_URL` origin with credentials
-  (`config/cors.php`). Do not use `*`.
+- Authentication is Bearer-token only. Do **not** set
+  `SANCTUM_STATEFUL_DOMAINS` to the SPA domain and do not enable
+  `$middleware->statefulApi()`; both put the API into Sanctum's cookie/CSRF
+  flow and make login fail with HTTP 419.
+- Enable `SESSION_SECURE_COOKIE=true` for any `web` routes; the API itself does
+  not start a session.
+- CORS allows exactly the `FRONTEND_URL` origin (`config/cors.php`). Do not use
+  `*`. `supports_credentials` is `false` for Bearer-token auth; enable it only
+  if cookie auth is added.
 - Verify preflight:
 
 ```bash
-curl -i -X OPTIONS https://api.cos.shop/api/v1/products \
-  -H "Origin: https://cos.shop" \
+curl -i -X OPTIONS https://api.cosupplymm.com/api/v1/products \
+  -H "Origin: https://cosupplymm.com" \
   -H "Access-Control-Request-Method: GET"
 ```
 
-Expect `Access-Control-Allow-Origin: https://cos.shop` and
-`Access-Control-Allow-Credentials: true`.
+Expect `Access-Control-Allow-Origin: https://cosupplymm.com`. With
+`supports_credentials = false`, `Access-Control-Allow-Credentials` should be
+absent.
 
 ## 9. No scheduler or long-running process
 
@@ -190,9 +225,9 @@ tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
 
 ## 11. Post-deploy smoke test
 
-1. `GET https://api.cos.shop/api/v1/health` returns `success: true`.
-2. `https://cos.shop` loads the catalog; product images resolve from
-   `https://api.cos.shop/storage/...`.
+1. `GET https://api.cosupplymm.com/api/v1/health` returns `success: true`.
+2. `https://cosupplymm.com` loads the catalog; product images resolve from
+   `https://api.cosupplymm.com/storage/...`.
 3. Register a test customer, submit a quotation request, log in as Admin and
    send a quotation; confirm the customer receives the in-app notification.
 4. Accept the quotation, complete delivery and full COD collection, and
@@ -212,22 +247,34 @@ tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
 - Rebuild caches (`php artisan optimize:clear && php artisan config:cache`).
 - Never roll back by deleting `storage/app`; it contains private receipts.
 
+## 13. Troubleshooting
+
+The recurring production failures and their fixes are documented in
+[`cpanel-deployment.md`](./cpanel-deployment.md#14-troubleshooting):
+
+- `MissingAppKeyException` — `.env` missing/empty or stale config cache.
+- `419` on `/api/v1/admin/login` — `SANCTUM_STATEFUL_DOMAINS` or
+  `statefulApi()` still enabled.
+- Browser "CORS error" hiding a 419/500 response.
+- `500` — check `storage/logs/laravel.log`, permissions, DB credentials.
+- `404` on API routes — wrong document root or missing `.htaccess`.
+
 ---
 
 ## Repeatable checklist
 
 - [ ] PHP extensions and MySQL version verified
-- [ ] SPA built with `VITE_API_URL=https://api.cos.shop/api/v1`
-- [ ] API document root points at `laravel-api/public`
+- [ ] SPA built with `VITE_API_URL=https://api.cosupplymm.com/api/v1`
+- [ ] API document root points at `laravel-api/public`, or at the maintained `public_html/api.cosupplymm.com` copy with its custom `index.php`
 - [ ] `.env` created, `APP_KEY` set, `APP_DEBUG=false`, `APP_ENV=production`
-- [ ] `FRONTEND_URL` / `SANCTUM_STATEFUL_DOMAINS` set to the SPA domain
+- [ ] `FRONTEND_URL` set to the SPA origin; `SANCTUM_STATEFUL_DOMAINS` left empty (token auth)
 - [ ] `composer install --no-dev --optimize-autoloader`
 - [ ] Database backed up, then `php artisan migrate --force`
-- [ ] `php artisan storage:link` and image URL verified
+- [ ] `php artisan storage:link` plus the served doc-root symlink, and image URL verified
 - [ ] `storage` and `bootstrap/cache` writable (775/664, never 777)
 - [ ] Config/route/view caches rebuilt
 - [ ] HTTPS forced; secure cookies enabled
-- [ ] CORS preflight returns only `https://cos.shop`
+- [ ] CORS preflight returns only `https://cosupplymm.com` (no credentials header)
 - [ ] No queue worker or scheduler registered
 - [ ] Backup and restore procedure documented and tested
 - [ ] All eight end-to-end scenarios pass in staging

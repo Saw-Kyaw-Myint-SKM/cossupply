@@ -56,7 +56,10 @@ export async function apiRequest<T>(
       ...defaultHeaders,
       ...options.headers,
     },
-    credentials: 'include',
+    // Bearer-token auth only: never send cookies to the API. Sending them
+    // makes Sanctum treat the request as a stateful SPA request and demand a
+    // CSRF token, which the token-based client does not have.
+    credentials: 'omit',
   };
 
   try {
