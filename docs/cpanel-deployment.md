@@ -11,10 +11,14 @@ real host, paths, domains, and the failures we have already hit.
 | Frontend (SPA) | `https://cosupplymm.com` |
 | API | `https://api.cosupplymm.com` |
 | cPanel account | `zufpszw2` |
-| Laravel project | `/home/zufpszw2/cosupply/laravel-api` |
+| Laravel project (served) | `/home/zufpszw2/cosupply/laravel-api` |
+| Git clone on server | `/home/zufpszw2/cosupply/cossupply-repo` (branch `main`) |
+| Backend deploy script | `/home/zufpszw2/cosupply/deploy-laravel.sh` |
 | API document root | `/home/zufpszw2/public_html/api.cosupplymm.com` (fixed — this host does not allow changing it) |
 | Public storage | `/home/zufpszw2/public_html/api.cosupplymm.com/storage` → `/home/zufpszw2/cosupply/laravel-api/storage/app/public` |
-| Frontend document root | cPanel → **Domains** → `cosupplymm.com` |
+| Frontend document root | `/home/zufpszw2/public_html/cosupplymm.com` |
+| Frontend build | local `react-app/dist/` → ZIP → cPanel |
+| cPanel Node/npm | not installed; build locally |
 | Web server | LiteSpeed |
 | PHP | 8.3 |
 | Database | MySQL 8 / MariaDB 10.4+ |
@@ -32,38 +36,91 @@ real host, paths, domains, and the failures we have already hit.
 /home/zufpszw2/
 │
 ├── cosupply/
-│   └── laravel-api/
-│       ├── app/
-│       ├── bootstrap/
-│       ├── config/
-│       ├── database/
-│       ├── public/
-│       ├── routes/
-│       ├── storage/
-│       ├── vendor/
-│       ├── .env
-│       └── artisan
+│   ├── cossupply-repo/          # git clone, branch main
+│   │   ├── laravel-api/
+│   │   └── react-app/           # source only; never served
+│   ├── laravel-api/             # served backend release
+│   │   ├── app/
+│   │   ├── bootstrap/
+│   │   ├── config/
+│   │   ├── database/
+│   │   ├── public/
+│   │   ├── routes/
+│   │   ├── storage/
+│   │   ├── vendor/
+│   │   ├── .env
+│   │   └── artisan
+│   └── deploy-laravel.sh        # pull + sync + migrate + cache
 │
 └── public_html/
-    └── api.cosupplymm.com/
-        ├── index.php
+    ├── api.cosupplymm.com/
+    │   ├── index.php
+    │   ├── .htaccess
+    │   ├── php.ini
+    │   ├── .user.ini
+    │   └── storage -> /home/zufpszw2/cosupply/laravel-api/storage/app/public
+    │
+    └── cosupplymm.com/          # frontend build output
+        ├── index.html
+        ├── assets/
         ├── .htaccess
-        ├── php.ini
-        ├── .user.ini
-        └── storage -> /home/zufpszw2/cosupply/laravel-api/storage/app/public
+        └── favicon / apple-touch-icon files
 ```
 
 The Laravel application stays outside the web root. Only the API entry point
 and the public assets are reachable through `public_html/api.cosupplymm.com`.
 
+## Deployment workflow
+
+Backend and frontend deploy separately. Neither deploy touches the other.
+
+```text
+BACKEND (Git-based)
+local code → git push origin main
+           → cPanel: git pull in ~/cosupply/cossupply-repo
+           → bash ~/cosupply/deploy-laravel.sh
+           → clear/rebuild cache → health check
+
+FRONTEND (local ZIP)
+local code → npm run build
+           → ZIP the contents of react-app/dist/
+           → upload to cPanel → backup existing frontend
+           → extract into ~/public_html/cosupplymm.com/
+           → test routes + API connection
+```
+
+## Deployment boundaries
+
+- Deploy the backend and frontend independently.
+- A frontend deploy must not modify `~/cosupply/laravel-api` or the API
+  document root.
+- A backend deploy must not modify `~/public_html/cosupplymm.com`.
+- Never upload React source, `node_modules`, or the `dist/` wrapper folder into
+  the public document root.
+- Preserve the frontend `.htaccess` — SPA deep links depend on it.
+- Back up the current frontend before extracting a new build.
+- Back up the database and `storage/app` before backend migrations.
+
+## Pre-deploy verification
+
+Run these locally before the first upload:
+
+- [ ] `react-app/.env.production` has
+      `VITE_API_URL=https://api.cosupplymm.com/api/v1` (no trailing slash).
+- [ ] `react-app/vite.config.ts` keeps `base` at the default `/`; the SPA is
+      served from the domain root, not a sub-path.
+- [ ] `npm run build` succeeds and `react-app/dist/index.html` references the
+      current hashed files in `assets/`.
+- [ ] The zip contains `index.html` at its root (not `dist/index.html`).
+- [ ] `git status` is clean on `main` and the release is pushed to GitHub.
+- [ ] `laravel-api/.env` exists on the server and is **not** in the repo.
+
 ## First deploy at a glance
 
+First backend deploy only (after the files and `.env` exist, sections 4–8):
+
 ```bash
-# 1. Server: project outside public_html, then:
-#    Copy laravel-api/public/* to public_html/api.cosupplymm.com and apply the
-#    custom index.php from section 4 (this host cannot change the doc root).
 cd /home/zufpszw2/cosupply/laravel-api
-cp .env.example .env                 # then edit values (section 5)
 php artisan key:generate --force
 composer install --no-dev --optimize-autoloader   # skip if vendor/ uploaded
 php artisan migrate --force
@@ -71,10 +128,25 @@ php artisan storage:link
 php artisan db:seed --class=AdminSeeder --force   # replace its password afterwards
 php artisan optimize:clear
 php artisan config:cache && php artisan route:cache && php artisan view:cache
-
-# 2. Upload react-app/dist/* to the cosupplymm.com document root.
-# 3. Verify:
 curl -I https://api.cosupplymm.com/up
+```
+
+Every later backend release:
+
+```bash
+cd /home/zufpszw2/cosupply/cossupply-repo
+git pull origin main
+bash /home/zufpszw2/cosupply/deploy-laravel.sh
+curl -I https://api.cosupplymm.com/up
+```
+
+Every frontend release:
+
+```bash
+cd react-app
+npm ci
+npm run build
+# ZIP the CONTENTS of dist/ (not the dist folder itself), then follow section 10.
 ```
 
 The rest of this document explains each step and the failure modes.
@@ -85,23 +157,25 @@ The rest of this document explains each step and the failure modes.
 
 | Artifact | Source | Destination |
 | --- | --- | --- |
-| API code | `laravel-api/` (without `.env`) | `/home/zufpszw2/cosupply/laravel-api` |
-| API public files | `laravel-api/public/` | API document root |
-| SPA build | `react-app/dist/` | `cosupplymm.com` document root |
-| SPA package | `deploy/react-app-dist.zip` | same, unzipped |
+| Backend source | GitHub `main` | `/home/zufpszw2/cosupply/cossupply-repo` |
+| Backend release | `deploy-laravel.sh` | `/home/zufpszw2/cosupply/laravel-api` |
+| API public files | `laravel-api/public/` | `/home/zufpszw2/public_html/api.cosupplymm.com` |
+| SPA build | `react-app/dist/` | `/home/zufpszw2/public_html/cosupplymm.com` |
+| SPA package | ZIP of `dist/` contents | same, unzipped |
 
 Never upload the Laravel project root as the API document root. Only the
 contents of `laravel-api/public` may be web-accessible.
 
 Packaging rules:
 
-- `deploy/react-app-dist.zip` is safe to upload as-is (static files only).
-- `deploy/zip.php` archives **everything** in the directory it is pointed at.
-  Do not run it against `laravel-api` while `.env` exists. Build the backend zip
-  from a clean copy that excludes `.env`, `.git`, `node_modules`, `tests`,
-  `.phpunit.result.cache`, and `storage/logs/*`.
-- Rebuild the backend zip after every code change. Never deploy a stale
-  archive — check that it contains the latest `bootstrap/app.php`.
+- The backend uses **Git**, not a zip. Pull into `cossupply-repo`, then let
+  `deploy-laravel.sh` update `laravel-api`.
+- If you fall back to a manual backend upload, never include `.env`, `.git`,
+  `node_modules`, `tests`, `.phpunit.result.cache`, or `storage/logs/*`.
+- The frontend zip contains the **contents** of `react-app/dist/`, not the
+  `dist/` folder itself, and never `react-app/src` or `node_modules`.
+- Rebuild the frontend zip after every change. Never deploy a stale archive —
+  check that `index.html` references the current `assets/*` hashes.
 
 ---
 
@@ -113,7 +187,7 @@ Packaging rules:
 VITE_API_URL=https://api.cosupplymm.com/api/v1
 ```
 
-Then:
+cPanel has **no Node.js or npm**, so the build must run locally:
 
 ```bash
 cd react-app
@@ -121,13 +195,25 @@ npm ci
 npm run build
 ```
 
-The output is `react-app/dist/`. Upload the **contents** of `dist/`
-(`index.html`, `assets/`, `favicon.ico`, `favicon-*.png`,
-`apple-touch-icon.png`, `.htaccess`, `icons.svg`) into the frontend document
-root.
+The output is `react-app/dist/`. Create the upload zip from its **contents**,
+so `index.html` is at the zip root:
 
-`deploy/react-app-dist.zip` is the packaged build and can be extracted directly
-into the document root.
+```bash
+# Git Bash / WSL, from the repo root
+cd react-app/dist && zip -r ../../deploy/react-app-dist.zip .
+```
+
+```powershell
+# PowerShell, from the repo root
+Compress-Archive -Path react-app\dist\* -DestinationPath deploy\react-app-dist.zip -Force
+```
+
+The zip must contain `index.html`, `assets/`, `favicon.ico`,
+`favicon-*.png`, `apple-touch-icon.png`, `.htaccess`, and `icons.svg` — not a
+top-level `dist/` folder.
+
+Upload the zip and extract it into `/home/zufpszw2/public_html/cosupplymm.com`
+(section 10).
 
 ---
 
@@ -145,9 +231,19 @@ Do not reuse the cPanel account password for MySQL.
 
 ---
 
-## 4. Upload the Laravel API
+## 4. Clone the Laravel API
 
-Upload the project so it lives **outside** `public_html`:
+The project lives **outside** `public_html`. Clone the repository once, then
+let `deploy-laravel.sh` maintain the served release:
+
+```bash
+cd /home/zufpszw2/cosupply
+git clone <repo-url> cossupply-repo
+cd cossupply-repo
+git checkout main
+```
+
+The served release directory is:
 
 ```text
 /home/zufpszw2/cosupply/laravel-api/
@@ -161,17 +257,20 @@ Upload the project so it lives **outside** `public_html`:
 ├── vendor/
 ├── artisan
 ├── composer.json
-└── .env            ← created on the server, never uploaded
+└── .env            ← created on the server, never committed
 ```
 
-If the server has Composer 2:
+If `deploy-laravel.sh` does not exist yet, create `laravel-api` from the clone
+once and install dependencies:
 
 ```bash
+cp -a /home/zufpszw2/cosupply/cossupply-repo/laravel-api/. /home/zufpszw2/cosupply/laravel-api/
 cd /home/zufpszw2/cosupply/laravel-api
 composer install --no-dev --optimize-autoloader
 ```
 
-Otherwise upload a `vendor/` directory built from a trusted machine.
+If the server has no Composer 2, upload a `vendor/` directory built from a
+trusted machine instead. Never commit `vendor/` to the repository.
 
 ### API document root
 
@@ -410,25 +509,53 @@ Re-run `optimize:clear` and rebuild after **any** `.env` or config change.
 
 ---
 
-## 10. Upload the SPA
+## 10. Upload the SPA (local ZIP)
 
-Extract `deploy/react-app-dist.zip` (or upload `react-app/dist/*`) into the
-`cosupplymm.com` document root.
+The frontend document root is:
 
-Confirm the SPA `.htaccess` is present — it rewrites deep links such as
-`/admin/orders` to `/index.html`:
-
-```apache
-RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.html$ - [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.html [L]
+```text
+/home/zufpszw2/public_html/cosupplymm.com
 ```
 
-The build expects the API at `https://api.cosupplymm.com/api/v1`. If the API
-host changes, update `react-app/.env.production` and rebuild.
+1. **Back up the current frontend** before touching it:
+
+   ```bash
+   mkdir -p /home/zufpszw2/backups
+   cd /home/zufpszw2/public_html
+   tar -czf /home/zufpszw2/backups/cosupplymm-frontend-$(date +%F_%H%M).tar.gz cosupplymm.com
+   ```
+
+2. Upload `deploy/react-app-dist.zip` with cPanel **File Manager** to
+   `/home/zufpszw2/backups/` or another temporary folder (not into the document
+   root).
+
+3. Extract the zip into `/home/zufpszw2/public_html/cosupplymm.com/`. The zip
+   root must contain `index.html`; do not extract it as a nested `dist/` or
+   `react-app/` folder. Old hashed files in `assets/` are harmless but can be
+   removed after the new build is verified.
+
+4. Keep the SPA `.htaccess` in place — it rewrites deep links such as
+   `/admin/orders` to `/index.html`:
+
+   ```apache
+   RewriteEngine On
+   RewriteBase /
+   RewriteRule ^index\.html$ - [L]
+   RewriteCond %{REQUEST_FILENAME} !-f
+   RewriteCond %{REQUEST_FILENAME} !-d
+   RewriteRule . /index.html [L]
+   ```
+
+5. Verify the extracted layout:
+
+   ```bash
+   cd /home/zufpszw2/public_html/cosupplymm.com
+   ls -l index.html .htaccess assets | head
+   ```
+
+6. Test `https://cosupplymm.com`, a hard refresh on `/admin/orders`, and a
+   login. API calls must go to `https://api.cosupplymm.com/api/v1`. If the API
+   host changes, update `react-app/.env.production`, rebuild, and re-zip.
 
 ---
 
@@ -492,36 +619,89 @@ Expected: `HTTP/2 200`, a JSON `token`, and **no** `set-cookie` header.
 
 ## 13. Updating a release
 
-1. Back up the database and `storage/app` first.
-2. Upload only the changed files, or extract the new zip over the project.
-   Never overwrite `.env` or `storage/app`.
-3. If `laravel-api/public/index.php` changed upstream, re-apply the custom
-   relative paths from section 4 in
-   `public_html/api.cosupplymm.com/index.php`. Never overwrite that file with
-   the stock Laravel entry point.
-4. Run:
+### Backend — Git pull + deploy script
+
+1. Back up the database and `storage/app`:
 
    ```bash
    cd /home/zufpszw2/cosupply/laravel-api
-   php artisan migrate --force        # only when migrations changed
-   php artisan optimize:clear
-   php artisan config:cache
-   php artisan route:cache
-   php artisan view:cache
+   mysqldump --single-transaction --quick --routines \
+     -h "$DB_HOST" -u "$DB_USERNAME" -p "$DB_DATABASE" \
+     | gzip > "backups/cos-$(date +%F_%H%M).sql.gz"
+   tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
    ```
 
-5. Upload the new SPA build. Asset filenames are hashed, so replace
-   `index.html` **and** `assets/`; old assets may be deleted.
-6. Hard-refresh the browser or clear the CDN/browser cache.
+2. Pull the release:
 
-Common single-file updates:
+   ```bash
+   cd /home/zufpszw2/cosupply/cossupply-repo
+   git status                 # expect a clean working tree
+   git pull origin main
+   ```
+
+3. Run the deploy wrapper:
+
+   ```bash
+   bash /home/zufpszw2/cosupply/deploy-laravel.sh
+   ```
+
+   The script should sync the release into
+   `/home/zufpszw2/cosupply/laravel-api`, run
+   `composer install --no-dev --optimize-autoloader`, run
+   `php artisan migrate --force`, preserve `.env` and `storage/app`, and rebuild
+   config/route/view caches. Confirm those steps before relying on it.
+
+4. If `laravel-api/public/index.php` changed upstream, re-apply the custom
+   relative paths from section 4 in
+   `public_html/api.cosupplymm.com/index.php`. Never overwrite that file with
+   the stock Laravel entry point.
+
+5. Verify:
+
+   ```bash
+   curl -I https://api.cosupplymm.com/up
+   ```
+
+   Then log in as admin and check the dashboard.
+
+Manual fallback if the script is unavailable:
+
+```bash
+cd /home/zufpszw2/cosupply/laravel-api
+php artisan migrate --force        # only when migrations changed
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Frontend — local build + ZIP
+
+1. Build locally:
+
+   ```bash
+   cd react-app
+   npm ci
+   npm run build
+   ```
+
+2. ZIP the contents of `dist/` (section 2).
+
+3. Back up the current frontend (section 10).
+
+4. Upload and extract the zip into
+   `/home/zufpszw2/public_html/cosupplymm.com/`.
+
+5. Hard-refresh the browser and test a deep link such as `/admin/orders`.
+
+### Common single-file updates
 
 | Change | Upload |
 | --- | --- |
-| API middleware / routes / PHP code | changed files under `laravel-api/` |
+| API middleware / routes / PHP code | commit → `git pull` in `cossupply-repo` → `deploy-laravel.sh` |
 | API public files | `laravel-api/public/*` → `public_html/api.cosupplymm.com/` (keep the custom `index.php`, `php.ini`, `.user.ini`, `storage` link) |
-| SPA code | new `react-app/dist/index.html` + `assets/` |
-| Favicon / app icons | `favicon.ico`, `favicon-*.png`, `apple-touch-icon.png` |
+| SPA code | new `react-app/dist/index.html` + `assets/` via ZIP |
+| Favicon / app icons | `favicon.ico`, `favicon-*.png`, `apple-touch-icon.png` via ZIP |
 | `.env` | edit on the server, then rebuild config cache |
 
 ---
@@ -649,7 +829,9 @@ tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
 ## 16. Deployment checklist
 
 - [ ] Database and dedicated MySQL user created
-- [ ] Laravel project uploaded outside `public_html`
+- [ ] Repo cloned to `~/cosupply/cossupply-repo` on branch `main`
+- [ ] `~/cosupply/deploy-laravel.sh` reviewed (sync + composer + migrate + cache)
+- [ ] Laravel project installed outside `public_html`
 - [ ] `public_html/api.cosupplymm.com` has the custom `index.php`, `.htaccess`, `php.ini`, `.user.ini`
 - [ ] Served `storage` symlink points at `laravel-api/storage/app/public`
 - [ ] `.env` created: `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` set
@@ -663,8 +845,11 @@ tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
 - [ ] `.env` is `600` and not web-accessible
 - [ ] Default admin password replaced with a strong one
 - [ ] `php artisan optimize:clear && php artisan config:cache`
-- [ ] SPA built with `VITE_API_URL=https://api.cosupplymm.com/api/v1`
-- [ ] SPA `dist/` uploaded, including `.htaccess` and icons
+- [ ] SPA built locally with `VITE_API_URL=https://api.cosupplymm.com/api/v1`
+- [ ] SPA zip contains the contents of `dist/` (no nested folder, no source, no `node_modules`)
+- [ ] Current frontend backed up before extraction
+- [ ] SPA extracted into `~/public_html/cosupplymm.com`, including `.htaccess` and icons
+- [ ] Deep link `/admin/orders` survives a hard refresh
 - [ ] HTTPS forced on both domains
 - [ ] CORS preflight returns only `https://cosupplymm.com` (no credentials header)
 - [ ] Login returns `200` with a token and no `set-cookie`

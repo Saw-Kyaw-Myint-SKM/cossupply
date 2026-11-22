@@ -40,6 +40,20 @@ cd laravel-api && php artisan test && vendor/bin/pint --test
 cd react-app && npm test && npx tsc --noEmit && npm run build
 ```
 
+## Deployment
+
+Backend and frontend deploy independently:
+
+- **API** — push `main`, then on the server: `git pull` in
+  `~/cosupply/cossupply-repo` and run `bash ~/cosupply/deploy-laravel.sh`.
+- **SPA** — build locally (`npm run build`), ZIP the **contents** of
+  `react-app/dist/`, back up the current frontend, then extract into
+  `~/public_html/cosupplymm.com`.
+
+cPanel has no Node/npm, so the SPA is never built on the server. Never upload
+`react-app/src` or `node_modules` to the public folder. Full steps:
+[`docs/cpanel-deployment.md`](docs/cpanel-deployment.md).
+
 ## MVP boundaries
 
 No direct ordering, partial delivery, partial payment, scheduler, queue worker,

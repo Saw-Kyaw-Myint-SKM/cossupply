@@ -37,8 +37,13 @@ npm ci
 npm run build
 ```
 
-Upload the contents of `react-app/dist/` to the `cosupplymm.com` document root. The
-build is static; no Node process runs in production.
+Package the **contents** of `react-app/dist/` (so `index.html` is at the zip
+root, not inside a `dist/` folder), back up the current frontend, then extract
+the zip into the `cosupplymm.com` document root. The build is static; no Node
+process runs in production, and cPanel has no Node/npm.
+
+Keep the frontend `.htaccess` in place so deep links such as `/admin/orders`
+still rewrite to `/index.html`.
 
 ## 3. Environment configuration
 
@@ -91,7 +96,23 @@ Secret handling:
 - Keep SMTP and database passwords in the hosting panel's secret store when
   available, not in tickets or chat.
 
-## 4. Upload and install
+## 4. Deploy the API (Git-based)
+
+The API is deployed from the `main` branch, not from a zip. On the server:
+
+```bash
+cd ~/cosupply/cossupply-repo
+git pull origin main
+bash ~/cosupply/deploy-laravel.sh
+```
+
+The deploy script updates `~/cosupply/laravel-api` (the served release), keeps
+`.env` and `storage/app`, runs `composer install --no-dev --optimize-autoloader`,
+runs `php artisan migrate --force`, and rebuilds the caches. See
+[`cpanel-deployment.md`](./cpanel-deployment.md#13-updating-a-release) for the
+full sequence and the manual fallback.
+
+First install only:
 
 ```bash
 # from the uploaded project directory (outside the web root)
@@ -264,8 +285,11 @@ The recurring production failures and their fixes are documented in
 ## Repeatable checklist
 
 - [ ] PHP extensions and MySQL version verified
-- [ ] SPA built with `VITE_API_URL=https://api.cosupplymm.com/api/v1`
+- [ ] SPA built locally with `VITE_API_URL=https://api.cosupplymm.com/api/v1`
+- [ ] SPA zip contains the contents of `dist/` (no nested folder, no source, no `node_modules`)
 - [ ] API document root points at `laravel-api/public`, or at the maintained `public_html/api.cosupplymm.com` copy with its custom `index.php`
+- [ ] Backend pulled with `git pull origin main` in `~/cosupply/cossupply-repo`
+- [ ] `deploy-laravel.sh` completed and `https://api.cosupplymm.com/up` returns `200`
 - [ ] `.env` created, `APP_KEY` set, `APP_DEBUG=false`, `APP_ENV=production`
 - [ ] `FRONTEND_URL` set to the SPA origin; `SANCTUM_STATEFUL_DOMAINS` left empty (token auth)
 - [ ] `composer install --no-dev --optimize-autoloader`

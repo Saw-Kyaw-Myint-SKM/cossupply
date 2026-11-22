@@ -1,1 +1,4 @@
 .kiro/
+
+# Local deployment artifacts — build fresh, never commit
+deploy/*.zip
