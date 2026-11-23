@@ -24,6 +24,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 import type { PaginationMeta } from '../../../api/query';
 import { useAuth } from '../../../lib/auth-context';
 import {
@@ -227,61 +228,108 @@ export default function QuotationRequestListPage() {
         />
       ) : requests ? (
         <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-3">Number</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Items</th>
-                  <th className="px-4 py-3">Assigned</th>
-                  <th className="px-4 py-3">Received</th>
-                  <th className="w-24 px-4 py-3 text-right">Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((request) => (
-                  <tr key={request.id} className="align-top">
-                    <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
-                      {request.quotation_number}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-ink">{request.customer_name}</p>
-                      {request.company_name ? (
-                        <p className="text-xs text-gray-500">{request.company_name}</p>
-                      ) : null}
-                      <p className="text-xs text-gray-500">{request.phone}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={request.status} />
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-gray-700">
-                      {request.item_count ?? 0}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {request.assigned_admin?.name ?? (
-                        <span className="text-amber-800">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                      {new Date(request.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
-                      <TableActions
-                        label={`Open ${request.quotation_number}`}
-                        primary={
-                          <Link to={`/admin/quotation-requests/${request.id}`} className={linkClass}>
-                            Open
-                          </Link>
-                        }
-                      />
-                    </td>
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3">Number</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Items</th>
+                    <th className="px-4 py-3">Assigned</th>
+                    <th className="px-4 py-3">Received</th>
+                    <th className="w-24 px-4 py-3 text-right">Open</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {requests.map((request) => (
+                    <tr key={request.id} className="align-top">
+                      <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
+                        {request.quotation_number}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-ink">{request.customer_name}</p>
+                        {request.company_name ? (
+                          <p className="text-xs text-gray-500">{request.company_name}</p>
+                        ) : null}
+                        <p className="text-xs text-gray-500">{request.phone}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={request.status} />
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-gray-700">
+                        {request.item_count ?? 0}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {request.assigned_admin?.name ?? (
+                          <span className="text-amber-800">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-gray-500">
+                        {new Date(request.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
+                        <TableActions
+                          label={`Open ${request.quotation_number}`}
+                          primary={
+                            <Link
+                              to={`/admin/quotation-requests/${request.id}`}
+                              className={linkClass}
+                            >
+                              Open
+                            </Link>
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          <MobileRecordList label="Quotation request queue">
+            {requests.map((request) => (
+              <MobileRecordCard
+                key={request.id}
+                title={
+                  <Link
+                    to={`/admin/quotation-requests/${request.id}`}
+                    className="font-mono tabular-nums text-ink hover:text-accent"
+                  >
+                    {request.quotation_number}
+                  </Link>
+                }
+                subtitle={
+                  <>
+                    <span className="block text-gray-700">{request.customer_name}</span>
+                    {request.company_name ? <span className="block">{request.company_name}</span> : null}
+                    <span className="block">{request.phone}</span>
+                  </>
+                }
+                badges={<StatusBadge status={request.status} />}
+                meta={[
+                  { label: 'Items', value: request.item_count ?? 0 },
+                  {
+                    label: 'Assigned',
+                    value: request.assigned_admin?.name ?? (
+                      <span className="text-amber-800">Unassigned</span>
+                    ),
+                  },
+                  { label: 'Received', value: new Date(request.created_at).toLocaleDateString() },
+                ]}
+                footer={
+                  <Link
+                    to={`/admin/quotation-requests/${request.id}`}
+                    className={secondaryButtonClass}
+                  >
+                    Open request
+                  </Link>
+                }
+              />
+            ))}
+          </MobileRecordList>
 
           {meta ? (
             <Pagination meta={meta} onPage={setPage} disabled={loading} />

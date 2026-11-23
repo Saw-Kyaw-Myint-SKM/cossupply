@@ -494,6 +494,124 @@
 }
 
 /*
+ * "Why use CoSupply?" icon flashes.
+ *
+ * A bright cyan flash lights one benefit tile at a time — never several at
+ * once — and rests between passes. CustomerBenefits toggles `.is-active`
+ * while the band is on screen, so the motion stops when the reader has
+ * scrolled past it. Transform and colour only, so the icons never shift the
+ * surrounding copy.
+ */
+.benefit-icon {
+  position: relative;
+  animation: benefit-icon-flash 6s var(--ease-settle) infinite;
+  animation-delay: var(--benefit-flash-delay, 0s);
+  animation-play-state: paused;
+}
+
+.benefit-icon::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(0, 142, 204, 0.42),
+    0 0 18px 4px rgba(0, 142, 204, 0.36);
+  opacity: 0;
+  animation: benefit-icon-glow 6s var(--ease-settle) infinite;
+  animation-delay: var(--benefit-flash-delay, 0s);
+  animation-play-state: paused;
+}
+
+.benefit-icon svg {
+  animation: benefit-icon-glyph 6s var(--ease-settle) infinite;
+  animation-delay: var(--benefit-flash-delay, 0s);
+  animation-play-state: paused;
+}
+
+.customer-benefits.is-active .benefit-icon,
+.customer-benefits.is-active .benefit-icon::after,
+.customer-benefits.is-active .benefit-icon svg {
+  animation-play-state: running;
+}
+
+.customer-benefits li:nth-child(2) .benefit-icon {
+  --benefit-flash-delay: 1.2s;
+}
+
+.customer-benefits li:nth-child(3) .benefit-icon {
+  --benefit-flash-delay: 2.4s;
+}
+
+.customer-benefits li:nth-child(4) .benefit-icon {
+  --benefit-flash-delay: 3.6s;
+}
+
+@keyframes benefit-icon-flash {
+  0%,
+  74%,
+  100% {
+    background-color: var(--color-plate);
+    color: var(--color-warm);
+  }
+
+  80%,
+  84% {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  90% {
+    background-color: var(--color-plate);
+    color: var(--color-warm);
+  }
+}
+
+@keyframes benefit-icon-glow {
+  0%,
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  80% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+
+  90% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes benefit-icon-glyph {
+  0%,
+  72%,
+  100% {
+    filter: none;
+  }
+
+  80% {
+    filter: drop-shadow(0 0 5px rgba(0, 142, 204, 0.7));
+  }
+
+  90% {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .benefit-icon,
+  .benefit-icon::after,
+  .benefit-icon svg {
+    animation: none;
+  }
+}
+
+/*
  * "How it works" flow rail.
  *
  * Short dashes travel along the connector (left to right on desktop, top to

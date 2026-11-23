@@ -30,6 +30,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 15;
 
@@ -393,6 +394,77 @@ export default function ProductListPage() {
     );
   }
 
+  const renderProductActions = (product: Product) => {
+    const rowBusy = actionsBusy;
+    return (
+      <TableActions
+        label={`Actions for ${productLabel(product)}`}
+        disabled={rowBusy}
+        primary={
+          <Link
+            to={`/admin/products/${product.id}/edit`}
+            className={linkClass}
+            aria-label={`Edit ${productLabel(product)}`}
+          >
+            Edit
+          </Link>
+        }
+        groups={[
+          {
+            label: 'Change status',
+            items: QUICK_STATUS_ACTIONS.map((action) => ({
+              key: action.status,
+              label: action.label,
+              checked: action.status === product.status,
+              disabled: rowBusy || action.status === product.status,
+              onSelect: () => requestStatusChange(product, action.status),
+            })),
+          },
+          {
+            items: [
+              {
+                key: 'delete',
+                label: 'Delete',
+                tone: 'danger' as const,
+                disabled: rowBusy,
+                onSelect: () => {
+                  setConfirmingId(product.id);
+                  setPendingStatus(null);
+                  setActionError(null);
+                  setSuccessMessage(null);
+                  setStatusFailure(null);
+                },
+              },
+            ],
+          },
+        ]}
+        confirm={
+          pendingStatus !== null && pendingStatus.id === product.id
+            ? {
+                title: `${statusActionLabel(pendingStatus.status)} “${productLabel(product)}”?`,
+                confirmLabel: updatingId === product.id ? 'Updating…' : 'Confirm',
+                cancelLabel: 'Cancel',
+                busy: updatingId === product.id,
+                tone: 'danger' as const,
+                onConfirm: () => void applyStatusChange(product, pendingStatus.status),
+                onCancel: () => setPendingStatus(null),
+              }
+            : confirmingId === product.id
+              ? {
+                  title: `Delete “${productLabel(product)}”?`,
+                  confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
+                  cancelLabel: 'Cancel',
+                  busy: isDeleting,
+                  tone: 'danger' as const,
+                  onConfirm: () => void handleDelete(product),
+                  onCancel: () => setConfirmingId(null),
+                }
+              : null
+        }
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
       {header}
@@ -464,22 +536,24 @@ export default function ProductListPage() {
             >
               Search
             </label>
-            <div className="flex overflow-hidden rounded-lg border border-line bg-white shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 motion-safe:transition-all">
-              <FiSearch
-                aria-hidden="true"
-                className="ml-3 h-4 w-4 flex-none self-center text-subtle"
-              />
-              <input
-                id="product-search"
-                type="search"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Name, SKU, brand, or model"
-                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-subtle"
-              />
+            <div className="flex flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 motion-safe:transition-all sm:flex-row">
+              <div className="flex min-w-0 flex-1 items-center">
+                <FiSearch
+                  aria-hidden="true"
+                  className="ml-3 h-4 w-4 flex-none self-center text-subtle"
+                />
+                <input
+                  id="product-search"
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Name, SKU, brand, or model"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-subtle"
+                />
+              </div>
               <button
                 type="submit"
-                className="flex-none bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-hover active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 motion-safe:transition-colors"
+                className="flex-none bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover active:scale-[.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 motion-safe:transition-colors sm:py-0"
               >
                 Search
               </button>
@@ -643,8 +717,9 @@ export default function ProductListPage() {
 
         {products !== null && products.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="admin-table min-w-full">
+            <div className="hidden lg:block">
+              <div className="overflow-x-auto">
+                <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -675,7 +750,6 @@ export default function ProductListPage() {
                 </thead>
                 <tbody>
                   {products.map((product) => {
-                    const rowBusy = actionsBusy;
                     return (
                       <tr key={product.id} className="align-top hover:bg-gray-50">
                         <td className="px-4 py-3">
@@ -758,82 +832,103 @@ export default function ProductListPage() {
                           <StatusBadge status={product.status} />
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
-                          <TableActions
-                            label={`Actions for ${productLabel(product)}`}
-                            disabled={rowBusy}
-                            primary={
-                              <Link
-                                to={`/admin/products/${product.id}/edit`}
-                                className={linkClass}
-                                aria-label={`Edit ${productLabel(product)}`}
-                              >
-                                Edit
-                              </Link>
-                            }
-                            groups={[
-                              {
-                                label: 'Change status',
-                                items: QUICK_STATUS_ACTIONS.map((action) => ({
-                                  key: action.status,
-                                  label: action.label,
-                                  checked: action.status === product.status,
-                                  disabled: rowBusy || action.status === product.status,
-                                  onSelect: () => requestStatusChange(product, action.status),
-                                })),
-                              },
-                              {
-                                items: [
-                                  {
-                                    key: 'delete',
-                                    label: 'Delete',
-                                    tone: 'danger' as const,
-                                    disabled: rowBusy,
-                                    onSelect: () => {
-                                      setConfirmingId(product.id);
-                                      setPendingStatus(null);
-                                      setActionError(null);
-                                      setSuccessMessage(null);
-                                      setStatusFailure(null);
-                                    },
-                                  },
-                                ],
-                              },
-                            ]}
-                            confirm={
-                              pendingStatus !== null && pendingStatus.id === product.id
-                                ? {
-                                    title: `${statusActionLabel(pendingStatus.status)} “${productLabel(
-                                      product,
-                                    )}”?`,
-                                    confirmLabel:
-                                      updatingId === product.id ? 'Updating…' : 'Confirm',
-                                    cancelLabel: 'Cancel',
-                                    busy: updatingId === product.id,
-                                    tone: 'danger' as const,
-                                    onConfirm: () =>
-                                      void applyStatusChange(product, pendingStatus.status),
-                                    onCancel: () => setPendingStatus(null),
-                                  }
-                                : confirmingId === product.id
-                                  ? {
-                                      title: `Delete “${productLabel(product)}”?`,
-                                      confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
-                                      cancelLabel: 'Cancel',
-                                      busy: isDeleting,
-                                      tone: 'danger' as const,
-                                      onConfirm: () => void handleDelete(product),
-                                      onCancel: () => setConfirmingId(null),
-                                    }
-                                  : null
-                            }
-                          />
+                          {renderProductActions(product)}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
+
+            <MobileRecordList label="Products">
+              {products.map((product) => (
+                <MobileRecordCard
+                  key={product.id}
+                  leading={
+                    product.photo_url ? (
+                      <img
+                        src={product.photo_url}
+                        alt=""
+                        className="h-10 w-10 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-400"
+                      >
+                        {(product.name_en || product.name_mm).charAt(0).toUpperCase() || '#'}
+                      </span>
+                    )
+                  }
+                  title={
+                    <Link
+                      to={`/admin/products/${product.id}/edit`}
+                      className="text-accent hover:text-accent/80"
+                    >
+                      {product.name_mm}
+                    </Link>
+                  }
+                  subtitle={
+                    <>
+                      <span className="block">{product.name_en ?? '—'}</span>
+                      <span className="block text-gray-400">
+                        {product.sku ? `SKU ${product.sku}` : `#${product.id}`}
+                        {product.variants_count && product.variants_count > 0
+                          ? ` · ${product.variants_count} variant${
+                              product.variants_count === 1 ? '' : 's'
+                            }`
+                          : ''}
+                      </span>
+                    </>
+                  }
+                  badges={
+                    <>
+                      <StatusBadge status={product.status} />
+                      {product.stock && product.stock.stock_status !== product.status ? (
+                        <StatusBadge status={product.stock.stock_status} />
+                      ) : null}
+                    </>
+                  }
+                  trailing={
+                    <span className="font-mono text-sm font-semibold tabular-nums text-ink">
+                      {product.price ? formatMmk(product.price.retail_price) : '—'}
+                      {product.price?.discount_price ? (
+                        <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                          Discount {formatMmk(product.price.discount_price)}
+                        </span>
+                      ) : null}
+                    </span>
+                  }
+                  meta={[
+                    {
+                      label: 'Supplier',
+                      value:
+                        product.supplier?.shop_name ??
+                        (product.supplier_id ? `Supplier #${product.supplier_id}` : '—'),
+                    },
+                    {
+                      label: 'Category',
+                      value: product.category
+                        ? product.category.name_en || product.category.name_mm
+                        : product.category_id
+                          ? `Category #${product.category_id}`
+                          : '—',
+                    },
+                    {
+                      label: 'Stock',
+                      value:
+                        product.stock && product.stock.stock_quantity !== null
+                          ? `${product.stock.stock_quantity} in stock`
+                          : '—',
+                    },
+                  ]}
+                  footer={renderProductActions(product)}
+                />
+              ))}
+            </MobileRecordList>
 
             {meta ? (
               <Pagination meta={meta} onPage={setPage} disabled={isLoading || isDeleting} />

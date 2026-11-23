@@ -8,6 +8,7 @@
  * separate from the cyan process track so the two sections never read as a
  * repeated card grid.
  */
+import { useEffect, useRef, useState } from 'react';
 import { FiClock, FiFileText, FiFolder, FiShield } from 'react-icons/fi';
 import { useI18n, type TranslationKey } from '../../../lib/i18n-context';
 
@@ -36,9 +37,33 @@ const BENEFITS: readonly { icon: typeof FiClock; titleKey: TranslationKey; bodyK
 
 export function CustomerBenefits() {
   const { t } = useI18n();
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [isActive, setIsActive] = useState(false);
+
+  // The icon flashes are decorative. Running them only while the band is on
+  // screen keeps the motion quiet when the reader has scrolled past it.
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setIsActive(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsActive(entry.isIntersecting),
+      { threshold: 0.15 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section aria-labelledby="home-benefits-heading" className="glass-panel overflow-hidden">
+    <section
+      ref={sectionRef}
+      aria-labelledby="home-benefits-heading"
+      className={`customer-benefits glass-panel overflow-hidden ${isActive ? 'is-active' : ''}`}
+    >
       <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
         <div className="relative overflow-hidden bg-warm-soft px-6 py-7 sm:px-8 sm:py-9">
           <div
@@ -72,7 +97,7 @@ export function CustomerBenefits() {
               <li key={benefit.titleKey} className="flex gap-3">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-white text-warm ring-1 ring-warm/25"
+                  className="benefit-icon mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-white text-warm ring-1 ring-warm/25"
                 >
                   <Icon className="h-4 w-4" />
                 </span>

@@ -5,6 +5,7 @@ import {
   FiClipboard,
   FiGrid,
   FiHome,
+  FiLayout,
   FiMail,
   FiMenu,
   FiShoppingCart,
@@ -180,7 +181,7 @@ export function AppLayout() {
                 <AreaSwitch
                   to={dashboardHref}
                   label={t('dashboard')}
-                  icon={<FiGrid />}
+                  icon={<FiLayout />}
                   description={t('goToDashboard')}
                   labelClassName="hidden text-sm font-semibold sm:inline lg:hidden xl:inline"
                 />

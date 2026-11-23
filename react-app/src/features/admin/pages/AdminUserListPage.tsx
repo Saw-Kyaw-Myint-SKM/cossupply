@@ -26,6 +26,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 import { useAuth } from '../../../lib/auth-context';
 
 const PER_PAGE = 15;
@@ -234,6 +235,62 @@ export default function AdminUserListPage() {
     );
   }
 
+  const renderAdminUserActions = (adminUser: AdminUser) => {
+    const isCurrentUser = currentUser?.id === adminUser.id;
+
+    return (
+      <TableActions
+        label={`Actions for ${adminUser.name}`}
+        disabled={isDeleting}
+        primary={
+          <Link
+            to={`/admin/admin-users/${adminUser.id}/edit`}
+            className={linkClass}
+            aria-label={`Edit ${adminUser.name}`}
+          >
+            Edit
+          </Link>
+        }
+        groups={
+          isCurrentUser
+            ? []
+            : [
+                {
+                  items: [
+                    {
+                      key: 'delete',
+                      label: 'Delete',
+                      tone: 'danger' as const,
+                      disabled: isDeleting,
+                      onSelect: () => {
+                        setConfirmingId(adminUser.id);
+                        setActionError(null);
+                        setSuccessMessage(null);
+                      },
+                    },
+                  ],
+                },
+              ]
+        }
+        confirm={
+          confirmingId === adminUser.id
+            ? {
+                title: `Delete “${adminUser.name}”?`,
+                description:
+                  'Their sign-in stops working immediately. This cannot be undone.',
+                confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
+                cancelLabel: 'Cancel',
+                busy: isDeleting,
+                tone: 'danger' as const,
+                onConfirm: () => void handleDelete(adminUser),
+                onCancel: () => setConfirmingId(null),
+              }
+            : null
+        }
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
       {header}
@@ -390,8 +447,9 @@ export default function AdminUserListPage() {
 
         {adminUsers !== null && adminUsers.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="admin-table min-w-full">
+            <div className="hidden lg:block">
+              <div className="overflow-x-auto">
+                <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -456,62 +514,61 @@ export default function AdminUserListPage() {
                             : 'Never'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
-                          <TableActions
-                            label={`Actions for ${adminUser.name}`}
-                            disabled={isDeleting}
-                            primary={
-                              <Link
-                                to={`/admin/admin-users/${adminUser.id}/edit`}
-                                className={linkClass}
-                                aria-label={`Edit ${adminUser.name}`}
-                              >
-                                Edit
-                              </Link>
-                            }
-                            groups={
-                              isCurrentUser
-                                ? []
-                                : [
-                                    {
-                                      items: [
-                                        {
-                                          key: 'delete',
-                                          label: 'Delete',
-                                          tone: 'danger' as const,
-                                          disabled: isDeleting,
-                                          onSelect: () => {
-                                            setConfirmingId(adminUser.id);
-                                            setActionError(null);
-                                            setSuccessMessage(null);
-                                          },
-                                        },
-                                      ],
-                                    },
-                                  ]
-                            }
-                            confirm={
-                              confirmingId === adminUser.id
-                                ? {
-                                    title: `Delete “${adminUser.name}”?`,
-                                    description:
-                                      'Their sign-in stops working immediately. This cannot be undone.',
-                                    confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
-                                    cancelLabel: 'Cancel',
-                                    busy: isDeleting,
-                                    tone: 'danger' as const,
-                                    onConfirm: () => void handleDelete(adminUser),
-                                    onCancel: () => setConfirmingId(null),
-                                  }
-                                : null
-                            }
-                          />
+                          {renderAdminUserActions(adminUser)}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
+
+            <MobileRecordList label="Admin users">
+              {adminUsers.map((adminUser) => {
+                const isCurrentUser = currentUser?.id === adminUser.id;
+                return (
+                  <MobileRecordCard
+                    key={adminUser.id}
+                    leading={
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-400"
+                      >
+                        {adminUser.name.charAt(0).toUpperCase() || '#'}
+                      </span>
+                    }
+                    title={
+                      <>
+                        {adminUser.name}
+                        {isCurrentUser ? (
+                          <span className="ml-2 text-xs font-normal text-gray-400">(you)</span>
+                        ) : null}
+                      </>
+                    }
+                    subtitle={
+                      <>
+                        <span className="block">{adminUser.email}</span>
+                        {adminUser.phone ? (
+                          <span className="block text-gray-400">{adminUser.phone}</span>
+                        ) : null}
+                      </>
+                    }
+                    badges={<StatusBadge status={adminUser.status.toUpperCase()} />}
+                    meta={[
+                      { label: 'Role', value: formatStatusLabel(adminUser.role) },
+                      {
+                        label: 'Last login',
+                        value: adminUser.last_login_at
+                          ? new Date(adminUser.last_login_at).toLocaleDateString()
+                          : 'Never',
+                      },
+                    ]}
+                    footer={renderAdminUserActions(adminUser)}
+                  />
+                );
+              })}
+            </MobileRecordList>
 
             {meta ? (
               <Pagination meta={meta} onPage={setPage} disabled={isLoading || isDeleting} />

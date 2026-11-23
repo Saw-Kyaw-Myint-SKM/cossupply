@@ -29,6 +29,7 @@ import {
   type AuditLogAdmin,
   type AuditLogEntry,
 } from '../api/auditLogsApi';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 20;
 
@@ -300,8 +301,9 @@ export default function AdminAuditLogsPage() {
 
       {logs !== null && logs.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-full text-sm">
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">{t('when')}</th>
@@ -363,14 +365,80 @@ export default function AdminAuditLogsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
-          {expandedId !== null ? (
-            <AuditChanges
-              entry={logs.find((entry) => entry.id === expandedId) ?? null}
-              t={t}
-            />
-          ) : null}
+          <MobileRecordList label={t('auditTrail')}>
+            {logs.map((entry) => {
+              const fields = changedFields(entry);
+              const expanded = expandedId === entry.id;
+
+              return (
+                <MobileRecordCard
+                  key={entry.id}
+                  title={formatAction(entry.action)}
+                  subtitle={<code className="text-xs">{entry.action}</code>}
+                  meta={[
+                    { label: t('when'), value: formatWhen(entry.created_at, locale, t('noData')) },
+                    {
+                      label: t('entity'),
+                      value: `${formatAction(entry.entity_type)} #${entry.entity_id}`,
+                    },
+                    {
+                      label: t('admin'),
+                      value: entry.admin ? (
+                        <>
+                          <span className="block">{entry.admin.name}</span>
+                          <span className="block text-xs font-normal text-gray-500">
+                            {entry.admin.email}
+                          </span>
+                        </>
+                      ) : (
+                        t('system')
+                      ),
+                    },
+                    { label: t('ipAddress'), value: entry.ip_address ?? t('noData') },
+                  ]}
+                  footer={
+                    fields.length > 0 || entry.old_data || entry.new_data ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(expanded ? null : entry.id)}
+                        className={smallButtonClass}
+                        aria-expanded={expanded}
+                        aria-controls={`audit-changes-mobile-${entry.id}`}
+                      >
+                        {expanded
+                          ? t('hide')
+                          : fields.length > 0
+                            ? t('showCount', { count: fields.length })
+                            : t('showCount', { count: t('snapshot') })}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">{t('noDataAvailable')}</span>
+                    )
+                  }
+                >
+                  {expanded ? (
+                    <AuditChanges
+                      entry={entry}
+                      t={t}
+                      idPrefix="audit-changes-mobile"
+                    />
+                  ) : null}
+                </MobileRecordCard>
+              );
+            })}
+          </MobileRecordList>
+
+          <div className="hidden lg:block">
+            {expandedId !== null ? (
+              <AuditChanges
+                entry={logs.find((entry) => entry.id === expandedId) ?? null}
+                t={t}
+              />
+            ) : null}
+          </div>
 
           {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
         </div>
@@ -383,16 +451,18 @@ export default function AdminAuditLogsPage() {
 function AuditChanges({
   entry,
   t,
+  idPrefix = 'audit-changes',
 }: {
   entry: AuditLogEntry | null;
   t: ReturnType<typeof useI18n>['t'];
+  idPrefix?: string;
 }) {
   if (entry === null) return null;
 
   const fields = changedFields(entry);
 
   return (
-    <div id={`audit-changes-${entry.id}`} className="border-t border-rule bg-gray-50 px-4 py-4">
+    <div id={`${idPrefix}-${entry.id}`} className="border-t border-rule bg-gray-50 px-4 py-4">
       <h2 className="text-sm font-semibold text-ink">
         {formatAction(entry.action)} · {formatAction(entry.entity_type)} #{entry.entity_id}
       </h2>

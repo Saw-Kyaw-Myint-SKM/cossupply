@@ -190,7 +190,7 @@ function VariantPhotoField({
           <img src={src} alt="" className="h-full w-full object-cover" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-[10px] text-gray-400">
-            â€”
+            —
           </span>
         )}
       </div>
@@ -950,7 +950,7 @@ export default function ProductFormPage() {
       description={
         isEdit
           ? current
-            ? `Updating â€œ${current.name_mm}â€.`
+            ? `Updating “${current.name_mm}”.`
             : 'Update this product.'
           : 'Add a product to the catalog. You can save it as a draft and publish it later.'
       }
@@ -999,7 +999,7 @@ export default function ProductFormPage() {
     return (
       <div className="space-y-6">
         {header}
-        <LoadingPanel label="Loading productâ€¦" />
+        <LoadingPanel label="Loading product…" />
       </div>
     );
   }
@@ -1072,7 +1072,7 @@ export default function ProductFormPage() {
                   className={inputClass(Boolean(fieldErrors.supplier_id))}
                 >
                   <option value="">
-                    {isOptionsLoading ? 'Loading suppliersâ€¦' : 'Select a supplier'}
+                    {isOptionsLoading ? 'Loading suppliers…' : 'Select a supplier'}
                   </option>
                   {supplierChoices.map((choice) => (
                     <option key={choice.id} value={String(choice.id)}>
@@ -1104,7 +1104,7 @@ export default function ProductFormPage() {
                   className={inputClass(Boolean(fieldErrors.category_id))}
                 >
                   <option value="">
-                    {isOptionsLoading ? 'Loading categoriesâ€¦' : 'Select a category'}
+                    {isOptionsLoading ? 'Loading categories…' : 'Select a category'}
                   </option>
                   {categoryChoices.map((choice) => (
                     <option key={choice.id} value={String(choice.id)}>
@@ -1815,7 +1815,7 @@ export default function ProductFormPage() {
                 hint={
                   discountExceedsRetail ? (
                     <span className="font-medium text-amber-700">
-                      Higher than the retail price â€” this will be rejected on save.
+                      Higher than the retail price — this will be rejected on save.
                     </span>
                   ) : (
                     'Optional. Must not be greater than the retail price.'
@@ -1907,8 +1907,8 @@ export default function ProductFormPage() {
                 error={fieldErrors.stock_status}
                 hint={
                   isEdit
-                    ? 'Leave as â€œNot setâ€ to keep the current status.'
-                    : 'Leave as â€œNot setâ€ to skip stock details for now.'
+                    ? 'Leave as “Not set” to keep the current status.'
+                    : 'Leave as “Not set” to skip stock details for now.'
                 }
                 hintId={`${fieldId('stock_status')}-hint`}
               >
@@ -2037,7 +2037,7 @@ export default function ProductFormPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow">
           <p className="text-sm text-gray-600" aria-live="polite">
             {isSaving
-              ? 'Saving changesâ€¦'
+              ? 'Saving changes…'
               : isEdit
                 ? 'Save to apply your changes.'
                 : 'The product is created once you save.'}
@@ -2047,7 +2047,7 @@ export default function ProductFormPage() {
               Cancel
             </Link>
             <button type="submit" disabled={isSaving} className={primaryButtonClass}>
-              {isSaving ? 'Savingâ€¦' : isEdit ? 'Save changes' : 'Create product'}
+              {isSaving ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
             </button>
           </div>
         </div>

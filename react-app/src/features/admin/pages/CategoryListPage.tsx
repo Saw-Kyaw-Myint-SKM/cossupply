@@ -24,6 +24,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 15;
 
@@ -261,6 +262,52 @@ export default function CategoryListPage() {
     );
   }
 
+  const renderCategoryActions = (category: Category) => (
+    <TableActions
+      label={`Actions for ${categoryLabel(category)}`}
+      disabled={isDeleting}
+      primary={
+        <Link
+          to={`/admin/categories/${category.id}/edit`}
+          className={linkClass}
+          aria-label={`Edit ${categoryLabel(category)}`}
+        >
+          Edit
+        </Link>
+      }
+      groups={[
+        {
+          items: [
+            {
+              key: 'delete',
+              label: 'Delete',
+              tone: 'danger' as const,
+              disabled: isDeleting,
+              onSelect: () => {
+                setConfirmingId(category.id);
+                setActionError(null);
+                setSuccessMessage(null);
+              },
+            },
+          ],
+        },
+      ]}
+      confirm={
+        confirmingId === category.id
+          ? {
+              title: `Delete “${categoryLabel(category)}”?`,
+              confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
+              cancelLabel: 'Cancel',
+              busy: isDeleting,
+              tone: 'danger' as const,
+              onConfirm: () => void handleDelete(category),
+              onCancel: () => setConfirmingId(null),
+            }
+          : null
+      }
+    />
+  );
+
   return (
     <div className="space-y-6">
       {header}
@@ -423,8 +470,9 @@ export default function CategoryListPage() {
 
         {categories !== null && categories.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="admin-table min-w-full">
+            <div className="hidden lg:block">
+              <div className="overflow-x-auto">
+                <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -488,55 +536,58 @@ export default function CategoryListPage() {
                         <StatusBadge status={category.status} />
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right align-middle">
-                        <TableActions
-                          label={`Actions for ${categoryLabel(category)}`}
-                          disabled={isDeleting}
-                          primary={
-                            <Link
-                              to={`/admin/categories/${category.id}/edit`}
-                              className={linkClass}
-                              aria-label={`Edit ${categoryLabel(category)}`}
-                            >
-                              Edit
-                            </Link>
-                          }
-                          groups={[
-                            {
-                              items: [
-                                {
-                                  key: 'delete',
-                                  label: 'Delete',
-                                  tone: 'danger' as const,
-                                  disabled: isDeleting,
-                                  onSelect: () => {
-                                    setConfirmingId(category.id);
-                                    setActionError(null);
-                                    setSuccessMessage(null);
-                                  },
-                                },
-                              ],
-                            },
-                          ]}
-                          confirm={
-                            confirmingId === category.id
-                              ? {
-                                  title: `Delete “${categoryLabel(category)}”?`,
-                                  confirmLabel: isDeleting ? 'Deleting…' : 'Confirm',
-                                  cancelLabel: 'Cancel',
-                                  busy: isDeleting,
-                                  tone: 'danger' as const,
-                                  onConfirm: () => void handleDelete(category),
-                                  onCancel: () => setConfirmingId(null),
-                                }
-                              : null
-                          }
-                        />
+                        {renderCategoryActions(category)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
+
+            <MobileRecordList label="Categories">
+              {categories.map((category) => (
+                <MobileRecordCard
+                  key={category.id}
+                  leading={
+                    category.image_url ? (
+                      <img
+                        src={category.image_url}
+                        alt=""
+                        className="h-10 w-10 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-400"
+                      >
+                        {category.name_en.charAt(0).toUpperCase() || '#'}
+                      </span>
+                    )
+                  }
+                  title={category.name_mm}
+                  subtitle={
+                    <>
+                      <span className="block">{category.name_en}</span>
+                      <span className="block text-gray-400">{category.slug}</span>
+                    </>
+                  }
+                  badges={<StatusBadge status={category.status} />}
+                  meta={[
+                    {
+                      label: 'Parent',
+                      value:
+                        category.parent_id === null
+                          ? 'Top level'
+                          : parentNames.get(category.parent_id) ?? `Category #${category.parent_id}`,
+                    },
+                    { label: 'Order', value: category.sort_order },
+                  ]}
+                  footer={renderCategoryActions(category)}
+                />
+              ))}
+            </MobileRecordList>
 
             {meta ? (
               <Pagination meta={meta} onPage={setPage} disabled={isLoading || isDeleting} />

@@ -27,6 +27,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 import { getBannerTheme } from '../../../lib/banner-themes';
 
 const PER_PAGE = 15;
@@ -207,6 +208,54 @@ export default function BannerListPage() {
     );
   }
 
+  const renderBannerActions = (banner: Banner) => {
+    const label = bannerLabel(banner);
+    const isConfirming = confirmingId === banner.id;
+
+    return (
+      <TableActions
+        label={`Actions for ${label}`}
+        primary={
+          <Link
+            to={`/admin/banners/${banner.id}/edit`}
+            className={smallButtonClass}
+            aria-label={`Edit ${label}`}
+          >
+            <FiEdit2 aria-hidden="true" className="h-3.5 w-3.5" />
+            Edit
+          </Link>
+        }
+        groups={[
+          {
+            items: [
+              {
+                key: 'delete',
+                label: 'Delete',
+                icon: <FiTrash2 />,
+                tone: 'danger',
+                onSelect: () => setConfirmingId(banner.id),
+              },
+            ],
+          },
+        ]}
+        confirm={
+          isConfirming
+            ? {
+                title: `Delete “${label}”?`,
+                description: 'This removes the slide and its image from the home page.',
+                confirmLabel: isDeleting ? 'Deleting…' : 'Delete',
+                cancelLabel: 'Cancel',
+                busy: isDeleting,
+                tone: 'danger',
+                onConfirm: () => void handleDelete(banner),
+                onCancel: () => setConfirmingId(null),
+              }
+            : null
+        }
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
       {header}
@@ -279,8 +328,9 @@ export default function BannerListPage() {
 
       {banners !== null && banners.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-line/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="admin-table">
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table">
               <thead>
                 <tr>
                   <th scope="col">Banner</th>
@@ -295,8 +345,6 @@ export default function BannerListPage() {
               </thead>
               <tbody>
                 {banners.map((banner) => {
-                  const label = bannerLabel(banner);
-                  const isConfirming = confirmingId === banner.id;
                   const theme = getBannerTheme(banner.background_style);
 
                   return (
@@ -338,54 +386,60 @@ export default function BannerListPage() {
                       </td>
                       <td className="text-sm text-muted">{formatUpdated(banner.updated_at)}</td>
                       <td>
-                        <TableActions
-                          label={`Actions for ${label}`}
-                          primary={
-                            <Link
-                              to={`/admin/banners/${banner.id}/edit`}
-                              className={smallButtonClass}
-                              aria-label={`Edit ${label}`}
-                            >
-                              <FiEdit2 aria-hidden="true" className="h-3.5 w-3.5" />
-                              Edit
-                            </Link>
-                          }
-                          groups={[
-                            {
-                              items: [
-                                {
-                                  key: 'delete',
-                                  label: 'Delete',
-                                  icon: <FiTrash2 />,
-                                  tone: 'danger',
-                                  onSelect: () => setConfirmingId(banner.id),
-                                },
-                              ],
-                            },
-                          ]}
-                          confirm={
-                            isConfirming
-                              ? {
-                                  title: `Delete “${label}”?`,
-                                  description:
-                                    'This removes the slide and its image from the home page.',
-                                  confirmLabel: isDeleting ? 'Deleting…' : 'Delete',
-                                  cancelLabel: 'Cancel',
-                                  busy: isDeleting,
-                                  tone: 'danger',
-                                  onConfirm: () => void handleDelete(banner),
-                                  onCancel: () => setConfirmingId(null),
-                                }
-                              : null
-                          }
-                        />
+                        {renderBannerActions(banner)}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            </div>
           </div>
+
+          <MobileRecordList label="Banners">
+            {banners.map((banner) => {
+              const theme = getBannerTheme(banner.background_style);
+              return (
+                <MobileRecordCard
+                  key={banner.id}
+                  leading={
+                    <div className="h-12 w-12 overflow-hidden rounded-lg bg-paper ring-1 ring-line/60">
+                      {banner.image_url ? (
+                        <img
+                          src={banner.image_url}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+                  }
+                  title={banner.title_en}
+                  subtitle={banner.title_mm}
+                  badges={<StatusBadge status={banner.status} />}
+                  meta={[
+                    { label: 'Order', value: banner.sort_order },
+                    {
+                      label: 'Theme',
+                      value: (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            aria-hidden="true"
+                            className="h-3 w-3 flex-none rounded-full ring-1 ring-black/10"
+                            style={{ backgroundImage: theme.background }}
+                          />
+                          {theme.label}
+                        </span>
+                      ),
+                    },
+                    { label: 'Updated', value: formatUpdated(banner.updated_at) },
+                  ]}
+                  footer={renderBannerActions(banner)}
+                />
+              );
+            })}
+          </MobileRecordList>
 
           {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
         </div>

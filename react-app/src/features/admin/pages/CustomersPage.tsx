@@ -30,6 +30,7 @@ import {
   type CustomerType,
   type DirectoryCustomer,
 } from '../api/customersApi';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 20;
 
@@ -214,8 +215,9 @@ export default function AdminCustomersPage() {
 
       {customers !== null && customers.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-full text-sm">
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">{t('customer')}</th>
@@ -261,7 +263,47 @@ export default function AdminCustomersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+
+          <MobileRecordList label={t('customersTitle')}>
+            {customers.map((customer) => (
+              <MobileRecordCard
+                key={customer.id}
+                leading={
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent"
+                  >
+                    {customer.name.charAt(0).toUpperCase() || '#'}
+                  </span>
+                }
+                title={customer.name}
+                subtitle={customer.company_name || undefined}
+                badges={<StatusBadge status={customer.status.toUpperCase()} />}
+                meta={[
+                  {
+                    label: t('contact'),
+                    value: (
+                      <>
+                        <span className="block">{customer.phone}</span>
+                        <span className="block text-xs font-normal text-gray-500">
+                          {customer.email ?? t('noEmail')}
+                        </span>
+                      </>
+                    ),
+                  },
+                  { label: t('type'), value: formatStatusLabel(customer.customer_type) },
+                  { label: t('quotations'), value: customer.quotation_requests_count },
+                  { label: t('orders'), value: customer.orders_count },
+                  {
+                    label: t('joined'),
+                    value: formatWhen(customer.created_at, locale, t('noData')),
+                  },
+                ]}
+              />
+            ))}
+          </MobileRecordList>
 
           <p className="border-t border-rule px-4 py-3 text-xs text-gray-500">
             {t('customersReadOnlyHint')}

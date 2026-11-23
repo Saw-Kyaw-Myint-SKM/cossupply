@@ -19,6 +19,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 15;
 
@@ -289,8 +290,9 @@ export default function SupplierListPage() {
 
         {suppliers !== null && suppliers.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="admin-table min-w-full">
+            <div className="hidden lg:block">
+              <div className="overflow-x-auto">
+                <table className="admin-table min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
@@ -402,7 +404,99 @@ export default function SupplierListPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
+
+            <MobileRecordList label="Suppliers">
+              {suppliers.map((supplier) => (
+                <MobileRecordCard
+                  key={supplier.id}
+                  leading={
+                    supplier.logo_url ? (
+                      <img
+                        src={supplier.logo_url}
+                        alt=""
+                        className="h-10 w-10 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-400"
+                      >
+                        {supplier.shop_name.charAt(0).toUpperCase() || '#'}
+                      </span>
+                    )
+                  }
+                  title={
+                    <Link
+                      to={`/admin/suppliers/${supplier.id}/edit`}
+                      className="text-accent hover:text-accent/80"
+                      aria-label={t('editSupplierAria', {
+                        supplier: supplierLabel(supplier, t),
+                      })}
+                    >
+                      {supplier.shop_name}
+                    </Link>
+                  }
+                  subtitle={supplier.company_name || undefined}
+                  badges={
+                    <>
+                      <StatusBadge status={supplier.status} />
+                      {supplier.verified ? (
+                        <span className="w-fit rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-inset ring-accent/40">
+                          {t('verifiedSupplier')}
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                  meta={[
+                    {
+                      label: t('contact'),
+                      value: (
+                        <>
+                          <span className="block">{supplier.contact_person}</span>
+                          <span className="block font-normal text-gray-500">{supplier.phone}</span>
+                          <span className="block text-xs font-normal text-gray-400">
+                            {supplier.viber_phone
+                              ? `${t('viber')} ${supplier.viber_phone}`
+                              : t('noViberNumber')}
+                          </span>
+                        </>
+                      ),
+                    },
+                    {
+                      label: t('location'),
+                      value: (
+                        <>
+                          <span className="block">{supplier.city}</span>
+                          {supplier.township ? (
+                            <span className="block text-xs font-normal text-gray-400">
+                              {supplier.township}
+                            </span>
+                          ) : null}
+                        </>
+                      ),
+                    },
+                    {
+                      label: t('products'),
+                      value:
+                        supplier.products_count !== undefined
+                          ? supplier.products_count
+                          : t('noData'),
+                    },
+                  ]}
+                  footer={
+                    <Link
+                      to={`/admin/suppliers/${supplier.id}/edit`}
+                      className={secondaryButtonClass}
+                    >
+                      {t('edit')}
+                    </Link>
+                  }
+                />
+              ))}
+            </MobileRecordList>
 
             <p className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
               {t('supplierListDeactivationHint')}

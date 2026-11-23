@@ -104,6 +104,11 @@ export default function AdminLoginPage() {
               {t('loginHere')}
             </Link>
           </p>
+          <p className="mt-2 text-center">
+            <Link to="/" className="text-sm font-medium text-gray-500 hover:text-gray-700">
+              ← {t('goToShop')}
+            </Link>
+          </p>
         </div>
       </div>
     </div>

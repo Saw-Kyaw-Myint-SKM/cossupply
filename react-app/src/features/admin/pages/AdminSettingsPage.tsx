@@ -495,7 +495,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded-lg bg-white p-4 shadow sm:p-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('masterSettings')}</h1>
         <p className="mt-1 text-gray-600">
           {t('masterSettingsDescription')}
@@ -519,14 +519,14 @@ export default function AdminSettingsPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {groups.map((group) => (
           <section key={group.name} className="rounded-lg bg-white shadow">
-            <div className="border-b border-gray-200 px-6 py-4">
+            <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
               <h2 className="text-lg font-semibold text-gray-900">{groupTitle(group.name, t)}</h2>
             </div>
             <div className="divide-y divide-gray-100">
               {group.items.map((setting) => {
                 const fieldMessages = fieldErrors[setting.key];
                 return (
-                  <div key={setting.key} className="px-6 py-5 sm:grid sm:grid-cols-3 sm:gap-6">
+                  <div key={setting.key} className="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-6 sm:px-6">
                     <div className="mb-2 sm:mb-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <label

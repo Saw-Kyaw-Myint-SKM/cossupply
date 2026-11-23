@@ -26,6 +26,7 @@ import {
   type LoadErrorState,
 } from '../../../components/catalog-ui/CatalogUi';
 import { TableActions } from '../../../components/ui/TableActions';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 import type { PaginationMeta } from '../../../api/query';
 import {
   listEmailLogs,
@@ -121,6 +122,20 @@ export default function AdminEmailLogsPage() {
     setActionError(describeRequestError(response, t('resendEmailFailed'), t));
   };
 
+  const renderResendAction = (log: EmailLog) =>
+    log.resendable ? (
+      <button
+        type="button"
+        onClick={() => void resend(log)}
+        disabled={resendingId === log.id}
+        className={smallButtonClass}
+      >
+        {resendingId === log.id ? t('resending') : t('resendEmail')}
+      </button>
+    ) : (
+      <span className="text-xs text-gray-400">{t('notResendable')}</span>
+    );
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -214,8 +229,9 @@ export default function AdminEmailLogsPage() {
 
       {logs !== null && logs.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-full text-sm">
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">{t('recipient')}</th>
@@ -269,7 +285,38 @@ export default function AdminEmailLogsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+
+          <MobileRecordList label={t('emailDeliveryLog')}>
+            {logs.map((log) => (
+              <MobileRecordCard
+                key={log.id}
+                title={log.recipient_email}
+                subtitle={
+                  <>
+                    {formatStatusLabel(log.related_type.split('\\').pop() ?? log.related_type)} #
+                    {log.related_id}
+                  </>
+                }
+                badges={<StatusBadge status={log.status} />}
+                meta={[
+                  { label: t('email'), value: log.subject },
+                  { label: t('type'), value: formatStatusLabel(log.email_type) },
+                  { label: t('attempted'), value: formatWhen(log.created_at, locale, t('noData')) },
+                  ...(log.error_message
+                    ? [
+                        {
+                          label: 'Error',
+                          value: <span className="text-red-700">{log.error_message}</span>,
+                        },
+                      ]
+                    : []),
+                ]}
+                footer={renderResendAction(log)}
+              />
+            ))}
+          </MobileRecordList>
 
           {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
         </div>

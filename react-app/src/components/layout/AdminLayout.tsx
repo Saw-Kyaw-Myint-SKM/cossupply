@@ -17,10 +17,12 @@ import {
   FiFileText,
   FiChevronDown,
   FiChevronRight,
+  FiShoppingCart,
 } from 'react-icons/fi';
 import { useAuth } from '../../lib/auth-context';
 import logo from '../../assets/logo.png';
 import { useI18n, type TranslationKey } from '../../lib/i18n-context';
+import { AreaSwitch } from './AreaSwitch';
 
 interface NavItem {
   to: string;
@@ -51,6 +53,33 @@ const NAV_LINKS: NavItem[] = [
 
 /** Admin-user management is super admin only; the API 403s everyone else. */
 const SUPER_ADMIN_ONLY_LINKS = ['/admin/admin-users'];
+
+/**
+ * Longest-prefix page titles for the sticky top bar. Detail and form routes
+ * (`/admin/products/new`, `/admin/orders/:id`) inherit their list's title.
+ * The two log pages are linked from the dashboard but not the sidebar.
+ */
+const PAGE_TITLES: Array<{ prefix: string; label: TranslationKey }> = [
+  { prefix: '/admin/quotation-requests', label: 'quotations' },
+  { prefix: '/admin/admin-users', label: 'adminUsers' },
+  { prefix: '/admin/email-logs', label: 'emailDeliveryLog' },
+  { prefix: '/admin/audit-logs', label: 'auditTrail' },
+  { prefix: '/admin/customers', label: 'customersTitle' },
+  { prefix: '/admin/categories', label: 'categories' },
+  { prefix: '/admin/suppliers', label: 'suppliers' },
+  { prefix: '/admin/products', label: 'products' },
+  { prefix: '/admin/settings', label: 'settings' },
+  { prefix: '/admin/banners', label: 'banners' },
+  { prefix: '/admin/orders', label: 'orders' },
+  { prefix: '/admin/dashboard', label: 'dashboard' },
+];
+
+function pageTitleFor(pathname: string): TranslationKey {
+  const match = PAGE_TITLES.find(
+    (entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`),
+  );
+  return match?.label ?? 'admin';
+}
 
 function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
   const location = useLocation();
@@ -136,12 +165,14 @@ function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
 export function AdminLayout() {
   const { admin, adminLogout } = useAuth();
   const { t } = useI18n();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isSuperAdmin = admin?.role === 'super_admin';
   const visibleNavLinks = isSuperAdmin
     ? NAV_LINKS
     : NAV_LINKS.filter((link) => !SUPER_ADMIN_ONLY_LINKS.includes(link.to));
+  const pageTitle = t(pageTitleFor(location.pathname));
 
   return (
     <div className="aurora-stage flex min-h-screen">
@@ -194,6 +225,13 @@ export function AdminLayout() {
 
           {/* User section */}
           <div className="border-t border-gray-200 p-4">
+            <Link
+              to="/"
+              className="mb-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            >
+              <FiShoppingCart className="h-4 w-4" aria-hidden="true" />
+              {t('goToShop')}
+            </Link>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white">
                 {admin?.name?.charAt(0).toUpperCase() ?? t('adminAvatarFallback')}
@@ -217,7 +255,9 @@ export function AdminLayout() {
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-w-0 lg:ml-64">
-        {/* Top bar: page context on the left. */}
+        {/* Top bar: the current page on the left, the way back to the shop
+            on the right. Visible at every breakpoint so the area switch is
+            always one tap away. */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/60 bg-white/70 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
@@ -227,13 +267,23 @@ export function AdminLayout() {
           >
             <FiMenu className="h-5 w-5" />
           </button>
-          <span className="flex-1 truncate text-sm font-semibold text-gray-900 sm:text-base">
-            {t('admin')}
-          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900 sm:text-base">
+              {pageTitle}
+            </p>
+            <p className="truncate text-xs text-gray-500 md:hidden">{admin?.name}</p>
+          </div>
+          <AreaSwitch
+            to="/"
+            label={t('shop')}
+            icon={<FiShoppingCart />}
+            description={t('goToShop')}
+          />
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-6 lg:p-8">
+        {/* Page content — smaller gutters on phones so admin cards and lists
+            get the full width they need. */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

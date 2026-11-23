@@ -29,6 +29,7 @@ import { listAdminOrders } from '../api/orderAdminApi';
 import { ORDER_STATUSES, PAYMENT_STATUSES } from '../../orders/api/ordersApi';
 import type { OrderStatus, OrderSummary, PaymentStatus } from '../../orders/api/ordersApi';
 import { formatOrderDate } from '../../orders/lib/orderDisplay';
+import { MobileRecordCard, MobileRecordList } from '../../../components/admin-ui/MobileRecordList';
 
 const PER_PAGE = 15;
 
@@ -258,63 +259,110 @@ export default function OrderListPage() {
           aria-busy={isLoading}
           aria-label="Order queue"
         >
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-full text-sm">
-              <thead className="bg-paper text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Order
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Customer
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Total
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Placed
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <Link
-                        to={`/admin/orders/${order.id}`}
-                        className="font-mono font-semibold tabular-nums text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
-                      >
-                        {order.order_number}
-                      </Link>
-                      <p className="text-xs text-gray-500">
-                        {typeof order.item_count === 'number'
-                          ? `${order.item_count} ${order.item_count === 1 ? 'line' : 'lines'}`
-                          : 'Order'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-ink">{order.customer_name}</p>
-                      <p className="text-xs text-gray-500">{order.phone}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        <StatusBadge status={order.order_status} />
-                        <StatusBadge status={order.payment_status} />
-                        <StatusBadge status={order.delivery_status} />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-ink">
-                      {formatMMK(order.total_amount)} MMK
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{formatOrderDate(order.created_at)}</td>
+          <div className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="admin-table min-w-full text-sm">
+                <thead className="bg-paper text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Order
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Customer
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Status
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">
+                      Total
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Placed
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link
+                          to={`/admin/orders/${order.id}`}
+                          className="font-mono font-semibold tabular-nums text-ink hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+                        >
+                          {order.order_number}
+                        </Link>
+                        <p className="text-xs text-gray-500">
+                          {typeof order.item_count === 'number'
+                            ? `${order.item_count} ${order.item_count === 1 ? 'line' : 'lines'}`
+                            : 'Order'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-ink">{order.customer_name}</p>
+                        <p className="text-xs text-gray-500">{order.phone}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <StatusBadge status={order.order_status} />
+                          <StatusBadge status={order.payment_status} />
+                          <StatusBadge status={order.delivery_status} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums text-ink">
+                        {formatMMK(order.total_amount)} MMK
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{formatOrderDate(order.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          <MobileRecordList label="Order queue">
+            {rows.map((order) => (
+              <MobileRecordCard
+                key={order.id}
+                title={
+                  <Link
+                    to={`/admin/orders/${order.id}`}
+                    className="font-mono tabular-nums text-ink hover:text-accent"
+                  >
+                    {order.order_number}
+                  </Link>
+                }
+                subtitle={
+                  typeof order.item_count === 'number'
+                    ? `${order.item_count} ${order.item_count === 1 ? 'line' : 'lines'}`
+                    : 'Order'
+                }
+                trailing={
+                  <span className="font-mono text-sm font-semibold tabular-nums text-ink">
+                    {formatMMK(order.total_amount)} MMK
+                  </span>
+                }
+                badges={
+                  <>
+                    <StatusBadge status={order.order_status} />
+                    <StatusBadge status={order.payment_status} />
+                    <StatusBadge status={order.delivery_status} />
+                  </>
+                }
+                meta={[
+                  {
+                    label: 'Customer',
+                    value: (
+                      <>
+                        <span className="block">{order.customer_name}</span>
+                        <span className="block font-normal text-gray-500">{order.phone}</span>
+                      </>
+                    ),
+                  },
+                  { label: 'Placed', value: formatOrderDate(order.created_at) },
+                ]}
+              />
+            ))}
+          </MobileRecordList>
 
           {meta ? <Pagination meta={meta} onPage={setPage} disabled={isLoading} /> : null}
         </section>
