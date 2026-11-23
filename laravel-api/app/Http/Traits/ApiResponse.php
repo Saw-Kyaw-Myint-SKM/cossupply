@@ -9,11 +9,9 @@ trait ApiResponse
     /**
      * Send a success JSON response.
      *
-     * @param mixed  $data    The response data
-     * @param string $message Optional success message
-     * @param int    $status  HTTP status code (default 200)
-     *
-     * @return JsonResponse
+     * @param  mixed  $data  The response data
+     * @param  string  $message  Optional success message
+     * @param  int  $status  HTTP status code (default 200)
      */
     protected function successResponse(mixed $data, string $message = '', int $status = 200): JsonResponse
     {
@@ -32,11 +30,9 @@ trait ApiResponse
     /**
      * Send an error JSON response.
      *
-     * @param string $message Error message
-     * @param int    $status  HTTP status code (default 400)
-     * @param array  $errors  Optional validation errors
-     *
-     * @return JsonResponse
+     * @param  string  $message  Error message
+     * @param  int  $status  HTTP status code (default 400)
+     * @param  array  $errors  Optional validation errors
      */
     protected function errorResponse(string $message, int $status = 400, ?array $errors = null): JsonResponse
     {
@@ -55,10 +51,8 @@ trait ApiResponse
     /**
      * Send a validation error JSON response.
      *
-     * @param array  $errors  Validation errors array
-     * @param string $message Error message (default: 'Validation failed')
-     *
-     * @return JsonResponse
+     * @param  array  $errors  Validation errors array
+     * @param  string  $message  Error message (default: 'Validation failed')
      */
     protected function validationErrorResponse(array $errors, string $message = 'Validation failed'): JsonResponse
     {
@@ -68,9 +62,7 @@ trait ApiResponse
     /**
      * Send an unauthorized JSON response.
      *
-     * @param string $message Error message (default: 'Unauthorized')
-     *
-     * @return JsonResponse
+     * @param  string  $message  Error message (default: 'Unauthorized')
      */
     protected function unauthorizedResponse(string $message = 'Unauthorized'): JsonResponse
     {
@@ -80,9 +72,7 @@ trait ApiResponse
     /**
      * Send a forbidden JSON response.
      *
-     * @param string $message Error message (default: 'Forbidden')
-     *
-     * @return JsonResponse
+     * @param  string  $message  Error message (default: 'Forbidden')
      */
     protected function forbiddenResponse(string $message = 'Forbidden'): JsonResponse
     {
@@ -92,9 +82,7 @@ trait ApiResponse
     /**
      * Send a not found JSON response.
      *
-     * @param string $message Error message (default: 'Resource not found')
-     *
-     * @return JsonResponse
+     * @param  string  $message  Error message (default: 'Resource not found')
      */
     protected function notFoundResponse(string $message = 'Resource not found'): JsonResponse
     {

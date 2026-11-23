@@ -7,7 +7,8 @@ import type { PublicProductVariant } from '../../../api/catalog';
 interface VariantSelectorProps {
   variants: PublicProductVariant[];
   selectedVariant: PublicProductVariant | null;
-  onSelect: (variant: PublicProductVariant) => void;
+  /** `null` returns to the product's own (non-variant) price and photo. */
+  onSelect: (variant: PublicProductVariant | null) => void;
 }
 
 function variantName(variant: PublicProductVariant): string {
@@ -38,6 +39,19 @@ export default function VariantSelector({
         ) : null}
       </legend>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          aria-pressed={selectedVariant === null}
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-[13px] font-medium transition focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+            selectedVariant === null
+              ? 'border-primary bg-primary text-white shadow-sm'
+              : 'border-line bg-white text-ink hover:border-primary hover:text-primary'
+          }`}
+        >
+          Main product
+        </button>
+
         {variants.map((variant) => {
           const isSelected = selectedVariant?.id === variant.id;
           const isUnavailable = variant.stock_status === 'OUT_OF_STOCK';

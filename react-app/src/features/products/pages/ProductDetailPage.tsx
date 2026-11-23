@@ -98,19 +98,12 @@ export default function ProductDetailPage() {
 
         if (response.success && response.data) {
           const loadedProduct = response.data.product;
-          const variants = loadedProduct.variants ?? [];
-          const initialVariant =
-            variants.find((variant) => variant.stock_status !== 'OUT_OF_STOCK') ??
-            variants[0] ??
-            null;
 
+          // Open on the product's own photo and price; a variant is a choice
+          // the buyer makes, not the default view.
           setProduct(loadedProduct);
-          setSelectedVariant(initialVariant);
-          setQuantity(
-            initialVariant
-              ? variantMinimumQuantity(initialVariant)
-              : minimumQuantity(loadedProduct.price),
-          );
+          setSelectedVariant(null);
+          setQuantity(minimumQuantity(loadedProduct.price));
         } else {
           setProduct(null);
           setSelectedVariant(null);

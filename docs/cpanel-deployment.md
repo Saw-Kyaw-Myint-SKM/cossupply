@@ -338,6 +338,8 @@ APP_URL=https://api.cosupplymm.com
 FRONTEND_URL=https://cosupplymm.com
 # Token auth only — keep this empty.
 SANCTUM_STATEFUL_DOMAINS=
+# Bearer-token lifetime in minutes (default 604800 = 7 days; 0 disables).
+SANCTUM_EXPIRATION_MINUTES=10080
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -370,6 +372,8 @@ Rules:
 - `.env` stays on the server only. Never commit it or put it in a public zip.
 - `chmod 600 .env`.
 - `SANCTUM_STATEFUL_DOMAINS=` must be empty (see troubleshooting).
+- `SANCTUM_EXPIRATION_MINUTES` sets the Bearer-token lifetime (default `10080`
+  = 7 days). `0` disables expiry; keep a finite value on public sites.
 - `SESSION_DOMAIN=null` prevents a `.cosupplymm.com` cookie from being shared
   across the API and SPA.
 
@@ -837,6 +841,7 @@ tar -czf "backups/storage-$(date +%F_%H%M).tar.gz" storage/app
 - [ ] `.env` created: `APP_ENV=production`, `APP_DEBUG=false`, `APP_KEY` set
 - [ ] `APP_URL=https://api.cosupplymm.com`, `FRONTEND_URL=https://cosupplymm.com`
 - [ ] `SANCTUM_STATEFUL_DOMAINS=` empty
+- [ ] `SANCTUM_EXPIRATION_MINUTES=10080` (7-day token lifetime) or an intentional value
 - [ ] `composer install --no-dev --optimize-autoloader`
 - [ ] `php artisan key:generate --force`
 - [ ] `php artisan migrate --force`

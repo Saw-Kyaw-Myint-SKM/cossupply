@@ -29,6 +29,10 @@ const AdminDashboardPage = lazy(() => import('../features/admin/pages/AdminDashb
 const AdminSettingsPage = lazy(() => import('../features/admin/pages/AdminSettingsPage'));
 const AdminCategoryListPage = lazy(() => import('../features/admin/pages/CategoryListPage'));
 const CategoryFormPage = lazy(() => import('../features/admin/pages/CategoryFormPage'));
+const AdminUserListPage = lazy(() => import('../features/admin/pages/AdminUserListPage'));
+const AdminUserFormPage = lazy(() => import('../features/admin/pages/AdminUserFormPage'));
+const BannerListPage = lazy(() => import('../features/admin/pages/BannerListPage'));
+const BannerFormPage = lazy(() => import('../features/admin/pages/BannerFormPage'));
 const SupplierListPage = lazy(() => import('../features/admin/pages/SupplierListPage'));
 const SupplierFormPage = lazy(() => import('../features/admin/pages/SupplierFormPage'));
 // The public pages claim `CategoryListPage`, `ProductListPage`, and
@@ -144,6 +148,54 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageLoader />}>
             <CategoryFormPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'admin-users',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminUserListPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'admin-users/new',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminUserFormPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'admin-users/:id/edit',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <AdminUserFormPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'banners',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <BannerListPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'banners/new',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <BannerFormPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'banners/:id/edit',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <BannerFormPage />
           </Suspense>
         ),
       },

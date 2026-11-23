@@ -224,6 +224,7 @@ export function describeCatalogError(
  *   [      product image (plate)            ]
  *   ───────────────────────────────────────
  *   Title
+ *   Description (3 lines, catalog only)
  *   ───────────────────────────────────────
  *   Unit price / piece          In order
  *   55,547 MMK                     9 pcs
@@ -283,7 +284,6 @@ export function ProductCard({
   // Compact sizing only applies on mobile; from `sm` upward the card keeps the
   // roomy storefront treatment used on the catalog pages.
   const mediaHeight = compact ? "h-36 sm:h-40" : "h-52 sm:h-40";
-  const mediaPadding = compact ? "p-2 sm:p-4" : "p-4";
   const bodyPadding = compact
     ? "px-2.5 pb-2 pt-2 sm:px-3.5 sm:pb-3.5 sm:pt-3"
     : "px-3.5 pb-3.5 pt-3";
@@ -314,19 +314,29 @@ export function ProductCard({
         blocked ? "cursor-not-allowed" : "glass-card-hover"
       }`}
     >
+      {/* Stretched link: everything on the card opens the product detail; the
+          CTA sits above it (z-20) so adding to the order list still wins. The
+          title link stays the keyboard/screen-reader entry point. */}
+      <Link
+        to={`/products/${product.id}`}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="absolute inset-0 z-10"
+      />
+
       {/* Photo plate on the tint; the discount badge clips into the
           top-right corner exactly as the storefront design draws it. */}
       <div className="relative">
         <Link
           to={`/products/${product.id}`}
-          className={`relative flex ${mediaHeight} items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-white/70 via-white/30 to-primary-light/50 ${mediaPadding}`}
+          className={`relative flex ${mediaHeight} items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-white/70 via-white/30 to-primary-light/50`}
         >
           <img
             src={product.photo_url ?? FALLBACK_THUMB}
             alt={displayName}
             loading="lazy"
             decoding="async"
-            className={`h-full w-full object-contain ${
+            className={`h-full w-full object-cover ${
               blocked
                 ? "opacity-70 contrast-90 grayscale"
                 : "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out group-hover:scale-110 group-hover:brightness-105"
@@ -409,12 +419,23 @@ export function ProductCard({
           <Link
             to={`/products/${product.id}`}
             className={`block truncate sm:line-clamp-2 sm:whitespace-normal motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
-              blocked ? "text-ink/50" : "text-ink hover:text-primary"
+              blocked ? "text-ink/50" : "text-ink group-hover:text-primary"
             }`}
           >
             {displayName}
           </Link>
         </h3>
+
+        {/* Catalog cards get a short read of the product; home cards stay lean. */}
+        {!compact && product.description ? (
+          <p
+            className={`mt-1.5 line-clamp-3 text-xs leading-4 ${
+              blocked ? "text-subtle/60" : "text-muted"
+            }`}
+          >
+            {product.description}
+          </p>
+        ) : null}
 
         <div className={`flex flex-wrap items-baseline gap-x-2 ${priceMargin}`}>
           {unitPrice !== null ? (
@@ -455,7 +476,7 @@ export function ProductCard({
 
         <div className={`border-t border-rule/60 ${dividerMargin}`} />
 
-        <div className={`mt-auto ${ctaWrapperPadding}`}>
+        <div className={`relative z-20 mt-auto ${ctaWrapperPadding}`}>
           {/*
            * The storefront CTA: full-width primary block, "+ Add another"
            * once a line exists, a white pill tally on the right, and the

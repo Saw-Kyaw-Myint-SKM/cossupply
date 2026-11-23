@@ -59,6 +59,30 @@ class AdminAuthTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_inactive_admin_token_is_rejected_and_revoked(): void
+    {
+        $admin = Admin::factory()->create();
+        $token = $admin->createToken('admin-token', ['admin'])->plainTextToken;
+
+        $admin->update(['status' => 'inactive']);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/user')
+            ->assertForbidden()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Your account has been deactivated.');
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        // The test application caches the resolved guard user between
+        // requests; forget it so the revoked token is re-evaluated.
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/user')
+            ->assertUnauthorized();
+    }
+
     public function test_admin_can_fetch_own_profile_and_log_out(): void
     {
         $admin = Admin::factory()->create(['email' => 'admin@example.com']);

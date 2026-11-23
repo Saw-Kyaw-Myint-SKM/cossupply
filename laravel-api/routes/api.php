@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminAuthController;
+use App\Http\Controllers\Api\V1\AdminBannerController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
 use App\Http\Controllers\Api\V1\AdminCustomerController;
 use App\Http\Controllers\Api\V1\AdminEmailLogController;
+use App\Http\Controllers\Api\V1\AdminManagementController;
 use App\Http\Controllers\Api\V1\AdminOrderController;
 use App\Http\Controllers\Api\V1\AdminPrivateFileController;
 use App\Http\Controllers\Api\V1\AdminProductController;
@@ -20,6 +22,7 @@ use App\Http\Controllers\Api\V1\CustomerQuotationController;
 use App\Http\Controllers\Api\V1\CustomerQuotationRequestController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\PublicBannerController;
 use App\Http\Controllers\Api\V1\PublicCategoryController;
 use App\Http\Controllers\Api\V1\PublicProductController;
 use App\Http\Controllers\Api\V1\PublicSettingController;
@@ -54,6 +57,9 @@ Route::get('/products/{productId}', [PublicProductController::class, 'show']);
 Route::get('/categories', [PublicCategoryController::class, 'index']);
 Route::get('/suppliers', [PublicSupplierController::class, 'index']);
 
+// Home-page hero banners (ACTIVE only, admin-defined order)
+Route::get('/banners', [PublicBannerController::class, 'index']);
+
 /*
 |--------------------------------------------------------------------------
 | Public Settings (Guest read-only subset)
@@ -76,7 +82,7 @@ Route::post('/auth/login', [CustomerAuthController::class, 'login'])
 | Protected Customer Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth:sanctum', 'customer'])->group(function () {
+Route::middleware(['auth:sanctum', 'active_account', 'customer'])->group(function () {
     Route::post('/auth/logout', [CustomerAuthController::class, 'logout']);
     Route::get('/auth/user', [CustomerAuthController::class, 'user']);
 
@@ -121,7 +127,7 @@ Route::middleware(['auth:sanctum', 'customer'])->group(function () {
 | both account types use the same documented /notifications endpoints.
 |
 */
-Route::middleware(['auth:sanctum', 'throttle:notifications'])->group(function () {
+Route::middleware(['auth:sanctum', 'active_account', 'throttle:notifications'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
@@ -141,7 +147,7 @@ Route::post('/admin/login', [AdminAuthController::class, 'login'])
 | Protected Admin Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'active_account', 'admin'])->group(function () {
     Route::post('/admin/logout', [AdminAuthController::class, 'logout']);
     Route::get('/admin/user', [AdminAuthController::class, 'user']);
 
@@ -150,7 +156,14 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::put('/admin/settings/{setting}', [AdminSettingController::class, 'update']);
     Route::patch('/admin/settings', [AdminSettingController::class, 'bulkUpdate']);
 
+    // Admin account management (super admin only; `admin` ability alone is not enough)
+    Route::middleware('super_admin')->group(function () {
+        Route::apiResource('/admin/admin-users', AdminManagementController::class);
+        Route::patch('/admin/admin-users/{adminUser}/password', [AdminManagementController::class, 'updatePassword']);
+    });
+
     // Catalog: categories, suppliers and products
+    Route::apiResource('/admin/banners', AdminBannerController::class);
     Route::apiResource('/admin/categories', AdminCategoryController::class);
     Route::apiResource('/admin/suppliers', AdminSupplierController::class)->except('destroy');
     Route::apiResource('/admin/products', AdminProductController::class);

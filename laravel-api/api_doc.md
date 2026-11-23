@@ -8,6 +8,8 @@ Backend: Laravel 12 REST API (this `laravel-api` directory is the project backen
 - API prefix: `/api/v1` (configured in `bootstrap/app.php` as `apiPrefix: 'api/v1'`).
 - Authentication: Laravel Sanctum bearer tokens. `Authorization: Bearer <token>`.
 - Token abilities: `admin` (Admin account) and `customer` (Customer account).
+- Tokens expire after `SANCTUM_EXPIRATION_MINUTES` (default `604800` = 7 days; set `0` to disable). An expired token gets `401 Unauthenticated.`.
+- Inactive admins and suspended/inactive customers are rejected on every authenticated request with `403`, and the presented token is revoked even if it was issued before the status change.
 - Success envelope: `{"success": true, "data": {...}, "message": "..."}` (`message` optional).
 - Endpoints without an authentication row are public: they accept no token and serve guest browsing (`/health`, `/auth/*`, `/admin/login`, `/products`, `/products/{productId}`, `/categories`, `/suppliers`, `/settings/public`).
 - Error envelope for application errors: `{"success": false, "message": "..."}`.
@@ -6034,3 +6036,346 @@ There is intentionally no Admin create/update/delete route for customers: regist
 | --- | --- | --- |
 | `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
 | `422` | Validation error | Unknown `status` / `customer_type` or `per_page` out of range |
+
+---
+
+## Banners (home-page hero)
+
+Banners are bilingual hero messages for the storefront home page. Each banner
+picks one of five background palettes, renders a single static composition with
+an optional image beside the text, and carries an optional call-to-action
+button. Only `ACTIVE` banners are exposed publicly, ordered by `sort_order` then
+`id`; the storefront shows the first one.
+
+### Fields
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `title_mm` / `title_en` | string, max 120 | Required |
+| `subtitle_mm` / `subtitle_en` | string, max 255 | Optional |
+| `cta_label_mm` / `cta_label_en` | string, max 60 | Optional button label |
+| `link_url` | string, max 2048 | Optional; must start with `/` or `http(s)://` |
+| `image` | file | Optional; JPEG/PNG/WebP, max 4 MB. Shown beside the text when present |
+| `sort_order` | integer | Default `0` |
+| `status` | `ACTIVE` / `INACTIVE` | Default `ACTIVE` |
+| `background_style` | `ink`, `ocean`, `violet`, `ember`, `paper` | Default `ink` |
+
+## GET /api/v1/banners
+
+Public. Returns every active banner in display order.
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "banners": [
+      {
+        "id": 1,
+        "title_mm": "ရုံးတစ်ခုလုံးအတွက် ပစ္စည်းဖြည့်ပါ",
+        "title_en": "Stock the whole office",
+        "subtitle_mm": "စာရွက်၊ မှင်နှင့် ပရိဘောဂ",
+        "subtitle_en": "Paper, ink, furniture & more",
+        "cta_label_mm": "ကြည့်ရန်",
+        "cta_label_en": "Browse",
+        "link_url": "/products",
+        "image": "banners/abc123.jpg",
+        "image_url": "http://localhost:8000/storage/banners/abc123.jpg",
+        "sort_order": 0,
+        "background_style": "ocean"
+      }
+    ]
+  }
+}
+```
+
+## GET /api/v1/admin/banners
+
+Admin only. Paginated list.
+
+### Request
+
+| Query | Notes |
+| --- | --- |
+| `status` | `ACTIVE` or `INACTIVE` |
+| `search` | Matches `title_mm` or `title_en` |
+| `sort_by` | `created_at` |
+| `sort_direction` | `asc` or `desc` |
+| `per_page` | 1–100, default 15 |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "banners": [
+      {
+        "id": 1,
+        "title_mm": "…",
+        "title_en": "…",
+        "subtitle_mm": null,
+        "subtitle_en": null,
+        "cta_label_mm": null,
+        "cta_label_en": null,
+        "link_url": "/products",
+        "image": "banners/abc123.jpg",
+        "image_url": "http://localhost:8000/storage/banners/abc123.jpg",
+        "sort_order": 0,
+        "status": "ACTIVE",
+        "background_style": "ink",
+        "created_at": "2026-11-23T08:00:00+00:00",
+        "updated_at": "2026-11-23T08:00:00+00:00"
+      }
+    ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 1, "last_page": 1 }
+  }
+}
+```
+
+## POST /api/v1/admin/banners
+
+Admin only. Multipart form data.
+
+### Request
+
+```
+title_mm=ရုံးတစ်ခုလုံးအတွက် ပစ္စည်းဖြည့်ပါ
+title_en=Stock the whole office
+subtitle_mm=စာရွက်၊ မှင်နှင့် ပရိဘောဂ
+subtitle_en=Paper, ink, furniture & more
+cta_label_mm=ကြည့်ရန်
+cta_label_en=Browse
+link_url=/products
+sort_order=0
+status=ACTIVE
+background_style=ocean
+image=@banner.jpg
+```
+
+### Success response
+
+`201 Created` with `data.banner` (same shape as the admin list item).
+
+## GET /api/v1/admin/banners/{banner}
+
+Admin only. `200 OK` with `data.banner`.
+
+## PUT|PATCH /api/v1/admin/banners/{banner}
+
+Admin only. Multipart form data. All fields are optional; a new `image`
+replaces the stored file, and omitting it keeps the current image.
+`background_style` accepts `ink`, `ocean`, `violet`, `ember`, or `paper`.
+Send `_method=PUT` when posting a file from a browser.
+
+`200 OK` with `data.banner`.
+
+## DELETE /api/v1/admin/banners/{banner}
+
+Admin only. Deletes the row, removes the stored image, and records an audit
+log entry. `200 OK` with `{"success": true, "data": null}`.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` / `403` | Authentication/ability errors | Missing token or non-admin token |
+| `404` | Not found | Unknown banner id |
+| `422` | Validation error | Missing title, unsafe `link_url`, unknown `background_style`, wrong file type or size |
+
+---
+
+## Admin user management (super admin only)
+
+Task 14 — Admin user CRUD. These six routes sit behind `auth:sanctum` +
+`admin` + `super_admin`: a token with only the `admin` ability receives
+`403 {"success": false, "message": "Forbidden. Super admin access required."}`.
+They are separate from `GET /api/v1/admin/admins`, which stays available to
+every admin for quotation assignment.
+
+The `AdminUser` shape returned by every endpoint below:
+
+```json
+{
+  "id": 4,
+  "name": "Daw Admin",
+  "email": "admin@example.com",
+  "phone": "09123456789",
+  "role": "super_admin",
+  "status": "active",
+  "last_login_at": "2026-11-01T08:00:00+00:00",
+  "created_at": "2026-10-01T08:00:00+00:00",
+  "updated_at": "2026-11-01T08:00:00+00:00"
+}
+```
+
+`password` and `remember_token` are never returned.
+
+### Specification
+
+- `specification/RolesPermissions.md` (Admin role capabilities)
+- `specification/LogicFlow.md` §15 (audit logic)
+
+## GET /api/v1/admin/admin-users
+
+### Method / Path
+
+`GET /api/v1/admin/admin-users`
+
+### Request
+
+Query parameters (all optional):
+
+| Parameter | Values | Notes |
+| --- | --- | --- |
+| `search` | string, max 100 | Matches `name`, `email`, or `phone` |
+| `role` | `admin`, `super_admin` | |
+| `status` | `active`, `inactive` | |
+| `sort_by` | `created_at` | Defaults to name ascending |
+| `sort_direction` | `asc`, `desc` | Defaults to `desc` with `sort_by=created_at` |
+| `per_page` | 1–100 | Defaults to 15 |
+
+### Success response
+
+`200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "admin_users": [ /* AdminUser */ ],
+    "meta": { "current_page": 1, "per_page": 15, "total": 2, "last_page": 1 }
+  }
+}
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `401` | `{"message": "Unauthenticated."}` | Missing/invalid/revoked token |
+| `403` | `{"success": false, "message": "Forbidden. Super admin access required."}` | Regular (non-super) admin |
+| `422` | Validation error | Unknown `role`/`status`/`sort_by`, `per_page` outside 1–100 |
+
+---
+
+## POST /api/v1/admin/admin-users
+
+### Request
+
+| Field | Rules |
+| --- | --- |
+| `name` | required, string, max 255 |
+| `email` | required, valid, max 255, unique in `admins` |
+| `phone` | nullable, string, max 30 |
+| `password` | required, min 8 — stored hashed |
+| `role` | optional, `admin` (default) or `super_admin` |
+| `status` | optional, `active` (default) or `inactive` |
+
+### Success response
+
+`201 Created` with `data.admin_user` and `"message": "Admin user created."`.
+An `admin.created` audit row is written with the new values (never the password).
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `403` | Super admin envelope | Regular admin |
+| `422` | Validation error | Duplicate email, short password, unknown role/status |
+
+---
+
+## GET /api/v1/admin/admin-users/{admin_user}
+
+`200 OK` with `data.admin_user`. `404` for an unknown id, `403` for a regular admin.
+
+---
+
+## PATCH /api/v1/admin/admin-users/{admin_user}
+
+### Request
+
+All fields optional; only the supplied fields change:
+
+| Field | Rules |
+| --- | --- |
+| `name` | required when present, max 255 |
+| `email` | required when present, unique ignoring this account |
+| `phone` | nullable, max 30 |
+| `role` | `admin` or `super_admin` |
+| `status` | `active` or `inactive` |
+
+`password` is **ignored** on this route — use the password endpoint below.
+
+### Success response
+
+`200 OK` with `data.admin_user` and `"message": "Admin user updated."`.
+An `admin.updated` audit row is written only when a value actually changed.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `403` | Super admin envelope | Regular admin |
+| `404` | Model not found | Unknown account id |
+| `409` | `{"success": false, "message": "The last active super admin cannot be deleted or demoted. Promote another super admin first."}` | Demoting/deactivating the only active super admin |
+
+---
+
+## PATCH /api/v1/admin/admin-users/{admin_user}/password
+
+### Request
+
+```json
+{ "password": "brand-new-password" }
+```
+
+`password` is required, minimum 8 characters.
+
+### Success response
+
+`200 OK` with `data.admin_user` and `"message": "Admin password reset."`.
+
+- The password is replaced (hashed) and an `admin.password_reset` audit row is
+  written with `new_data.password = "***"` — the real value is never logged.
+- Every API token belonging to the **target** account is revoked, so their
+  other sessions must sign in again. The acting admin keeps their own session.
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `403` | Super admin envelope | Regular admin |
+| `404` | Model not found | Unknown account id |
+| `422` | Validation error | Missing or shorter-than-8 password |
+
+---
+
+## DELETE /api/v1/admin/admin-users/{admin_user}
+
+Hard delete. An `admin.deleted` audit row is written with the previous values.
+
+### Success response
+
+`200 OK`
+
+```json
+{ "success": true, "data": null, "message": "Admin user deleted." }
+```
+
+### Error responses
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `403` | Super admin envelope | Regular admin |
+| `404` | Model not found | Unknown account id |
+| `409` | `{"success": false, "message": "You cannot delete your own admin account."}` | Self-delete |
+| `409` | `{"success": false, "message": "The last active super admin cannot be deleted or demoted. Promote another super admin first."}` | Last active super admin |
+| `409` | `{"success": false, "message": "Admin user cannot be deleted because quotation requests are assigned to them. Reassign them first."}` | `quotation_requests.assigned_admin_id` points at the account |
+| `409` | `{"success": false, "message": "Admin user cannot be deleted because their account is referenced by existing records. Set the status to inactive instead."}` | Any other foreign key (audit logs, created records, …) |

@@ -3,6 +3,7 @@
 namespace App\Services\Quotation;
 
 use App\Models\Quotation;
+use App\Services\Pdf\PdfBrand;
 use App\Services\Setting\SettingService;
 use DateTimeInterface;
 
@@ -29,6 +30,7 @@ class QuotationPdfTemplate
 
     public function __construct(
         private readonly SettingService $settings,
+        private readonly PdfBrand $brand,
     ) {}
 
     public function html(Quotation $quotation, DateTimeInterface $generatedAt): string
@@ -124,7 +126,7 @@ class QuotationPdfTemplate
         $customerBlock = '';
         foreach ($customerRows as [$label, $value]) {
             $customerBlock .= sprintf(
-                '<tr><td class="kv-label" style="width:%s;">%s :</td><td class="kv-value">%s</td></tr>',
+                '<tr><td class="kv-label" style="width:%s;">%s&nbsp;:&nbsp;&nbsp;</td><td class="kv-value">%s</td></tr>',
                 $customerLabelWidth,
                 $this->e($label),
                 $this->e($value),
@@ -155,7 +157,7 @@ class QuotationPdfTemplate
             // Header
             .'<table class="head"><tr>'
             .'<td class="head-left">'
-            .'<div class="brand">'.$this->e($companyName).'</div>'
+            .$this->brand->header($companyName)
             .($companyAddress !== '' ? '<div class="small">'.$this->e($companyAddress).'</div>' : '')
             .'<div class="small">'.$this->e(trim($companyPhone.'  '.$companyEmail)).'</div>'
             .'</td>'
@@ -186,10 +188,10 @@ class QuotationPdfTemplate
             .'<thead><tr>'
             .'<th class="col-num">#</th>'
             .'<th class="col-item">ITEM</th>'
-            .'<th class="col-qty">QTY</th>'
-            .'<th class="col-unit">UNIT PRICE</th>'
-            .'<th class="col-disc">DISC.</th>'
-            .'<th class="col-amount">AMOUNT</th>'
+            .'<th class="col-qty" style="text-align:right;">QTY</th>'
+            .'<th class="col-unit" style="text-align:right;">UNIT PRICE</th>'
+            .'<th class="col-disc" style="text-align:right;">DISC.</th>'
+            .'<th class="col-amount" style="text-align:right;">AMOUNT</th>'
             .'</tr></thead>'
             .'<tbody>'.$items.'</tbody>'
             .'</table>'
@@ -291,6 +293,7 @@ table { border-collapse: collapse; width: 100%; }
 .head-left { width: 55%; }
 .head-right { width: 45%; text-align: right; }
 .brand { font-size: 20pt; font-weight: bold; color: {$cyan}; line-height: 1.1; }
+.brand-logo-wrap { line-height: 0; margin-bottom: 4px; }
 .doc-type { font-size: 16pt; font-weight: bold; color: {$muted}; line-height: 1.1; }
 .doc-number { font-size: 9.5pt; font-weight: bold; color: {$cyan}; margin-top: 2px; }
 .small { font-size: 8.5pt; color: {$muted}; }
@@ -303,7 +306,7 @@ table { border-collapse: collapse; width: 100%; }
 .section-label { font-size: 8pt; font-weight: bold; color: {$cyan}; margin-bottom: 6px; }
 .kv { width: 100%; }
 .kv td { padding: 0 0 3px 0; vertical-align: top; }
-.kv-label { font-size: 8.5pt; color: {$muted}; white-space: nowrap; padding-right: 6px; }
+.kv-label { font-size: 8.5pt; color: {$muted}; white-space: nowrap; padding-right: 6px; text-align: right; }
 .kv-value { font-size: 9.5pt; color: {$ink}; }
 .delivery-primary { font-size: 9.5pt; font-weight: bold; color: {$ink}; margin-bottom: 3px; }
 .delivery-line { font-size: 8.5pt; color: {$muted}; margin-bottom: 3px; }

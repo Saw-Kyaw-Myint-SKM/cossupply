@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Quotation;
 
+use App\Models\QuotationRequest;
 use App\Models\Setting;
 use App\Services\Audit\AuditLogService;
 use App\Services\Quotation\QuotationNumberGenerator;
@@ -24,7 +25,7 @@ class QuotationNumberGeneratorTest extends TestCase
 
     public function test_generates_the_default_format_from_the_row_id(): void
     {
-        $request = new \App\Models\QuotationRequest;
+        $request = new QuotationRequest;
         $request->id = 42;
 
         $this->assertSame('QT-'.now()->year.'-0042', $this->generator->generate($request));
@@ -32,7 +33,7 @@ class QuotationNumberGeneratorTest extends TestCase
 
     public function test_pads_the_id_to_four_digits_and_grows_naturally_beyond(): void
     {
-        $request = new \App\Models\QuotationRequest;
+        $request = new QuotationRequest;
         $request->id = 7;
 
         $this->assertSame('QT-'.now()->year.'-0007', $this->generator->generate($request));
@@ -53,7 +54,7 @@ class QuotationNumberGeneratorTest extends TestCase
             'is_public' => false,
         ]);
 
-        $request = new \App\Models\QuotationRequest;
+        $request = new QuotationRequest;
         $request->id = 1;
 
         $this->assertSame('SUP-'.now()->year.'-0001', $this->generator->generate($request));

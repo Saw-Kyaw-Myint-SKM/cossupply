@@ -195,7 +195,8 @@ class SkuGeneratorTest extends TestCase
      */
     private function generator(array $codes = []): SkuGenerator
     {
-        return new class($codes) extends SkuGenerator {
+        return new class($codes) extends SkuGenerator
+        {
             /** @var list<string> */
             private array $codes;
 

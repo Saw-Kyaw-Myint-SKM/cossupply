@@ -8,7 +8,6 @@ use App\Http\Requests\Api\V1\UpdateCustomerAddressRequest;
 use App\Http\Resources\CustomerAddressResource;
 use App\Http\Traits\PaginationMeta;
 use App\Models\Customer;
-use App\Models\CustomerAddress;
 use App\Services\Customer\CustomerAddressService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

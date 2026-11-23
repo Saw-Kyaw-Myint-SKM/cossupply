@@ -59,6 +59,29 @@ class QuotationPdfTemplateTest extends TestCase
         );
     }
 
+    public function test_uses_the_brand_logo_in_the_header(): void
+    {
+        $quotation = $this->quotation();
+
+        $html = app(QuotationPdfTemplate::class)->html($quotation, now());
+
+        $this->assertStringContainsString('class="brand-logo"', $html);
+        $this->assertStringContainsString('data:image/png;base64,', $html);
+        $this->assertStringNotContainsString('<div class="brand">CoSupply</div>', $html);
+    }
+
+    public function test_right_aligns_numeric_column_headers(): void
+    {
+        $quotation = $this->quotation();
+
+        $html = app(QuotationPdfTemplate::class)->html($quotation, now());
+
+        $this->assertStringContainsString('<th class="col-qty" style="text-align:right;">QTY</th>', $html);
+        $this->assertStringContainsString('<th class="col-unit" style="text-align:right;">UNIT PRICE</th>', $html);
+        $this->assertStringContainsString('<th class="col-disc" style="text-align:right;">DISC.</th>', $html);
+        $this->assertStringContainsString('<th class="col-amount" style="text-align:right;">AMOUNT</th>', $html);
+    }
+
     /**
      * @param  array<string, mixed>  $itemAttributes
      */

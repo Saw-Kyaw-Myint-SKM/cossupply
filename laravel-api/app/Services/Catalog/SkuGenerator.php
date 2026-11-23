@@ -4,7 +4,6 @@ namespace App\Services\Catalog;
 
 use App\Exceptions\ResourceConflictException;
 use App\Models\Product;
-use App\Models\ProductVariant;
 use Illuminate\Support\Str;
 
 /**

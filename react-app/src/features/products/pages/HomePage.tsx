@@ -1,15 +1,15 @@
 /**
  * Home Page — storefront landing.
  *
- * The composition follows the supplied storefront design: a promo carousel,
- * the product deals rail, the category ring index, the customer benefits band,
- * the service flow, and the full contact page as the closing section.
- * Everything data-bearing comes
+ * The composition follows the supplied storefront design: an editorial hero
+ * carousel, the product deals rail, the category ring index, the customer
+ * benefits band, the service flow, and the full contact page as the closing
+ * section. Everything data-bearing comes
  * from the public catalog endpoints; copy that states a policy (display
  * prices, quotation confirmation, cash on delivery) mirrors the product
  * specification and is never invented.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowRight, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import {
@@ -18,50 +18,138 @@ import {
   type PublicCategory,
   type PublicProduct,
 } from '../../../api/catalog';
+import { listBanners, type PublicBanner } from '../../../api/banners';
 import {
   categoryFallbackImage,
   EmptyState,
-  FALLBACK_BANNER,
   PricingNotice,
   SkeletonCard,
   primaryButtonClass,
 } from '../../../components/catalog-ui/CatalogUi';
 import { displayUnitPrice } from '../../../lib/cart-storage';
+import {
+  DEFAULT_BANNER_THEME,
+  bannerGlow,
+  bannerGrid,
+  getBannerTheme,
+  type BannerTheme,
+} from '../../../lib/banner-themes';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
 import { CustomerBenefits } from '../components/CustomerBenefits';
 import { ServiceFlow } from '../components/ServiceFlow';
 import { ContactSection } from '../../content/components/ContactSection';
 import { useI18n, type TranslationKey } from '../../../lib/i18n-context';
 
-interface Slide {
-  eyebrowKey: TranslationKey;
+/** One normalised hero message, whether it came from the DB or the fallback. */
+interface HeroSlide {
+  key: string;
+  title: string;
+  subtitle: string | null;
+  ctaLabel: string;
+  linkUrl: string | null;
+  imageUrl: string | null;
+  theme: BannerTheme;
+}
+
+/** Internal links use the router; absolute links open in a new tab. */
+function HeroCta({
+  to,
+  className,
+  style,
+  arrowClassName,
+  children,
+}: {
+  to: string;
+  className: string;
+  style: CSSProperties;
+  arrowClassName: string;
+  children: ReactNode;
+}) {
+  const content = (
+    <>
+      {children}
+      <span
+        aria-hidden="true"
+        className={`flex h-6 w-6 items-center justify-center rounded-full transition-transform group-hover:translate-x-0.5 sm:h-7 sm:w-7 ${arrowClassName}`}
+      >
+        <FiArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      </span>
+    </>
+  );
+
+  if (/^https?:\/\//i.test(to)) {
+    return (
+      <a href={to} target="_blank" rel="noopener noreferrer" className={className} style={style}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link to={to} className={className} style={style}>
+      {content}
+    </Link>
+  );
+}
+
+const AUTOPLAY_MS = 5000;
+
+/**
+ * Pause the carousel for visitors who ask their system to reduce motion.
+ * `matchMedia` is absent during the server render used by the tests.
+ */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduced(query.matches);
+
+    update();
+    query.addEventListener?.('change', update);
+
+    return () => query.removeEventListener?.('change', update);
+  }, []);
+
+  return reduced;
+}
+
+interface FallbackSlide {
+  key: string;
   headlineKey: TranslationKey;
   offerKey: TranslationKey;
   ctaKey: TranslationKey;
   to: string;
+  theme: BannerTheme;
 }
 
-const SLIDES: readonly Slide[] = [
+/** Rotating copy shown when the admin has not published any banner yet. */
+const FALLBACK_SLIDES: readonly FallbackSlide[] = [
   {
-    eyebrowKey: 'homeSlide1Eyebrow',
+    key: 'fallback-1',
     headlineKey: 'homeSlide1Headline',
     offerKey: 'homeSlide1Offer',
     ctaKey: 'homeSlide1Cta',
     to: '/products',
+    theme: 'ink',
   },
   {
-    eyebrowKey: 'homeSlide2Eyebrow',
+    key: 'fallback-2',
     headlineKey: 'homeSlide2Headline',
     offerKey: 'homeSlide2Offer',
     ctaKey: 'homeSlide2Cta',
     to: '/categories',
+    theme: 'violet',
   },
   {
-    eyebrowKey: 'homeSlide3Eyebrow',
+    key: 'fallback-3',
     headlineKey: 'homeSlide3Headline',
     offerKey: 'homeSlide3Offer',
     ctaKey: 'homeSlide3Cta',
     to: '/products',
+    theme: 'ocean',
   },
 ];
 
@@ -85,16 +173,22 @@ function SectionHeading({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 id={id} className="text-[22px] font-semibold leading-tight text-muted sm:text-[24px]">
           {lead} <span className="text-primary">{emphasis}</span>
         </h2>
+        {/* A real pill, not a quiet text link: this is the way out of the
+            five-card rail into the full catalog, so it has to read as an
+            action on a small phone. */}
         <Link
           to={to}
-          className="inline-flex flex-none items-center gap-2 text-sm font-medium text-ink hover:text-primary"
+          className="group inline-flex flex-none items-center gap-1.5 rounded-full border border-primary/30 bg-white/85 px-3.5 py-1.5 text-sm font-semibold text-primary shadow-sm ring-1 ring-white/70 backdrop-blur transition-colors hover:border-primary hover:bg-primary hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           {label}
-          <FiChevronRight aria-hidden="true" className="h-4 w-4" />
+          <FiArrowRight
+            aria-hidden="true"
+            className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5"
+          />
         </Link>
       </div>
       <div className="relative h-0.5 w-full bg-white/70">
@@ -112,12 +206,16 @@ function discountPercent(product: PublicProduct): number | null {
 }
 
 export default function HomePage() {
-  const { displayName, t } = useI18n();
+  const { displayName, locale, t } = useI18n();
   const [categories, setCategories] = useState<PublicCategory[]>([]);
   const [products, setProducts] = useState<PublicProduct[] | null>(null);
+  const [banners, setBanners] = useState<PublicBanner[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [slide, setSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [progressKey, setProgressKey] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     let cancelled = false;
@@ -127,8 +225,9 @@ export default function HomePage() {
     Promise.all([
       listCategories({ per_page: 12 }),
       listProducts({ per_page: 10 }),
+      listBanners(),
     ])
-      .then(([categoryResponse, productResponse]) => {
+      .then(([categoryResponse, productResponse, bannerResponse]) => {
         if (cancelled) return;
 
         if (categoryResponse.success && categoryResponse.data) {
@@ -140,6 +239,10 @@ export default function HomePage() {
         } else if (!productResponse.success) {
           setLoadError(describeCatalogError(productResponse, 'products'));
         }
+
+        if (bannerResponse.success && bannerResponse.data) {
+          setBanners(bannerResponse.data.banners);
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -148,14 +251,6 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // Auto-slide every 5 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSlide((prev) => (prev + 1) % SLIDES.length);
-    }, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const deals =
@@ -170,123 +265,349 @@ export default function HomePage() {
         ]
       : (products ?? []);
   const hasDeals = deals.length >= 3;
-  const activeSlide = SLIDES[slide];
-  const slideImage =
-    products?.[slide % Math.max(products.length, 1)]?.photo_url ?? FALLBACK_BANNER;
-  const activeSlideHeadline = t(activeSlide.headlineKey);
+
+  // Locale-aware text pick with a fallback to the other language, so a banner
+  // never renders blank just because one translation is missing.
+  const localized = (mm: string | null, en: string | null): string => {
+    const mmText = mm?.trim() ?? '';
+    const enText = en?.trim() ?? '';
+    return locale === 'my' ? mmText || enText : enText || mmText;
+  };
+
+  const dbSlides: HeroSlide[] = (banners ?? []).map((banner) => ({
+    key: `banner-${banner.id}`,
+    title: localized(banner.title_mm, banner.title_en),
+    subtitle: localized(banner.subtitle_mm, banner.subtitle_en) || null,
+    ctaLabel:
+      localized(banner.cta_label_mm, banner.cta_label_en) || t('homeBannerCtaFallback'),
+    linkUrl: banner.link_url,
+    imageUrl: banner.image_url,
+    theme: banner.background_style ?? DEFAULT_BANNER_THEME,
+  }));
+
+  const fallbackSlides: HeroSlide[] = FALLBACK_SLIDES.map((item) => ({
+    key: item.key,
+    title: t(item.headlineKey),
+    subtitle: t(item.offerKey),
+    ctaLabel: t(item.ctaKey),
+    linkUrl: item.to,
+    imageUrl: null,
+    theme: item.theme,
+  }));
+
+  const slides = dbSlides.length > 0 ? dbSlides : fallbackSlides;
+  const slideCount = slides.length;
+  const activeIndex = slideCount > 0 ? slide % slideCount : 0;
+  const activeSlide = slides[activeIndex];
+  const activeTheme = getBannerTheme(activeSlide.theme);
+  const hasAnyImage = slides.some((item) => item.imageUrl !== null);
+  const sourceKey =
+    dbSlides.length > 0 ? dbSlides.map((item) => item.key).join('|') : 'fallback';
+
+  // Restart from the first slide whenever the source changes (for example
+  // when the DB banners arrive after the fallback set).
+  useEffect(() => {
+    setSlide(0);
+  }, [sourceKey]);
+
+  // Advance once per slide. Pausing on hover/focus (and reduced motion) stops
+  // the timer; resuming restarts a full progress segment.
+  useEffect(() => {
+    if (prefersReducedMotion || isPaused || slideCount <= 1) return;
+
+    setProgressKey((key) => key + 1);
+    const timer = setTimeout(() => {
+      setSlide((previous) => (previous + 1) % slideCount);
+    }, AUTOPLAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [prefersReducedMotion, isPaused, slideCount, activeIndex]);
 
   const goToSlide = (index: number) => {
-    setSlide((index + SLIDES.length) % SLIDES.length);
+    if (slideCount === 0) return;
+    setSlide(((index % slideCount) + slideCount) % slideCount);
+    setProgressKey((key) => key + 1);
   };
 
   return (
     <div className="space-y-12 lg:space-y-16">
-      {/* Hero carousel */}
+      {/* Hero carousel — admin-managed banners with their own palettes, or the
+          fallback set when the catalog has no active banner yet. */}
       <section
         aria-roledescription="carousel"
         aria-label={t('homeCarouselLabel')}
-        className="relative overflow-hidden rounded-3xl shadow-glass ring-1 ring-white/60"
+        className="relative overflow-hidden rounded-3xl shadow-glass ring-1 ring-black/5"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
       >
-        <div className="relative h-[280px] sm:h-[320px] lg:h-[380px]">
-          {slideImage ? (
-            <img
-              src={slideImage}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 h-full w-full bg-gradient-to-br from-indigo-600 via-violet-600 to-sky-500" />
-          )}
-          
-          {/* Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-indigo-950/50 to-transparent" />
-          <div className="absolute inset-0 bg-[radial-gradient(65%_85%_at_12%_100%,rgba(0,142,204,0.38),transparent_60%)]" />
-          
-          {/* Content — headline, gradient rule, offer, CTA. The rule carries
-              the brand accent the old eyebrow pill used to provide. */}
-          <div className="relative z-10 flex h-full items-end pb-[81px]">
-            <div className="w-full max-w-[620px] px-6 sm:px-10 lg:px-14">
-              <h1
-                key={activeSlide.headlineKey}
-                className="whitespace-nowrap text-[22px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white drop-shadow-lg motion-safe:animate-rise-in max-[359px]:whitespace-normal sm:text-[34px] lg:text-[40px]"
-              >
-                {activeSlideHeadline}
-              </h1>
-              <span
-                key={`rule-${activeSlide.headlineKey}`}
-                aria-hidden="true"
-                className="mt-4 mb-3 block h-[3px] w-10 origin-left rounded-full bg-gradient-to-r from-primary via-sky-400 to-violet-400 motion-safe:animate-rule-grow sm:w-14"
+        {/* One background layer per slide, crossfading so each banner keeps its
+            own palette and, on mobile, its own image. */}
+        {slides.map((item, index) => {
+          const itemTheme = getBannerTheme(item.theme);
+          const isActive = index === activeIndex;
+
+          return (
+            <div
+              key={item.key}
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out ${
+                isActive ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ backgroundImage: itemTheme.background }}
+            >
+              {item.imageUrl ? (
+                <>
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover lg:hidden"
+                  />
+                  <div
+                    className="absolute inset-0 lg:hidden"
+                    style={{ backgroundImage: itemTheme.imageScrim }}
+                  />
+                </>
+              ) : null}
+              <div
+                className={`absolute inset-0 ${item.imageUrl ? 'hidden lg:block' : ''}`}
+                style={{ backgroundImage: bannerGrid(itemTheme) }}
               />
-              <p className="max-w-[44ch] text-[14px] leading-relaxed text-white/80 drop-shadow sm:text-[15px] lg:text-base">
-                {t(activeSlide.offerKey)}
-              </p>
-              <Link
-                to={activeSlide.to}
-                className="group mt-4 inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-primary to-sky-500 py-1.5 pl-4 pr-1.5 text-xs font-semibold text-white shadow-md shadow-primary/30 transition-all hover:brightness-105 hover:shadow-primary/40 active:scale-[0.98] sm:mt-6 sm:gap-2.5 sm:py-2 sm:pl-5 sm:pr-2 sm:text-sm"
-              >
-                {t(activeSlide.ctaKey)}
-                <span
-                  aria-hidden="true"
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform group-hover:translate-x-0.5 sm:h-7 sm:w-7"
-                >
-                  <FiArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </span>
-              </Link>
+              <div
+                className={`absolute inset-0 ${item.imageUrl ? 'hidden lg:block' : ''}`}
+                style={{ backgroundImage: bannerGlow(itemTheme) }}
+              />
             </div>
+          );
+        })}
+
+        {hasAnyImage ? null : (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-2 top-1/2 -translate-y-1/2 select-none font-black leading-none tracking-tighter text-[clamp(7rem,22vw,18rem)] lg:right-6"
+            style={{ color: activeTheme.numeral }}
+          >
+            {String(activeIndex + 1).padStart(2, '0')}
+          </span>
+        )}
+
+        <div
+          className={`relative z-10 px-5 py-8 sm:px-10 sm:py-12 lg:px-12 lg:py-12 ${
+            hasAnyImage
+              ? 'flex min-h-[380px] flex-col justify-end gap-8 lg:grid lg:min-h-0 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10'
+              : ''
+          }`}
+        >
+          <div
+            key={activeSlide.key}
+            className={`motion-safe:animate-rise-in ${
+              hasAnyImage ? 'max-w-2xl' : 'max-w-3xl'
+            }`}
+            onFocusCapture={() => setIsPaused(true)}
+            onBlurCapture={() => setIsPaused(false)}
+          >
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.24em]"
+              style={{ color: activeTheme.accent }}
+            >
+              {t('homeHeroOverline')}
+            </p>
+            <h1
+              id="home-hero-heading"
+              className={`mt-5 max-w-[20ch] font-extrabold tracking-[-0.02em] ${
+                hasAnyImage
+                  ? 'text-[clamp(1.9rem,3.6vw,3.1rem)]'
+                  : 'text-[clamp(2rem,4.2vw,3.6rem)]'
+              } ${locale === 'my' ? 'leading-[1.5]' : 'leading-[1.04]'}`}
+              style={{ color: activeTheme.heading }}
+            >
+              {activeSlide.title}
+            </h1>
+            <span
+              aria-hidden="true"
+              className="mt-5 mb-4 block h-[2px] w-14 origin-left rounded-full motion-safe:animate-rule-grow"
+              style={{ backgroundColor: activeTheme.accent }}
+            />
+            {activeSlide.subtitle ? (
+              <p
+                className="max-w-[56ch] text-[15px] leading-relaxed sm:text-base"
+                style={{ color: activeTheme.body }}
+              >
+                {activeSlide.subtitle}
+              </p>
+            ) : null}
+            {activeSlide.linkUrl ? (
+              <HeroCta
+                to={activeSlide.linkUrl}
+                style={{ backgroundColor: activeTheme.accent, color: activeTheme.ctaText }}
+                arrowClassName={activeTheme.isLight ? 'bg-black/10' : 'bg-white/15'}
+                className="group mt-6 inline-flex items-center gap-1.5 rounded-full py-2 pl-4 pr-1.5 text-[13px] font-semibold shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:gap-2 sm:py-2.5 sm:pl-6 sm:pr-2 sm:text-sm"
+              >
+                {activeSlide.ctaLabel}
+              </HeroCta>
+            ) : null}
           </div>
+
+          {hasAnyImage ? (
+            <div className="relative mx-auto hidden h-[340px] w-full max-w-xl lg:block lg:max-w-none">
+              {slides.map((item, index) => {
+                const itemTheme = getBannerTheme(item.theme);
+                const isActive = index === activeIndex;
+
+                return (
+                  <div
+                    key={item.key}
+                    aria-hidden={!isActive}
+                    className={`absolute inset-0 transition-opacity duration-700 ease-out ${
+                      isActive ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="absolute -inset-3 rounded-[30px]"
+                      style={{ border: `1px solid ${itemTheme.accent}45` }}
+                    />
+                    {item.imageUrl ? (
+                      <div
+                        className={`relative h-full w-full overflow-hidden rounded-2xl shadow-2xl ${
+                          itemTheme.isLight ? 'ring-1 ring-black/10' : 'ring-1 ring-white/15'
+                        }`}
+                      >
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                        <div
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-0 ring-1 ring-inset ${
+                            itemTheme.isLight ? 'ring-black/5' : 'ring-white/10'
+                          }`}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="flex h-full w-full items-center justify-center rounded-2xl"
+                        style={{
+                          backgroundImage: itemTheme.background,
+                          boxShadow: itemTheme.isLight
+                            ? 'inset 0 0 0 1px rgba(0, 0, 0, 0.08)'
+                            : 'inset 0 0 0 1px rgba(255, 255, 255, 0.12)',
+                        }}
+                      >
+                        <span
+                          className="font-black text-[7rem] leading-none tracking-tighter"
+                          style={{ color: itemTheme.numeral }}
+                        >
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
-        {/* Bottom bar */}
-        <div className="absolute bottom-0 left-0 right-0 z-20">
-          <div className="flex items-center justify-between border-t border-white/15 bg-white/10 px-6 py-3 backdrop-blur-xl">
-            {/* Indicators */}
-            <div className="flex items-center gap-2" role="group" aria-label={t('homeChooseSlide')}>
-              {SLIDES.map((item, index) => (
-                <button
-                  key={item.headlineKey}
-                  type="button"
-                  onClick={() => setSlide(index)}
-                  aria-label={t('homeShowSlide', { number: index + 1 })}
-                  aria-current={index === slide ? 'true' : undefined}
-                  className="flex items-center justify-center"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`block h-1 rounded-full transition-all ${
-                      index === slide ? 'w-8 bg-cyan-300' : 'w-4 bg-white/40 hover:bg-white/60'
+        {slideCount > 1 ? (
+          <div
+            className="relative z-20 flex items-center gap-4 border-t px-5 py-3 sm:px-8"
+            style={{
+              borderColor: activeTheme.isLight
+                ? 'rgba(0, 0, 0, 0.08)'
+                : 'rgba(255, 255, 255, 0.12)',
+            }}
+          >
+            <div
+              className="flex flex-1 items-center gap-1.5"
+              role="group"
+              aria-label={t('homeChooseSlide')}
+            >
+              {slides.map((item, index) => {
+                const isActive = index === activeIndex;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => goToSlide(index)}
+                    aria-label={t('homeShowSlide', { number: index + 1 })}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={`group flex h-6 flex-1 items-center focus:outline-none focus-visible:ring-2 ${
+                      activeTheme.isLight
+                        ? 'focus-visible:ring-black/40'
+                        : 'focus-visible:ring-white/70'
                     }`}
-                  />
-                </button>
-              ))}
+                  >
+                    <span
+                      className={`relative block h-1 w-full overflow-hidden rounded-full transition-colors ${
+                        isActive
+                          ? activeTheme.isLight
+                            ? 'bg-black/15'
+                            : 'bg-white/25'
+                          : activeTheme.isLight
+                            ? 'bg-black/10 group-hover:bg-black/20'
+                            : 'bg-white/20 group-hover:bg-white/35'
+                      }`}
+                    >
+                      {isActive ? (
+                        <span
+                          key={progressKey}
+                          aria-hidden="true"
+                          className={`absolute inset-0 origin-left rounded-full motion-safe:animate-slide-progress ${
+                            isPaused ? '[animation-play-state:paused]' : ''
+                          }`}
+                          style={{ backgroundColor: activeTheme.accent }}
+                        />
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Arrows */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => goToSlide(slide - 1)}
+                onClick={() => goToSlide(activeIndex - 1)}
                 aria-label={t('homePreviousSlide')}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
+                className="flex h-7 w-7 items-center justify-center rounded-full transition-all hover:brightness-110 active:scale-95 sm:h-8 sm:w-8"
+                style={{
+                  backgroundColor: activeTheme.isLight
+                    ? 'rgba(0, 0, 0, 0.08)'
+                    : 'rgba(255, 255, 255, 0.2)',
+                  color: activeTheme.heading,
+                }}
               >
                 <FiChevronLeft aria-hidden="true" className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                onClick={() => goToSlide(slide + 1)}
+                onClick={() => goToSlide(activeIndex + 1)}
                 aria-label={t('homeNextSlide')}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 active:scale-95 transition-all"
+                className="flex h-7 w-7 items-center justify-center rounded-full transition-all hover:brightness-110 active:scale-95 sm:h-8 sm:w-8"
+                style={{
+                  backgroundColor: activeTheme.isLight
+                    ? 'rgba(0, 0, 0, 0.08)'
+                    : 'rgba(255, 255, 255, 0.2)',
+                  color: activeTheme.heading,
+                }}
               >
                 <FiChevronRight aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
           </div>
-        </div>
+        ) : null}
 
         <p aria-live="polite" className="sr-only">
           {t('homeSlideStatus', {
-            current: slide + 1,
-            total: SLIDES.length,
-            title: activeSlideHeadline,
+            current: activeIndex + 1,
+            total: slideCount,
+            title: activeSlide.title,
           })}
         </p>
       </section>

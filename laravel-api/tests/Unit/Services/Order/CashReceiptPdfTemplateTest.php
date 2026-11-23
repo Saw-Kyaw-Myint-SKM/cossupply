@@ -39,6 +39,28 @@ class CashReceiptPdfTemplateTest extends TestCase
         $this->assertStringContainsString('Partial payment is not accepted.', $html);
     }
 
+    public function test_uses_the_brand_logo_in_the_header(): void
+    {
+        [$payment, $order] = $this->receipt();
+
+        $html = app(CashReceiptPdfTemplate::class)->html($payment, $order, now());
+
+        $this->assertStringContainsString('class="brand-logo"', $html);
+        $this->assertStringContainsString('data:image/png;base64,', $html);
+        $this->assertStringNotContainsString('<div class="brand">CoSupply</div>', $html);
+    }
+
+    public function test_right_aligns_numeric_column_headers(): void
+    {
+        [$payment, $order] = $this->receipt();
+
+        $html = app(CashReceiptPdfTemplate::class)->html($payment, $order, now());
+
+        $this->assertStringContainsString('<th class="col-qty" style="text-align:right;">QTY</th>', $html);
+        $this->assertStringContainsString('<th class="col-unit" style="text-align:right;">UNIT PRICE</th>', $html);
+        $this->assertStringContainsString('<th class="col-amount" style="text-align:right;">LINE TOTAL</th>', $html);
+    }
+
     /**
      * @return array{0: CashPayment, 1: Order}
      */

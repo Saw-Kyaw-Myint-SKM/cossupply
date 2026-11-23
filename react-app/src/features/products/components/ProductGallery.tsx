@@ -1,8 +1,9 @@
 /**
  * Product image gallery for the public detail page.
  *
- * The main image follows the selected variant and the thumbnail strip lets a
- * buyer switch variants directly.
+ * The main image follows the selected variant. The thumbnail strip always
+ * leads with the product's own photo, so the base product stays reachable
+ * once a variant has been picked.
  */
 import type { PublicProduct, PublicProductVariant } from '../../../api/catalog';
 import { FALLBACK_BANNER } from '../../../components/catalog-ui/CatalogUi';
@@ -12,7 +13,8 @@ interface ProductGalleryProps {
   selectedVariant: PublicProductVariant | null;
   displayName: string;
   selectedVariantLabel: string | null;
-  onSelect: (variant: PublicProductVariant) => void;
+  /** `null` selects the product's own photo instead of a variant. */
+  onSelect: (variant: PublicProductVariant | null) => void;
 }
 
 export default function ProductGallery({
@@ -41,6 +43,26 @@ export default function ProductGallery({
 
       {variants.length > 0 ? (
         <div className="flex gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            aria-pressed={selectedVariant === null}
+            aria-label={`View ${displayName}`}
+            className={`h-14 w-14 flex-none overflow-hidden rounded-lg border-2 bg-white shadow-sm transition ${
+              selectedVariant === null
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-rule hover:border-primary/50'
+            }`}
+          >
+            <img
+              src={product.photo_url ?? FALLBACK_BANNER}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          </button>
+
           {variants.map((variant) => {
             const isSelected = selectedVariant?.id === variant.id;
             const isUnavailable = variant.stock_status === 'OUT_OF_STOCK';

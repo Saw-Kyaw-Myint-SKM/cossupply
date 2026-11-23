@@ -61,6 +61,8 @@ FRONTEND_URL=https://cosupplymm.com
 # SPA domain makes Sanctum run its cookie/CSRF middleware and Bearer-token
 # requests then fail with HTTP 419 "CSRF token mismatch".
 SANCTUM_STATEFUL_DOMAINS=
+# Bearer-token lifetime in minutes (default 604800 = 7 days). Set 0 to disable.
+SANCTUM_EXPIRATION_MINUTES=10080
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1

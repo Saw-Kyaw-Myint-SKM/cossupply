@@ -8,6 +8,7 @@ import {
   FiTrendingUp,
   FiUsers,
   FiSettings,
+  FiShield,
   FiGrid,
   FiMail,
   FiActivity,
@@ -133,6 +134,8 @@ function QuickLink({ to, icon, label, description }: QuickLinkProps) {
 export default function AdminDashboardPage() {
   const { admin } = useAuth();
   const { locale, t } = useI18n();
+
+  const isSuperAdmin = admin?.role === 'super_admin';
 
   // Order stats
   const [orderTotal, setOrderTotal] = useState<number | null>(null);
@@ -452,6 +455,14 @@ export default function AdminDashboardPage() {
             label={t('notifications')}
             description={t('notificationCenter')}
           />
+          {isSuperAdmin ? (
+            <QuickLink
+              to="/admin/admin-users"
+              icon={<FiShield aria-hidden="true" />}
+              label={t('adminUsers')}
+              description={t('manageAdminUsers')}
+            />
+          ) : null}
           <QuickLink
             to="/admin/settings"
             icon={<FiSettings aria-hidden="true" />}

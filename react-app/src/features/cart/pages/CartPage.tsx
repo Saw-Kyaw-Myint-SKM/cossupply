@@ -38,10 +38,8 @@ import { useI18n } from '../../../lib/i18n-context';
 
 interface SupplierGroup {
   key: string;
-  supplierId: number;
   supplierName: string | null;
   lines: CartItem[];
-  subtotal: number;
 }
 
 /** Group cart lines by supplier, preserving the order they were added in. */
@@ -57,15 +55,11 @@ function groupBySupplier(items: CartItem[]): SupplierGroup[] {
       indexByKey.set(key, groups.length);
       groups.push({
         key,
-        supplierId: item.supplier_id,
         supplierName: item.supplier_name,
         lines: [item],
-        subtotal: item.unit_price * item.quantity,
       });
     } else {
-      const group = groups[existing];
-      group.lines.push(item);
-      group.subtotal += item.unit_price * item.quantity;
+      groups[existing].lines.push(item);
     }
   }
 
@@ -234,16 +228,19 @@ export default function CartPage() {
                 aria-hidden="true"
                 className="h-[3px] w-full bg-gradient-to-r from-primary via-sky-400 to-violet-400"
               />
-              <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-slate-100 px-4 py-3 sm:px-5">
-                <h2 className="text-sm font-semibold text-ink">
-                  {group.supplierName ?? t('supplierDefault')}
-                </h2>
-                <span className="text-xs text-subtle tabular-nums">
-                  {group.lines.length} {t(group.lines.length === 1 ? 'line' : 'lines')} · {formatMMK(group.subtotal)} MMK
-                </span>
-              </header>
+              {/* One supplier needs no label; the split only earns a
+                  heading when the order list spans more than one supplier.
+                  The per-group line count and subtotal just repeat the
+                  summary, so they stay out of the card. */}
+              {groups.length > 1 ? (
+                <header className="border-b border-slate-100 px-4 py-3 sm:px-5">
+                  <h2 className="text-sm font-semibold text-ink">
+                    {group.supplierName ?? t('supplierDefault')}
+                  </h2>
+                </header>
+              ) : null}
 
-              <ul className="divide-y divide-slate-100 max-sm:space-y-3 max-sm:divide-y-0 max-sm:p-3">
+              <ul className="divide-y divide-slate-100">
                 {group.lines.map((item) => {
                   const rowError = rowErrors[lineKey(item)];
                   const minimum = item.minimum_order_quantity;
@@ -257,19 +254,10 @@ export default function CartPage() {
                     .map((part) => (part ?? '').trim())
                     .filter((part) => part.length > 0);
 
-                  // Mobile cards mirror the quotation-request card meta line.
-                  const mobileMetaParts = [
-                    item.supplier_name ?? t('supplierDefault'),
-                    minimum > 1 ? t('minimumOrderShort', { count: minimum }) : null,
-                    item.sku ? t('sku', { sku: item.sku }) : null,
-                  ]
-                    .map((part) => (part ?? '').trim())
-                    .filter((part) => part.length > 0);
-
                   return (
                     <li
                       key={lineKey(item)}
-                      className="flex flex-col p-4 transition-colors hover:bg-slate-50/70 max-sm:rounded-xl max-sm:border max-sm:border-rule max-sm:bg-plate max-sm:shadow-sm sm:flex-row sm:gap-4 sm:p-5"
+                      className="flex flex-col p-4 transition-colors hover:bg-slate-50/70 sm:flex-row sm:gap-4 sm:p-5"
                     >
                       {/* Header: thumbnail + product identity */}
                       <div className="flex min-w-0 gap-4 max-sm:gap-3 sm:flex-1">
@@ -293,7 +281,7 @@ export default function CartPage() {
                             <p className="mt-0.5 text-xs font-medium text-accent">{item.variant_label}</p>
                           ) : null}
                           <p className="mt-0.5 truncate text-xs text-gray-500 sm:hidden">
-                            {mobileMetaParts.join(' · ')}
+                            {metaParts.join(' · ')}
                           </p>
                           <p className="mt-0.5 hidden text-xs text-subtle sm:block">
                             {metaParts.join(' · ')}
@@ -320,7 +308,7 @@ export default function CartPage() {
                       </div>
 
                       {/* Price, quantity and line total */}
-                      <div className="flex flex-col gap-3 max-sm:mt-3 max-sm:border-t max-sm:border-rule max-sm:pt-3 sm:flex-none sm:items-end">
+                      <div className="flex flex-col gap-3 max-sm:mt-3 max-sm:border-t max-sm:border-slate-100 max-sm:pt-3 sm:flex-none sm:items-end">
                         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-2 sm:justify-end sm:gap-5">
                           {/* Unit price — mobile reads like the quotation-request card */}
                           <div className="min-w-0 flex-1 text-right max-sm:text-left sm:flex-none">

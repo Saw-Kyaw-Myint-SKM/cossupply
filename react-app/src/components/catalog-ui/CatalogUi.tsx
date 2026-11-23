@@ -179,6 +179,7 @@ export function StatusBadge({ status }: { status: string }) {
   const { t } = useI18n();
   const tone = STATUS_BADGE_CLASSES[status] ?? 'bg-paper text-ink ring-gray-500/20';
   const statusKey: Record<string, TranslationKey> = {
+    ACTIVE: 'active', INACTIVE: 'inactive',
     NEW: 'statusNew', CONTACTING_SUPPLIER: 'statusContactingSupplier', SUPPLIER_RESPONSE_PENDING: 'statusAwaitingSupplier', PREPARING_QUOTATION: 'statusPreparingQuotation', QUOTATION_SENT: 'statusQuotationSent', CUSTOMER_REVIEWING: 'statusReviewing', CHANGE_REQUESTED: 'statusChangeRequested', ACCEPTED: 'statusAccepted', REJECTED: 'statusRejected', EXPIRED: 'statusExpired', CANCELLED: 'statusCancelled', DRAFT: 'statusDraft', SENT: 'statusSent', VIEWED: 'statusViewed', SUPERSEDED: 'statusSuperseded', IN_STOCK: 'inStock', LOW_STOCK: 'lowStock', OUT_OF_STOCK: 'outOfStock', PRE_ORDER: 'preOrder', SUPPLIER_CONFIRMATION_REQUIRED: 'supplierConfirmationRequired', ORDER_CONFIRMED: 'statusOrderConfirmed', PREPARING: 'statusPreparing', READY_TO_SHIP: 'statusReadyToShip', OUT_FOR_DELIVERY: 'statusOutForDelivery', DELIVERED: 'statusDelivered', COMPLETED: 'statusCompleted', SUPPLIER_UNAVAILABLE: 'statusSupplierUnavailable', DELIVERY_FAILED: 'statusDeliveryFailed', RETURNED: 'statusReturned', NOT_ASSIGNED: 'statusNotAssigned', NOT_PAID: 'statusNotPaid', CASH_COLLECTION_PENDING: 'statusCashCollectionPending', CASH_COLLECTED: 'statusCashCollected', PAYMENT_CONFIRMED: 'statusPaymentConfirmed', CUSTOMER_REFUSED_TO_PAY: 'statusCustomerRefusedToPay', PAYMENT_FAILED: 'statusPaymentFailed',
   };
 

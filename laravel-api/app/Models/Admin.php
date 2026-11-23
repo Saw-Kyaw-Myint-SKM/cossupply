@@ -12,6 +12,20 @@ class Admin extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
+     * The assignable account roles.
+     *
+     * @var array<int, string>
+     */
+    public const ROLES = ['admin', 'super_admin'];
+
+    /**
+     * The assignable account statuses.
+     *
+     * @var array<int, string>
+     */
+    public const STATUSES = ['active', 'inactive'];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

@@ -5,8 +5,10 @@ import {
   FiClipboard,
   FiGrid,
   FiHome,
+  FiImage,
   FiMenu,
   FiSettings,
+  FiShield,
   FiTruck,
   FiUser,
   FiUsers,
@@ -42,8 +44,13 @@ const NAV_LINKS: NavItem[] = [
   { to: '/admin/suppliers', icon: <FiUsers />, label: 'suppliers' },
   { to: '/admin/customers', icon: <FiUser />, label: 'customersTitle' },
   { to: '/admin/categories', icon: <FiGrid />, label: 'categories' },
+  { to: '/admin/banners', icon: <FiImage />, label: 'banners' },
+  { to: '/admin/admin-users', icon: <FiShield />, label: 'adminUsers' },
   { to: '/admin/settings', icon: <FiSettings />, label: 'settings' },
 ];
+
+/** Admin-user management is super admin only; the API 403s everyone else. */
+const SUPER_ADMIN_ONLY_LINKS = ['/admin/admin-users'];
 
 function NavSection({ item, onClose }: { item: NavItem; onClose: () => void }) {
   const location = useLocation();
@@ -131,6 +138,11 @@ export function AdminLayout() {
   const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const isSuperAdmin = admin?.role === 'super_admin';
+  const visibleNavLinks = isSuperAdmin
+    ? NAV_LINKS
+    : NAV_LINKS.filter((link) => !SUPER_ADMIN_ONLY_LINKS.includes(link.to));
+
   return (
     <div className="aurora-stage flex min-h-screen">
       {/* Mobile sidebar backdrop */}
@@ -172,7 +184,7 @@ export function AdminLayout() {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label={t('adminNavigation')}>
             <ul className="space-y-1">
-              {NAV_LINKS.map((link) => (
+              {visibleNavLinks.map((link) => (
                 <li key={link.to}>
                   <NavSection item={link} onClose={() => setSidebarOpen(false)} />
                 </li>

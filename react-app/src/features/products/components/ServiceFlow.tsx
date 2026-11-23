@@ -9,6 +9,7 @@
  * The copy follows the selected locale and the step numerals use the locale's
  * digits, so Myanmar reads ၁–၄ and English reads 1–4.
  */
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowRight, FiCheck } from 'react-icons/fi';
 import { primaryButtonClass } from '../../../components/catalog-ui/CatalogUi';
@@ -42,9 +43,33 @@ const NOTES: readonly { titleKey: TranslationKey; bodyKey: TranslationKey }[] = 
 
 export function ServiceFlow() {
   const { t, locale } = useI18n();
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [isActive, setIsActive] = useState(false);
+
+  // Keep the rail moving only while the band is on screen; it rests as soon
+  // as the reader scrolls past, and starts again on the way back.
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setIsActive(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsActive(entry.isIntersecting),
+      { threshold: 0.15 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section aria-labelledby="home-service-heading" className="glass-panel overflow-hidden">
+    <section
+      ref={sectionRef}
+      aria-labelledby="home-service-heading"
+      className={`service-flow glass-panel overflow-hidden ${isActive ? 'is-active' : ''}`}
+    >
       <div
         aria-hidden="true"
         className="h-0.5 w-full bg-gradient-to-r from-primary via-sky-400 to-warm/70"
@@ -82,8 +107,11 @@ export function ServiceFlow() {
         <ol className="relative mt-8 grid gap-y-6 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-8 lg:grid-cols-4 lg:gap-x-0">
           <span
             aria-hidden="true"
-            className="absolute left-5 right-5 top-5 hidden h-px bg-gradient-to-r from-primary/30 via-primary/25 to-warm/45 lg:block"
-          />
+            className="absolute left-5 right-5 top-5 hidden h-px rounded-full bg-gradient-to-r from-primary/20 via-primary/20 to-warm/35 lg:block"
+          >
+            <span className="rail-flow-x absolute inset-0" />
+            <span className="rail-travel absolute top-1/2 h-[3px] w-16 -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent via-primary to-transparent" />
+          </span>
 
           {STEPS.map((step, index) => {
             const isLast = index === STEPS.length - 1;
@@ -93,13 +121,14 @@ export function ServiceFlow() {
                 {!isLast ? (
                   <span
                     aria-hidden="true"
-                    className="absolute -bottom-6 left-5 top-10 w-px bg-gradient-to-b from-primary/25 to-primary/10 sm:hidden"
+                    className="rail-flow-y absolute -bottom-6 left-5 top-10 w-px sm:hidden"
                   />
                 ) : null}
 
                 <span
                   aria-hidden="true"
-                  className={`relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white text-[15px] font-bold shadow-sm ring-2 ${
+                  style={{ animationDelay: `${0.9 + index * 1.5}s` }}
+                  className={`step-pulse relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white text-[15px] font-bold shadow-sm ring-2 ${
                     isLast ? 'text-warm ring-warm/40' : 'text-primary ring-primary/25'
                   }`}
                 >

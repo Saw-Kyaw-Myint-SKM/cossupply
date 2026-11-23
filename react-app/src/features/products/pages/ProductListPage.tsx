@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FiFilter, FiLoader, FiSearch, FiTrash2, FiX } from 'react-icons/fi';
+import { FiChevronDown, FiFilter, FiLoader, FiSearch, FiTrash2, FiX } from 'react-icons/fi';
 import {
   listCategories,
   listProducts,
@@ -32,7 +32,6 @@ import {
   EmptyState,
   PageHeader,
   SkeletonCard,
-  filterSelectClass,
   secondaryButtonClass,
 } from '../../../components/catalog-ui/CatalogUi';
 import { ProductCard, describeCatalogError } from '../components/ProductUi';
@@ -409,6 +408,18 @@ export default function ProductListPage() {
     return () => window.removeEventListener('keydown', onEscape);
   }, [sheetOpen]);
 
+  // Keep the catalog behind the sheet still while it is open.
+  useEffect(() => {
+    if (!sheetOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [sheetOpen]);
+
   const categoryOptions: RadioOption[] = [
     { value: '', label: 'All categories' },
     ...categories.map((category) => ({
@@ -426,15 +437,22 @@ export default function ProductListPage() {
   ];
 
   /* The mobile sheet keeps the select-based fields (distinct ids and radio
-   * names from the rail, so both can coexist in the document). */
+   * names from the rail, so both can coexist in the document). Controls are
+   * full-width and thumb-sized — a narrow desktop select reads as unfinished
+   * on a phone. */
+  const sheetLabelClass = 'mb-1.5 block text-xs font-semibold text-muted';
+  const sheetSelectWrapClass = 'relative mt-1.5';
+  const sheetSelectClass =
+    'h-11 w-full appearance-none rounded-xl border border-line/80 bg-plate pl-3.5 pr-10 text-sm text-ink shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25 disabled:cursor-not-allowed disabled:bg-paper disabled:text-subtle';
+
   const sheetFields = (
     <>
-      <div className="lg:col-span-2">
-        <label htmlFor="sheet-search" className="block text-xs font-medium text-muted">
+      <div>
+        <label htmlFor="sheet-search" className={sheetLabelClass}>
           Search
         </label>
-        <div className="mt-1 flex overflow-hidden rounded-md border border-line bg-plate focus-within:border-accent focus-within:ring-2 focus-within:ring-accent motion-safe:transition-colors">
-          <FiSearch aria-hidden="true" className="ml-3 h-4 w-4 flex-none self-center text-subtle" />
+        <div className="mt-1.5 flex h-11 overflow-hidden rounded-xl border border-line/80 bg-plate shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+          <FiSearch aria-hidden="true" className="ml-3.5 h-4 w-4 flex-none self-center text-subtle" />
           <input
             id="sheet-search"
             type="search"
@@ -442,73 +460,92 @@ export default function ProductListPage() {
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Name, SKU, brand or model"
             maxLength={100}
-            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-ink outline-none"
+            className="min-w-0 flex-1 bg-transparent px-2.5 text-sm text-ink outline-none placeholder:text-subtle"
           />
           <button
             type="submit"
-            className="flex-none bg-primary px-3 text-white hover:bg-primary-hover active:scale-[.99]"
+            aria-label="Search"
+            className="m-1 flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-hover active:scale-95 motion-safe:transition-all"
           >
-            Search
+            <FiSearch aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
       </div>
 
       <div>
-        <label htmlFor="sheet-category" className="block text-xs font-medium text-muted">
+        <label htmlFor="sheet-category" className={sheetLabelClass}>
           Category
         </label>
-        <select
-          id="sheet-category"
-          value={categoryId}
-          onChange={(event) => updateParams({ category_id: event.target.value })}
-          className={`${filterSelectClass} mt-1`}
-        >
-          <option value="">All categories</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {displayName(category)}
-            </option>
-          ))}
-        </select>
+        <div className={sheetSelectWrapClass}>
+          <select
+            id="sheet-category"
+            value={categoryId}
+            onChange={(event) => updateParams({ category_id: event.target.value })}
+            className={sheetSelectClass}
+          >
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {displayName(category)}
+              </option>
+            ))}
+          </select>
+          <FiChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle"
+          />
+        </div>
       </div>
 
       {showSupplierFilters ? (
         <div>
-          <label htmlFor="sheet-supplier" className="block text-xs font-medium text-muted">
+          <label htmlFor="sheet-supplier" className={sheetLabelClass}>
             Supplier
           </label>
-          <select
-            id="sheet-supplier"
-            value={supplierId}
-            onChange={(event) => updateParams({ supplier_id: event.target.value })}
-            className={`${filterSelectClass} mt-1`}
-          >
-            <option value="">All suppliers</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.shop_name}
-              </option>
-            ))}
-          </select>
+          <div className={sheetSelectWrapClass}>
+            <select
+              id="sheet-supplier"
+              value={supplierId}
+              onChange={(event) => updateParams({ supplier_id: event.target.value })}
+              className={sheetSelectClass}
+            >
+              <option value="">All suppliers</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.shop_name}
+                </option>
+              ))}
+            </select>
+            <FiChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle"
+            />
+          </div>
         </div>
       ) : null}
 
       <div>
-        <label htmlFor="sheet-stock" className="block text-xs font-medium text-muted">
+        <label htmlFor="sheet-stock" className={sheetLabelClass}>
           Availability
         </label>
-        <select
-          id="sheet-stock"
-          value={stockStatus}
-          onChange={(event) => updateParams({ stock_status: event.target.value })}
-          className={`${filterSelectClass} mt-1`}
-        >
-          {STOCK_FILTERS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div className={sheetSelectWrapClass}>
+          <select
+            id="sheet-stock"
+            value={stockStatus}
+            onChange={(event) => updateParams({ stock_status: event.target.value })}
+            className={sheetSelectClass}
+          >
+            {STOCK_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <FiChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle"
+          />
+        </div>
       </div>
     </>
   );
@@ -517,7 +554,7 @@ export default function ProductListPage() {
     <div className="space-y-6">
       <PageHeader
         title="Products"
-        description="Browse published products from verified suppliers. Prices shown are display prices and are confirmed in your quotation."
+        description="Prices shown are display prices and are confirmed in your quotation."
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
@@ -718,43 +755,74 @@ export default function ProductListPage() {
         </section>
       </div>
 
-      {/* Mobile filters sheet: slides up from the bottom edge, Esc closes. */}
+      {/* Mobile filters sheet: anchored to the bottom edge, slides up, Esc or
+          the backdrop closes. The body scrolls; the action row stays put above
+          the safe area. */}
       {sheetOpen ? (
-        <div className="fixed inset-0 z-50 bg-ink/40 lg:hidden" onClick={() => setSheetOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSheetOpen(false)}
+        >
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Filters"
-            className="motion-safe:animate-sheet-in flex max-h-[85vh] flex-col overflow-y-auto rounded-t-2xl border-t border-white/60 bg-white/90 p-4 backdrop-blur-xl"
-            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            aria-labelledby="filters-sheet-title"
+            className="motion-safe:animate-sheet-in flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-b-0 border-white/70 bg-white/95 shadow-[0_-18px_50px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:mb-4 sm:rounded-[1.75rem] sm:border-b"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">Filters</h2>
+            <div aria-hidden="true" className="flex flex-none justify-center pt-2.5">
+              <span className="h-1.5 w-10 rounded-full bg-line" />
+            </div>
+
+            <div className="flex flex-none items-start justify-between gap-4 px-5 pb-4 pt-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 id="filters-sheet-title" className="text-lg font-semibold tracking-tight text-ink">
+                    Filters
+                  </h2>
+                  {activeFilterCount > 0 ? (
+                    <span className="rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-semibold text-primary">
+                      {activeFilterCount} active
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  {meta ? `${meta.total} ${meta.total === 1 ? 'product' : 'products'}` : 'Refine the catalog'}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
                 aria-label="Close filters"
-                className="flex h-10 w-10 items-center justify-center rounded-md text-ink active:bg-paper"
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-paper text-muted hover:bg-accent-soft hover:text-ink active:scale-95 motion-safe:transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
-                <FiX aria-hidden="true" className="h-5 w-5" />
+                <FiX aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3">
-              {sheetFields}
-            </form>
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 pb-3">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {sheetFields}
+              </form>
+            </div>
 
-            <div className="mt-4 flex items-center gap-2">
+            <div
+              className="flex flex-none items-center gap-2.5 border-t border-rule/80 bg-white/85 px-5 pt-4 backdrop-blur"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            >
               {hasFilters ? (
-                <button type="button" onClick={clearFilters} className={secondaryButtonClass + ' flex-1'}>
-                  Clear filters
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-line bg-plate px-4 text-sm font-semibold text-ink shadow-sm hover:border-primary/30 hover:bg-accent-soft active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 motion-safe:transition-all"
+                >
+                  Clear
                 </button>
               ) : null}
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
-                className={secondaryButtonClass + ' flex-[2]'}
+                className="inline-flex h-11 flex-[2] items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md active:scale-[.99] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 motion-safe:transition-all"
               >
                 Show {meta ? `${meta.total} ` : ''}products
               </button>

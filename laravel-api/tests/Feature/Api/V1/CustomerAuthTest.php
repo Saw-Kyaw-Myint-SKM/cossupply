@@ -162,6 +162,59 @@ class CustomerAuthTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_suspended_customer_token_is_rejected_and_revoked(): void
+    {
+        $customer = Customer::factory()->create();
+        $token = $customer->createToken('customer-token', ['customer'])->plainTextToken;
+
+        $customer->update(['status' => 'suspended']);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/auth/user')
+            ->assertForbidden()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Your account has been suspended.');
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        // The test application caches the resolved guard user between
+        // requests; forget it so the revoked token is re-evaluated.
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/auth/user')
+            ->assertUnauthorized();
+    }
+
+    public function test_suspended_customer_cannot_use_shared_notification_routes(): void
+    {
+        $customer = Customer::factory()->create();
+        $token = $customer->createToken('customer-token', ['customer'])->plainTextToken;
+
+        $customer->update(['status' => 'suspended']);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/notifications')
+            ->assertForbidden()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Your account has been suspended.');
+    }
+
+    public function test_tokens_expire_after_the_configured_lifetime(): void
+    {
+        $customer = Customer::factory()->create();
+        $token = $customer->createToken('customer-token', ['customer'])->plainTextToken;
+
+        // The default lifetime is 7 days; move past it without touching the token.
+        $this->travel(8)->days();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/auth/user')
+            ->assertUnauthorized();
+
+        $this->travelBack();
+    }
+
     public function test_customer_can_fetch_own_profile(): void
     {
         $customer = Customer::factory()->create(['phone' => '09123456789']);

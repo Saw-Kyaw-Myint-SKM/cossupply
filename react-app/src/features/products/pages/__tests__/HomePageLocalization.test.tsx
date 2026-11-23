@@ -54,6 +54,7 @@ describe('HomePage localization', () => {
   it('keeps every home key translated in both catalogs', () => {
     const homeKeys = [
       'homeCarouselLabel',
+      'homeHeroOverline',
       'homeChooseSlide',
       'homeShowSlide',
       'homePreviousSlide',
@@ -71,6 +72,7 @@ describe('HomePage localization', () => {
       'homeSlide3Headline',
       'homeSlide3Offer',
       'homeSlide3Cta',
+      'homeBannerCtaFallback',
       'homeDealsLead',
       'homeDealsEmphasis',
       'homeFreshLead',

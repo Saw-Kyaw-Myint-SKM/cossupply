@@ -4,6 +4,7 @@ namespace App\Services\Order;
 
 use App\Models\CashPayment;
 use App\Models\Order;
+use App\Services\Pdf\PdfBrand;
 use App\Services\Setting\SettingService;
 use DateTimeInterface;
 
@@ -27,6 +28,7 @@ class CashReceiptPdfTemplate
 
     public function __construct(
         private readonly SettingService $settings,
+        private readonly PdfBrand $brand,
     ) {}
 
     public function html(CashPayment $payment, Order $order, DateTimeInterface $generatedAt): string
@@ -130,7 +132,7 @@ class CashReceiptPdfTemplate
 
             .'<table class="head"><tr>'
             .'<td class="head-left">'
-            .'<div class="brand">'.$this->e($companyName).'</div>'
+            .$this->brand->header($companyName)
             .($companyAddress !== '' ? '<div class="small">'.$this->e($companyAddress).'</div>' : '')
             .'<div class="small">'.$this->e(trim($companyPhone.'  '.$companyEmail)).'</div>'
             .'</td>'
@@ -159,9 +161,9 @@ class CashReceiptPdfTemplate
             .'<thead><tr>'
             .'<th class="col-num">#</th>'
             .'<th class="col-item">ITEM</th>'
-            .'<th class="col-qty">QTY</th>'
-            .'<th class="col-unit">UNIT PRICE</th>'
-            .'<th class="col-amount">LINE TOTAL</th>'
+            .'<th class="col-qty" style="text-align:right;">QTY</th>'
+            .'<th class="col-unit" style="text-align:right;">UNIT PRICE</th>'
+            .'<th class="col-amount" style="text-align:right;">LINE TOTAL</th>'
             .'</tr></thead>'
             .'<tbody>'.$itemRows.'</tbody>'
             .'</table>'
@@ -214,6 +216,7 @@ table { border-collapse: collapse; width: 100%; }
 .head-left { width: 55%; }
 .head-right { width: 45%; text-align: right; }
 .brand { font-size: 18pt; font-weight: bold; color: {$ink}; line-height: 1.1; }
+.brand-logo-wrap { line-height: 0; margin-bottom: 4px; }
 .doc-type { font-size: 22pt; font-weight: bold; color: {$ink}; line-height: 1.1; }
 .doc-number { font-size: 10pt; font-weight: bold; color: {$ink}; margin-top: 2px; }
 .small { font-size: 9pt; color: {$muted}; }
