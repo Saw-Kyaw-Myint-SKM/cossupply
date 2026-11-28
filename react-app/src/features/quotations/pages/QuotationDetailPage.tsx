@@ -946,6 +946,7 @@ export default function QuotationDetailPage() {
                                   <dt className="text-gray-500">{t('qty')}</dt>
                                   <dd className="mt-0.5 tabular-nums text-gray-700">
                                     {item.quantity}
+                                    {item.unit_snapshot ? ` ${item.unit_snapshot}` : ''}
                                   </dd>
                                 </div>
                                 <div>
@@ -987,6 +988,9 @@ export default function QuotationDetailPage() {
                               </th>
                               <th scope="col" className="px-4 py-2.5 text-right">
                                 {t('qty')}
+                              </th>
+                              <th scope="col" className="px-4 py-2.5 text-left">
+                                {t('unit')}
                               </th>
                               <th scope="col" className="px-4 py-2.5 text-right">
                                 {t('unitPrice')}
@@ -1043,6 +1047,9 @@ export default function QuotationDetailPage() {
                                   </th>
                                   <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                                     {item.quantity}
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-left text-gray-700">
+                                    {item.unit_snapshot ?? '—'}
                                   </td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                                     {formatQuotationAmount(item.unit_price, t)}

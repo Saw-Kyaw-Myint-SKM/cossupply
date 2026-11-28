@@ -60,6 +60,7 @@ class QuotationPdfService
     {
         $quotation->loadMissing([
             'quotationRequest',
+            'items.product',
             'items.supplier',
             'createdByAdmin',
         ]);
@@ -100,6 +101,7 @@ class QuotationPdfService
     {
         $quotation->loadMissing([
             'quotationRequest',
+            'items.product',
             'items.supplier',
             'createdByAdmin',
         ]);

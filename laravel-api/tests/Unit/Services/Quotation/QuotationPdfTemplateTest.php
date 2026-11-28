@@ -77,9 +77,19 @@ class QuotationPdfTemplateTest extends TestCase
         $html = app(QuotationPdfTemplate::class)->html($quotation, now());
 
         $this->assertStringContainsString('<th class="col-qty" style="text-align:right;">QTY</th>', $html);
+        $this->assertStringContainsString('<th class="col-uom">UNIT</th>', $html);
         $this->assertStringContainsString('<th class="col-unit" style="text-align:right;">UNIT PRICE</th>', $html);
         $this->assertStringContainsString('<th class="col-disc" style="text-align:right;">DISC.</th>', $html);
         $this->assertStringContainsString('<th class="col-amount" style="text-align:right;">AMOUNT</th>', $html);
+    }
+
+    public function test_prints_the_item_unit_between_quantity_and_unit_price(): void
+    {
+        $quotation = $this->quotation(['unit_snapshot' => 'pcs']);
+
+        $html = app(QuotationPdfTemplate::class)->html($quotation, now());
+
+        $this->assertStringContainsString('<td class="muted">pcs</td>', $html);
     }
 
     /**

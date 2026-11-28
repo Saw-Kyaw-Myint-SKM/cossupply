@@ -216,6 +216,7 @@ export default function SupplierCommunicationPanel({
               </p>
               <p className="mt-1 text-xs tabular-nums text-gray-500">
                 {t('qty')} {item.quantity}
+                {item.unit ? ` ${item.unit}` : ''}
               </p>
             </div>
           </li>

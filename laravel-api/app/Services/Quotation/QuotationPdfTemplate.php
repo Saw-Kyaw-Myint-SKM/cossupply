@@ -78,6 +78,7 @@ class QuotationPdfTemplate
                 .'<td class="num">%d</td>'
                 .'<td>%s</td>'
                 .'<td class="right muted">%s</td>'
+                .'<td class="muted">%s</td>'
                 .'<td class="right muted">%s</td>'
                 .'<td class="right muted">%s</td>'
                 .'<td class="right amount">%s</td>'
@@ -85,6 +86,7 @@ class QuotationPdfTemplate
                 $index + 1,
                 $this->e((string) $item->product_name_snapshot),
                 $this->e((string) $item->quantity),
+                $this->e((string) ($item->unit_snapshot ?? $item->product?->unit ?? '')),
                 $this->e($this->price((int) $item->unit_price)),
                 $this->e($this->price((int) $item->discount)),
                 $this->e($this->price((int) $item->line_total)),
@@ -189,6 +191,7 @@ class QuotationPdfTemplate
             .'<th class="col-num">#</th>'
             .'<th class="col-item">ITEM</th>'
             .'<th class="col-qty" style="text-align:right;">QTY</th>'
+            .'<th class="col-uom">UNIT</th>'
             .'<th class="col-unit" style="text-align:right;">UNIT PRICE</th>'
             .'<th class="col-disc" style="text-align:right;">DISC.</th>'
             .'<th class="col-amount" style="text-align:right;">AMOUNT</th>'
@@ -315,11 +318,12 @@ table { border-collapse: collapse; width: 100%; }
 .items td { font-size: 9.5pt; padding: 6px 4px; vertical-align: top; border-bottom: 0.25px solid {$rule}; }
 .items tr { page-break-inside: avoid; }
 .col-num { width: 5%; }
-.col-item { width: 45%; }
-.col-qty { width: 8%; text-align: right; }
+.col-item { width: 37%; }
+.col-qty { width: 7%; text-align: right; }
+.col-uom { width: 8%; }
 .col-unit { width: 15%; text-align: right; }
 .col-disc { width: 10%; text-align: right; }
-.col-amount { width: 17%; text-align: right; }
+.col-amount { width: 18%; text-align: right; }
 .num { color: {$muted}; }
 .right { text-align: right; }
 .muted { color: {$muted}; }

@@ -29,6 +29,7 @@ class QuotationVersionItemFactory extends Factory
             'supplier_id' => Supplier::factory(),
             'product_name_snapshot' => fake()->words(3, true),
             'sku_snapshot' => strtoupper(fake()->bothify('SKU-####-??')),
+            'unit_snapshot' => fake()->randomElement(['pcs', 'box', 'pack']),
             'specification_snapshot' => fake()->sentence(),
             'quantity' => fake()->numberBetween(1, 20),
             'unit_price' => fake()->numberBetween(1000, 100000),
@@ -60,6 +61,7 @@ class QuotationVersionItemFactory extends Factory
             'supplier_id' => $product->supplier_id,
             'product_name_snapshot' => $product->name_en ?? $product->name_mm,
             'sku_snapshot' => $product->sku,
+            'unit_snapshot' => $product->unit,
             'specification_snapshot' => $product->specification,
         ]);
     }

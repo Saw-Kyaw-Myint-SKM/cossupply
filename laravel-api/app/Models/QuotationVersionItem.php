@@ -23,6 +23,7 @@ class QuotationVersionItem extends Model
         'supplier_id',
         'product_name_snapshot',
         'sku_snapshot',
+        'unit_snapshot',
         'specification_snapshot',
         'quantity',
         'unit_price',

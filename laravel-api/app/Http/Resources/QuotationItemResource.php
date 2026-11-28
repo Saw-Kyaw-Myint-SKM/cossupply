@@ -36,6 +36,7 @@ class QuotationItemResource extends JsonResource
             'display_price' => $this->display_price,
             'stock_status' => $this->stock_status?->value,
             'sku' => $this->whenLoaded('product', fn () => $this->product?->sku),
+            'unit' => $this->whenLoaded('product', fn () => $this->product?->unit),
             'photo' => $this->whenLoaded('product', fn (): ?string => $this->product?->photo),
             'photo_url' => $this->whenLoaded(
                 'product',

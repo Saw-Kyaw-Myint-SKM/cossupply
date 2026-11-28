@@ -120,6 +120,9 @@ export default function ProductDetailPage() {
   }, [id]);
 
   const selectedVariantLabel = selectedVariant ? variantDisplayName(selectedVariant) : null;
+  // Customer quotation requests are customer-only. Admins keep the add action
+  // but do not get a shortcut into the customer request flow.
+  const canRequestQuotation = userType !== 'admin';
 
   const activePrice = selectedVariant
     ? selectedVariant.retail_price !== null
@@ -211,7 +214,7 @@ export default function ProductDetailPage() {
   };
 
   const handleRequestQuotation = () => {
-    if (!product || blocked) return;
+    if (!product || blocked || !canRequestQuotation) return;
 
     const error = quantityError(quantity, moq);
     if (error) {
@@ -465,14 +468,16 @@ export default function ProductDetailPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   {addControl('h-9 px-3 text-[13px]!')}
-                  <button
-                    type="button"
-                    onClick={handleRequestQuotation}
-                    disabled={Boolean(blocked)}
-                    className={`${blocked ? 'cursor-not-allowed border border-line bg-line text-subtle' : secondaryButtonClass} h-9 px-3 text-[13px]!`}
-                  >
-                    Request quotation
-                  </button>
+                  {canRequestQuotation ? (
+                    <button
+                      type="button"
+                      onClick={handleRequestQuotation}
+                      disabled={Boolean(blocked)}
+                      className={`${blocked ? 'cursor-not-allowed border border-line bg-line text-subtle' : secondaryButtonClass} h-9 px-3 text-[13px]!`}
+                    >
+                      Request quotation
+                    </button>
+                  ) : null}
                 </div>
 
                 {message ? (

@@ -35,6 +35,7 @@ class RerenderQuotationPdfsCommand extends Command
         $query = QuotationPdf::query()
             ->with([
                 'quotation.quotationRequest',
+                'quotation.items.product',
                 'quotation.items.supplier',
                 'quotation.createdByAdmin',
             ])

@@ -365,7 +365,7 @@ export default function QuotationVersionFormPage() {
                       <div className="min-w-0">
                         <h3 className="text-sm font-semibold text-ink">{item.product_name}</h3>
                         <p className="mt-1 text-xs text-gray-500">
-                          {[item.sku, item.supplier_name, item.specification]
+                          {[item.sku, item.unit ? `Unit: ${item.unit}` : null, item.supplier_name, item.specification]
                             .filter(Boolean)
                             .join(' · ') || 'No item metadata'}
                         </p>

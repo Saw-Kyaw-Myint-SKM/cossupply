@@ -42,6 +42,8 @@ export interface QuotationRequestItem {
   stock_status: string | null;
   /** Present when the backend eager-loads the product relation. */
   sku?: string | null;
+  /** Product unit from the eager-loaded product relation. */
+  unit?: string | null;
   /** Product image snapshot; absent when the product relation is not loaded. */
   photo?: string | null;
   photo_url?: string | null;
@@ -169,6 +171,8 @@ export interface CustomerQuotationVersionItem {
   specification_snapshot?: string | null;
   supplier_name_snapshot?: string | null;
   sku_snapshot?: string | null;
+  /** Unit frozen on the quotation version line; absent on older payloads. */
+  unit_snapshot?: string | null;
   /** Product image snapshot; absent when the product relation is not loaded. */
   photo?: string | null;
   photo_url?: string | null;

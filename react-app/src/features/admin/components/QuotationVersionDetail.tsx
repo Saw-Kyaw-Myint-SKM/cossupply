@@ -37,6 +37,7 @@ export default function QuotationVersionDetail({ version }: QuotationVersionDeta
               <th scope="col" className="w-10 px-4 py-2.5 text-left">#</th>
               <th scope="col" className="px-4 py-2.5 text-left">{t('itemLabel')}</th>
               <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right">{t('qty')}</th>
+              <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-left">{t('unit')}</th>
               <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right">{t('unitPrice')}</th>
               <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right">{t('discount')}</th>
               <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right">{t('lineTotal')}</th>
@@ -75,6 +76,9 @@ export default function QuotationVersionDetail({ version }: QuotationVersionDeta
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                   {item.quantity}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-left text-gray-700">
+                  {item.unit_snapshot ?? '—'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                   {formatMMK(item.unit_price)}

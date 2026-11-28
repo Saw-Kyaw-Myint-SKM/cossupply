@@ -339,6 +339,7 @@ product_id NULL FK -> products.id
 supplier_id NULL FK -> suppliers.id
 product_name_snapshot
 sku_snapshot NULL
+unit_snapshot NULL
 specification_snapshot NULL
 quantity
 unit_price

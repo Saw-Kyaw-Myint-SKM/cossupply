@@ -72,6 +72,7 @@ import {
   CustomerProtectedRoute,
   GuestRoute,
 } from './guards';
+import { RouteErrorPage } from './RouteErrorPage';
 import { useI18n } from '../lib/i18n-context';
 
 // Loading fallback
@@ -106,6 +107,7 @@ export const router = createBrowserRouter([
         <AdminLayout />
       </AdminProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,
@@ -350,6 +352,7 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       // Public Routes
       {
@@ -459,6 +462,7 @@ export const router = createBrowserRouter([
         <CustomerLayout />
       </CustomerProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,
@@ -477,6 +481,7 @@ export const router = createBrowserRouter([
         <CustomerLayout />
       </CustomerProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,
@@ -519,6 +524,7 @@ export const router = createBrowserRouter([
         <CustomerLayout />
       </CustomerProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,

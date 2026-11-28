@@ -661,6 +661,28 @@ class AdminQuotationWorkflowTest extends TestCase
         $this->assertSame(1200, $override->new_data['service_fee']);
     }
 
+    public function test_create_snapshots_the_product_unit_on_the_version_item(): void
+    {
+        $this->actingAsAdmin();
+        $request = $this->quotationRequest();
+        $item = $request->items()->first();
+        $product = Product::query()->findOrFail($item->product_id);
+
+        $create = $this->postJson("/api/v1/admin/quotation-requests/{$request->id}/quotations", [
+            'items' => [[
+                'product_id' => $item->product_id,
+                'quantity' => 1,
+                'unit_price' => 10000,
+            ]],
+        ])->assertCreated();
+
+        $quotation = Quotation::query()
+            ->with('items')
+            ->findOrFail($create->json('data.quotation.id'));
+
+        $this->assertSame($product->unit, $quotation->items->first()->unit_snapshot);
+    }
+
     public function test_generated_pdf_includes_its_generation_time(): void
     {
         $this->actingAsAdmin();

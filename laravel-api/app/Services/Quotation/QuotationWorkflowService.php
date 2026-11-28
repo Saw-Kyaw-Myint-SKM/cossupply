@@ -683,6 +683,7 @@ class QuotationWorkflowService
                 'supplier_id' => $product->supplier_id,
                 'product_name_snapshot' => $product->name_en ?? $product->name_mm,
                 'sku_snapshot' => $product->sku,
+                'unit_snapshot' => $product->unit,
                 'specification_snapshot' => $product->specification,
                 'quantity' => $priced['quantity'],
                 'unit_price' => $priced['unit_price'],

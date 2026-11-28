@@ -17,6 +17,7 @@ export interface VersionLineState {
   product_name: string;
   specification: string;
   sku: string | null;
+  unit: string;
   supplier_name: string | null;
   photo_url: string | null;
   quantity: string;
@@ -79,6 +80,7 @@ export function createVersionFormState(
       product_name: item.product_name_snapshot,
       specification: item.specification_snapshot ?? '',
       sku: item.sku ?? null,
+      unit: item.unit ?? '',
       supplier_name: item.supplier?.shop_name ?? null,
       photo_url: item.photo_url ?? null,
       quantity: String(item.quantity),
@@ -105,6 +107,7 @@ export function editVersionFormState(quotation: QuotationVersion): VersionFormSt
       product_name: item.product_name_snapshot,
       specification: item.specification_snapshot ?? '',
       sku: item.sku_snapshot,
+      unit: item.unit_snapshot ?? '',
       supplier_name: item.supplier?.shop_name ?? null,
       photo_url: item.photo_url ?? null,
       quantity: String(item.quantity),

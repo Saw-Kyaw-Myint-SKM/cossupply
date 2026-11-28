@@ -77,6 +77,8 @@ export interface AdminQuotationItem {
   display_price: number | null;
   stock_status: string | null;
   sku?: string | null;
+  /** Product unit from the eager-loaded product relation. */
+  unit?: string | null;
   /** Product image snapshot; absent when the product relation is not loaded. */
   photo?: string | null;
   photo_url?: string | null;
@@ -138,6 +140,7 @@ export interface QuotationVersionItem {
   supplier_id: number | null;
   product_name_snapshot: string;
   sku_snapshot: string | null;
+  unit_snapshot?: string | null;
   specification_snapshot: string | null;
   quantity: number;
   unit_price: number;

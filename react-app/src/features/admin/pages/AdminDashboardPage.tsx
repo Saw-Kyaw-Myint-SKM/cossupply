@@ -50,53 +50,60 @@ function StatCard({
 }: StatCardProps) {
   const { locale, t } = useI18n();
   return (
-    <div className="rounded-2xl border border-slate-200/50 bg-white/80 backdrop-blur-sm p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="min-w-0 rounded-2xl border border-slate-200/50 bg-white/80 p-3 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md sm:p-4">
       {/* Main row: Icon | Title | Count */}
-      <div className="flex items-center gap-3">
-        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl shadow-lg ${iconBg}`}>
+      <div className="flex items-start gap-2 sm:gap-3">
+        <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl shadow-lg sm:h-9 sm:w-9 ${iconBg}`}>
           {icon}
         </div>
-        <span className="text-sm font-medium text-slate-600 flex-1">{title}</span>
-        <span className="text-xl font-bold text-slate-800">
-          {total === null ? (error ? t('noData') : t('loadingValue')) : formatLocalNumber(total, locale)}
-        </span>
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+          <span className="min-w-0 break-words text-xs font-medium leading-snug text-slate-600 sm:text-sm">
+            {title}
+          </span>
+          <span className="shrink-0 text-lg font-bold leading-none text-slate-800 tabular-nums sm:text-xl">
+            {total === null ? (error ? t('noData') : t('loadingValue')) : formatLocalNumber(total, locale)}
+          </span>
+        </div>
       </div>
 
       {/* Actionable subset */}
       {actionableCount !== null && actionableCount > 0 && actionableHref ? (
-        <div className="mt-3 pt-3 border-t border-slate-100">
+        <div className="mt-3 border-t border-slate-100 pt-3">
           <Link
             to={actionableHref}
-            className="group inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            className="group flex items-start gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
           >
-            <FiAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>
+            <FiAlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words leading-snug">
               {formatLocalNumber(actionableCount, locale)} {actionableLabel}
             </span>
-            <span aria-hidden="true" className="group-hover:translate-x-0.5 transition-transform">
+            <span
+              aria-hidden="true"
+              className="shrink-0 transition-transform group-hover:translate-x-0.5"
+            >
               →
             </span>
           </Link>
         </div>
       ) : actionableCount !== null && actionableCount === 0 ? (
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-            <FiTrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('allCaughtUp')}
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <span className="flex items-start gap-1.5 text-xs font-medium text-emerald-600">
+            <FiTrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words leading-snug">{t('allCaughtUp')}</span>
           </span>
         </div>
       ) : null}
 
       {/* Error retry */}
       {error && onRetry ? (
-        <div className="mt-3 pt-3 border-t border-slate-100">
+        <div className="mt-3 border-t border-slate-100 pt-3">
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+            className="flex items-start gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
           >
-            <FiRefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('retry')}
+            <FiRefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words leading-snug">{t('retry')}</span>
           </button>
         </div>
       ) : null}

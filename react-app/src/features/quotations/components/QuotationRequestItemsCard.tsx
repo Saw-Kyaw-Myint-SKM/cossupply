@@ -86,7 +86,10 @@ export default function QuotationRequestItemsCard({
                 <dl className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <dt className="text-gray-500">{t('qty')}</dt>
-                    <dd className="mt-0.5 tabular-nums text-gray-700">{item.quantity}</dd>
+                    <dd className="mt-0.5 tabular-nums text-gray-700">
+                      {item.quantity}
+                      {item.unit ? ` ${item.unit}` : ''}
+                    </dd>
                   </div>
                   <div className="text-right">
                     <dt className="text-gray-500">{t('displayPrice')}</dt>
@@ -114,6 +117,9 @@ export default function QuotationRequestItemsCard({
                   </th>
                   <th scope="col" className="px-4 py-2.5 text-right">
                     {t('qty')}
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-left">
+                    {t('unit')}
                   </th>
                   <th scope="col" className="px-4 py-2.5 text-right">
                     {t('displayPrice')}
@@ -156,6 +162,9 @@ export default function QuotationRequestItemsCard({
                     </th>
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                       {item.quantity}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-left text-gray-700">
+                      {item.unit ?? '—'}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-gray-700">
                       {formatQuotationAmount(item.display_price, t)}{' '}

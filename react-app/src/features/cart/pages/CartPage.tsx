@@ -81,6 +81,9 @@ export default function CartPage() {
   const hasSupplierConfirmationLines = items.some((item) =>
     needsSupplierConfirmation(item.stock_status),
   );
+  // Customer quotation requests are customer-only. Hiding the action for an
+  // authenticated admin avoids sending them into the customer login flow.
+  const canRequestQuotation = userType !== 'admin';
 
   const draftFor = (item: CartItem): string =>
     drafts[lineKey(item)] ?? String(item.quantity);
@@ -165,6 +168,7 @@ export default function CartPage() {
 
   const handleRequestQuotation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canRequestQuotation) return;
 
     const invalidLine = items.find(
       (item) => quantityError(item.quantity, item.minimum_order_quantity) !== null,
@@ -429,15 +433,19 @@ export default function CartPage() {
               </p>
             ) : null}
 
-            <button type="submit" className={`${primaryButtonClass} mt-4 w-full`}>
-              {t('requestQuotationButton')}
-            </button>
+            {canRequestQuotation ? (
+              <>
+                <button type="submit" className={`${primaryButtonClass} mt-4 w-full`}>
+                  {t('requestQuotationButton')}
+                </button>
 
-            <p className="mt-2 hidden text-xs text-subtle lg:block">
-              {isAuthenticated && userType === 'customer'
-                ? t('continueRequest')
-                : t('signInRequest')}
-            </p>
+                <p className="mt-2 hidden text-xs text-subtle lg:block">
+                  {isAuthenticated && userType === 'customer'
+                    ? t('continueRequest')
+                    : t('signInRequest')}
+                </p>
+              </>
+            ) : null}
 
             <button type="button" onClick={handleClear} className={`${secondaryButtonClass} mt-3 w-full`}>
               <FiTrash2 aria-hidden="true" className="h-4 w-4" />

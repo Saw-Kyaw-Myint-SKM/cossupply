@@ -31,6 +31,7 @@ class QuotationVersionItemResource extends JsonResource
             'supplier_id' => $this->supplier_id,
             'product_name_snapshot' => $this->product_name_snapshot,
             'sku_snapshot' => $this->sku_snapshot,
+            'unit_snapshot' => $this->unit_snapshot,
             'specification_snapshot' => $this->specification_snapshot,
             'photo' => $this->whenLoaded('product', fn (): ?string => $this->product?->photo),
             'photo_url' => $this->whenLoaded(
